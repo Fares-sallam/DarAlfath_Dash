@@ -15,6 +15,7 @@ export interface AdminPermissions {
   can_manage_products: boolean;
   can_manage_orders: boolean;
   can_manage_users: boolean;
+  can_manage_admins: boolean;
   can_manage_inventory: boolean;
   can_manage_coupons: boolean;
   can_manage_shipping: boolean;
@@ -27,6 +28,7 @@ const DEFAULT_PERMISSIONS: AdminPermissions = {
   can_manage_products: false,
   can_manage_orders: false,
   can_manage_users: false,
+  can_manage_admins: false,
   can_manage_inventory: false,
   can_manage_coupons: false,
   can_manage_shipping: false,
@@ -87,6 +89,7 @@ async function fetchProfile(userId: string, email: string): Promise<AuthUser> {
           can_manage_products,
           can_manage_orders,
           can_manage_users,
+          can_manage_admins,
           can_manage_inventory,
           can_manage_coupons,
           can_manage_shipping,
@@ -120,6 +123,7 @@ async function fetchProfile(userId: string, email: string): Promise<AuthUser> {
           can_manage_products: adminSettings.can_manage_products ?? false,
           can_manage_orders: adminSettings.can_manage_orders ?? false,
           can_manage_users: adminSettings.can_manage_users ?? false,
+          can_manage_admins: adminSettings.can_manage_admins ?? false,
           can_manage_inventory: adminSettings.can_manage_inventory ?? false,
           can_manage_coupons: adminSettings.can_manage_coupons ?? false,
           can_manage_shipping: adminSettings.can_manage_shipping ?? false,

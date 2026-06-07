@@ -246,6 +246,7 @@ function PermissionsPanel({ admin }: PermissionsPanelProps) {
     can_manage_products: row.can_manage_products,
     can_manage_orders: row.can_manage_orders,
     can_manage_users: row.can_manage_users,
+    can_manage_admins: row.can_manage_admins,
     can_manage_inventory: row.can_manage_inventory,
     can_manage_coupons: row.can_manage_coupons,
     can_manage_shipping: row.can_manage_shipping,
@@ -1388,6 +1389,7 @@ function AdminCard({ admin, isSelected, onSelect }: AdminCardProps) {
     can_manage_products: admin.can_manage_products,
     can_manage_orders: admin.can_manage_orders,
     can_manage_users: admin.can_manage_users,
+    can_manage_admins: admin.can_manage_admins,
     can_manage_inventory: admin.can_manage_inventory,
     can_manage_coupons: admin.can_manage_coupons,
     can_manage_shipping: admin.can_manage_shipping,
@@ -1740,7 +1742,7 @@ export default function AdminSettings() {
             <AlertCircle size={32} />
             <span className="font-semibold">تعذّر تحميل البيانات</span>
             <p className="text-sm text-gray-400 text-center max-w-xs">
-              تأكد من أنك تمتلك صلاحية can_manage_users للوصول لهذه الصفحة
+              تأكد من أنك تمتلك صلاحية "إعدادات المشرفين" (can_manage_admins) للوصول لهذه الصفحة
             </p>
           </div>
         )}

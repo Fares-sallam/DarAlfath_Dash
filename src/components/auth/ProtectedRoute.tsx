@@ -6,6 +6,7 @@ type AdminPermissionKey =
   | 'can_manage_products'
   | 'can_manage_orders'
   | 'can_manage_users'
+  | 'can_manage_admins'
   | 'can_manage_inventory'
   | 'can_manage_coupons'
   | 'can_manage_shipping'

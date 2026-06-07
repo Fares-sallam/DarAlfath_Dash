@@ -15,6 +15,7 @@ export interface AdminPermissions {
   can_manage_products: boolean;
   can_manage_orders: boolean;
   can_manage_users: boolean;
+  can_manage_admins: boolean;
   can_manage_inventory: boolean;
   can_manage_coupons: boolean;
   can_manage_shipping: boolean;
@@ -140,6 +141,7 @@ export function useAdminSettings() {
             can_manage_products,
             can_manage_orders,
             can_manage_users,
+            can_manage_admins,
             can_manage_inventory,
             can_manage_coupons,
             can_manage_shipping,
@@ -455,7 +457,8 @@ export const PERMISSION_FIELDS: {
 }[] = [
   { key: 'can_manage_products', label: 'إدارة الكتب والمنتجات', section: 'المحتوى', icon: '📚' },
   { key: 'can_manage_orders', label: 'إدارة الطلبات', section: 'المبيعات', icon: '📦' },
-  { key: 'can_manage_users', label: 'إدارة المستخدمين', section: 'المستخدمون', icon: '👥' },
+  { key: 'can_manage_users', label: 'إدارة العملاء', section: 'العملاء والمشرفون', icon: '👥' },
+  { key: 'can_manage_admins', label: 'إعدادات المشرفين', section: 'العملاء والمشرفون', icon: '🛡️' },
   { key: 'can_manage_inventory', label: 'إدارة المخزون', section: 'المستودع', icon: '🏪' },
   { key: 'can_manage_coupons', label: 'إدارة الكوبونات', section: 'المبيعات', icon: '🏷️' },
   { key: 'can_manage_shipping', label: 'إدارة الشحن', section: 'العمليات', icon: '🚚' },
@@ -477,6 +480,7 @@ export const DEFAULT_PERMISSIONS: AdminPermissions = {
   can_manage_products: false,
   can_manage_orders: false,
   can_manage_users: false,
+  can_manage_admins: false,
   can_manage_inventory: false,
   can_manage_coupons: false,
   can_manage_shipping: false,

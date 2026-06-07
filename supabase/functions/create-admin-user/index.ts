@@ -213,6 +213,7 @@ Deno.serve(async (req: Request) => {
       can_manage_products: permissions?.can_manage_products ?? false,
       can_manage_orders: permissions?.can_manage_orders ?? false,
       can_manage_users: permissions?.can_manage_users ?? false,
+      can_manage_admins: permissions?.can_manage_admins ?? false,
       can_manage_inventory: permissions?.can_manage_inventory ?? false,
       can_manage_coupons: permissions?.can_manage_coupons ?? false,
       can_manage_shipping: permissions?.can_manage_shipping ?? false,

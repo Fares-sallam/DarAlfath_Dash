@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { escapeHtml } from '@/lib/utils';
 import * as XLSX from 'xlsx';
 import Layout from '@/components/layout/Layout';
 import {
@@ -277,9 +278,9 @@ export default function Inventory() {
       if (!pw) { toast.error('يرجى السماح بالنوافذ المنبثقة'); return; }
       const rows = filtered.map((r) => `
         <tr>
-          <td>${r.products?.title ?? '—'}</td>
-          <td>${r.products?.author ?? '—'}</td>
-          <td>${r.product_variants?.variant_type ?? r.products?.type ?? '—'}</td>
+          <td>${escapeHtml(r.products?.title ?? '—')}</td>
+          <td>${escapeHtml(r.products?.author ?? '—')}</td>
+          <td>${escapeHtml(r.product_variants?.variant_type ?? r.products?.type ?? '—')}</td>
           <td>${r.stock}</td>
           <td>${r.availableStock}</td>
           <td>${r.reserved_stock}</td>

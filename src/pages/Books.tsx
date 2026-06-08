@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react';
+import { escapeHtml } from '@/lib/utils';
 import * as XLSX from 'xlsx';
 import Layout from '@/components/layout/Layout';
 import {
@@ -203,10 +204,10 @@ function exportPdf(products: Product[], currencySymbol: string, countryName?: st
   if (!pw) return;
   const rows = products.map((p) => `
     <tr>
-      <td>${p.title}</td>
-      <td>${p.author}</td>
-      <td>${p.type}</td>
-      <td>${p.categories?.name ?? '—'}</td>
+      <td>${escapeHtml(p.title)}</td>
+      <td>${escapeHtml(p.author)}</td>
+      <td>${escapeHtml(p.type)}</td>
+      <td>${escapeHtml(p.categories?.name ?? '—')}</td>
       <td>${(p.sale_price ?? p.base_price).toLocaleString()} ${currencySymbol}</td>
       <td class="${p.is_active ? 'active' : 'inactive'}">${p.is_active ? 'نشط' : 'مخفي'}</td>
     </tr>`).join('');

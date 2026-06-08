@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { escapeHtml } from '@/lib/utils';
 import { useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import Layout from '@/components/layout/Layout';
@@ -349,7 +350,7 @@ export default function Analytics() {
 
       const htmlRow = (cells: string[], header = false) => {
         const tag = header ? 'th' : 'td';
-        return `<tr>${cells.map((c) => `<${tag}>${c}</${tag}>`).join('')}</tr>`;
+        return `<tr>${cells.map((c) => `<${tag}>${escapeHtml(c)}</${tag}>`).join('')}</tr>`;
       };
 
       const trendActive = trend.filter((d) => d.revenue > 0 || d.orders > 0);
@@ -402,7 +403,7 @@ export default function Analytics() {
 </head>
 <body>
   <h1>تقرير التحليلات — دار الفتح</h1>
-  <p class="meta">الفترة: ${period} &nbsp;|&nbsp; الدولة: ${selectedCountry?.name ?? 'كل الدول'} &nbsp;|&nbsp; تاريخ التصدير: ${new Date().toLocaleDateString('ar-EG')}</p>
+  <p class="meta">الفترة: ${escapeHtml(period)} &nbsp;|&nbsp; الدولة: ${escapeHtml(selectedCountry?.name ?? 'كل الدول')} &nbsp;|&nbsp; تاريخ التصدير: ${new Date().toLocaleDateString('ar-EG')}</p>
   <div class="kpi-grid">
     <div class="kpi-card"><div class="num">${(kpi?.totalRevenue ?? 0).toLocaleString()} ${cur}</div><div class="lbl">إجمالي الإيرادات</div></div>
     <div class="kpi-card"><div class="num">${(kpi?.totalProfit ?? 0).toLocaleString()} ${cur}</div><div class="lbl">صافي الربح</div></div>

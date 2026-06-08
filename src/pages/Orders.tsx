@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { escapeHtml } from '@/lib/utils';
 import * as XLSX from 'xlsx';
 import Layout from '@/components/layout/Layout';
 import {
@@ -543,11 +544,11 @@ export default function Orders() {
                 const rows = filtered.map((o) => `
                   <tr>
                     <td>${o.id.slice(0, 8)}</td>
-                    <td>${o.profiles?.full_name ?? '—'}</td>
-                    <td>${o.status}</td>
-                    <td>${o.payment_status}</td>
+                    <td>${escapeHtml(o.profiles?.full_name ?? '—')}</td>
+                    <td>${escapeHtml(o.status)}</td>
+                    <td>${escapeHtml(o.payment_status)}</td>
                     <td>${o.total_price.toLocaleString()} ${currency}</td>
-                    <td>${o.shipping_address?.city ?? o.shipping_address?.governorate ?? '—'}</td>
+                    <td>${escapeHtml(o.shipping_address?.city ?? o.shipping_address?.governorate ?? '—')}</td>
                     <td>${new Date(o.created_at).toLocaleDateString('ar-EG')}</td>
                   </tr>`).join('');
                 pw.document.write(`<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8"/>

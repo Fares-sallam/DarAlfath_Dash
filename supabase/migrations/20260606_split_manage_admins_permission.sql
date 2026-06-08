@@ -12,10 +12,14 @@
 ALTER TABLE public.admin_settings
   ADD COLUMN IF NOT EXISTS can_manage_admins boolean NOT NULL DEFAULT false;
 
--- 2) ترحيل آمن: من كان يدير المشرفين فعليًا (عبر الخلط القديم) يحتفظ بالصلاحية
-UPDATE public.admin_settings
-  SET can_manage_admins = true
-  WHERE can_manage_users = true;
+-- 2) ترحيل لمرة واحدة — ✅ تم تنفيذه بالفعل على قاعدة البيانات الحيّة (مرة واحدة).
+--    ⚠️ معطّل عمدًا (تعليق): إعادة تشغيل هذا السطر بعد أن تفصل الصلاحيات يدويًا
+--    سيعيد منح "إعدادات المشرفين" لكل من يملك "إدارة العملاء" = تراجع أمني.
+--    لا تُلغِ التعليق إلا على قاعدة بيانات جديدة فارغة.
+--
+-- UPDATE public.admin_settings
+--   SET can_manage_admins = true
+--   WHERE can_manage_users = true;
 
 -- 3) تحويل بوابة إدارة المشرفين للعمود الجديد بدل can_manage_users
 --    (تستخدمها سياسات الكتابة على admin_settings و trigger حماية الأدوار)

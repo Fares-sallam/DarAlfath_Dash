@@ -102,43 +102,39 @@ export default function Login() {
     setLoading(true);
 
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: rawEmail,
-        password: rawPassword,
+      // بوابة الدخول الآمنة: قفل البريد دقيقتين بعد 5 محاولات فاشلة (ضد التخمين).
+      const { data: fnData, error: fnError } = await supabase.functions.invoke('secure-login', {
+        body: { email: rawEmail, password: rawPassword },
       });
 
-      if (error) {
-        const lowerMessage = error.message?.toLowerCase() || '';
+      let loginError: string | null = null;
+      if (fnError) {
+        loginError = 'تعذر تسجيل الدخول';
+        try {
+          const ctx = (fnError as { context?: Response }).context;
+          if (ctx) { const b = await ctx.json(); if (b?.error) loginError = b.error; }
+        } catch { /* ignore */ }
+      } else if (fnData?.error) {
+        loginError = fnData.error as string;
+      } else if (!fnData?.access_token || !fnData?.refresh_token) {
+        loginError = 'تعذر تسجيل الدخول';
+      }
 
-        if (
-          lowerMessage.includes('invalid') ||
-          lowerMessage.includes('not found') ||
-          lowerMessage.includes('credentials')
-        ) {
-          const { data: exists, error: rpcError } = await supabase.rpc(
-            'check_admin_email_exists',
-            {
-              p_email: rawEmail,
-            }
-          );
-
-          if (rpcError) {
-            console.error('[Login] RPC error:', rpcError);
-          }
-
-          if (!exists) {
-            toast.error('هذا البريد الإلكتروني غير مسجل في النظام');
-          } else {
-            toast.error('كلمة المرور غير صحيحة');
-          }
-        } else {
-          toast.error(error.message);
-        }
-
+      if (loginError) {
+        toast.error(loginError);
         return;
       }
 
-      const userId = data.user?.id;
+      const { data: sessionData, error: setErr } = await supabase.auth.setSession({
+        access_token: fnData.access_token,
+        refresh_token: fnData.refresh_token,
+      });
+      if (setErr) {
+        toast.error(setErr.message);
+        return;
+      }
+
+      const userId = sessionData.user?.id ?? fnData.user?.id;
       if (!userId) {
         await supabase.auth.signOut();
         toast.error('تعذّر التحقق من الحساب');

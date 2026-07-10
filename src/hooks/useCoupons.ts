@@ -79,7 +79,10 @@ export function useCoupons() {
         .order('created_at', { ascending: false });
 
       if (selectedCountry?.id) {
-        query = query.eq('country_id', selectedCountry.id);
+        // كوبونات هذه الدولة + الكوبونات العالمية (country_id فارغ تعني كل
+        // الدول). .eq وحدها تستبعد الكوبونات العالمية تمامًا لأن NULL لا يساوي
+        // أي قيمة، فتختفي من لوحة الأدمن كلما اختار دولة محدّدة.
+        query = query.or(`country_id.eq.${selectedCountry.id},country_id.is.null`);
       }
 
       const { data, error } = await query;

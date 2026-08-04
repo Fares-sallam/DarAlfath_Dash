@@ -31,6 +31,7 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { useCountry } from '@/contexts/CountryContext';
+import { useAuth } from '@/contexts/AuthContext';
 
 /* ── Status config ── */
 const statusConfig: Record<string, { label: string; cls: string }> = {
@@ -501,6 +502,14 @@ function ActivityPanel() {
 export default function Index() {
   const qc = useQueryClient();
   const { selectedCountry, currencySymbol } = useCountry();
+  const { user } = useAuth();
+  // Staff without the matching permission still land here after login (this
+  // is the post-login route for everyone), but the orders/audit-log panels
+  // carry the same customer PII and change-history data as the dedicated
+  // /orders and /activity pages — which DO require these permissions. Gate
+  // just these two panels rather than the whole route.
+  const canViewOrders = user?.isSystemOwner || user?.permissions.can_manage_orders;
+  const canViewActivity = user?.isSystemOwner || user?.permissions.can_view_activity_log;
 
   const handleRefreshAll = () => {
     qc.invalidateQueries({ queryKey: ['dashboard'] });
@@ -542,13 +551,15 @@ export default function Index() {
         <KpiCards />
         <ChartsSection />
 
-        <div className="mb-6">
-          <RecentOrders />
-        </div>
+        {canViewOrders && (
+          <div className="mb-6">
+            <RecentOrders />
+          </div>
+        )}
 
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        <div className={`grid grid-cols-1 ${canViewActivity ? 'xl:grid-cols-2' : ''} gap-6`}>
           <BooksPanel />
-          <ActivityPanel />
+          {canViewActivity && <ActivityPanel />}
         </div>
       </div>
     </Layout>

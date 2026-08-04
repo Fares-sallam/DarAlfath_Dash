@@ -253,6 +253,7 @@ function PermissionsPanel({ admin }: PermissionsPanelProps) {
     can_view_analytics: row.can_view_analytics,
     can_export: row.can_export,
     can_view_activity_log: row.can_view_activity_log,
+    can_manage_settings: row.can_manage_settings,
   });
 
   const initialCountryIds = admin.accessible_countries?.length
@@ -1396,6 +1397,7 @@ function AdminCard({ admin, isSelected, onSelect }: AdminCardProps) {
     can_view_analytics: admin.can_view_analytics,
     can_export: admin.can_export,
     can_view_activity_log: admin.can_view_activity_log,
+    can_manage_settings: admin.can_manage_settings,
   });
 
   const countryBadges = admin.accessible_countries?.length

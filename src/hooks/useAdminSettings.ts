@@ -22,6 +22,7 @@ export interface AdminPermissions {
   can_view_analytics: boolean;
   can_export: boolean;
   can_view_activity_log: boolean;
+  can_manage_settings: boolean;
 }
 
 export interface CountryAccessItem {
@@ -148,6 +149,7 @@ export function useAdminSettings() {
             can_view_analytics,
             can_export,
             can_view_activity_log,
+            can_manage_settings,
             profiles(id, full_name, email, phone, role, avatar_url, is_active, created_at),
             countries(id, name, code, currency, currency_symbol)
           `)
@@ -465,6 +467,7 @@ export const PERMISSION_FIELDS: {
   { key: 'can_view_analytics', label: 'عرض التحليلات والتقارير', section: 'التقارير', icon: '📊' },
   { key: 'can_export', label: 'تصدير البيانات', section: 'التقارير', icon: '📤' },
   { key: 'can_view_activity_log', label: 'عرض سجل النشاط', section: 'التقارير', icon: '📝' },
+  { key: 'can_manage_settings', label: 'إعدادات المتجر', section: 'الإعدادات', icon: '⚙️' },
 ];
 
 export const PERMISSION_SECTIONS_GROUPED = (() => {
@@ -487,6 +490,7 @@ export const DEFAULT_PERMISSIONS: AdminPermissions = {
   can_view_analytics: false,
   can_export: false,
   can_view_activity_log: false,
+  can_manage_settings: false,
 };
 
 export function countActivePerms(perms: AdminPermissions): number {

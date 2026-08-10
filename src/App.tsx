@@ -16,6 +16,7 @@ import Books from "./pages/Books";
 import Orders from "./pages/Orders";
 import Customers from "./pages/Customers";
 import Coupons from "./pages/Coupons";
+import PendingPayments from "./pages/PendingPayments";
 import Series from "./pages/Series";
 import Inventory from "./pages/Inventory";
 import Analytics from "./pages/Analytics";
@@ -87,6 +88,15 @@ const App = () => {
                     element={
                       <ProtectedRoute permission="can_manage_orders">
                         <Orders />
+                      </ProtectedRoute>
+                    }
+                  />
+
+                  <Route
+                    path="/payments"
+                    element={
+                      <ProtectedRoute permission="can_manage_orders">
+                        <PendingPayments />
                       </ProtectedRoute>
                     }
                   />

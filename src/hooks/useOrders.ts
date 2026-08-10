@@ -70,6 +70,19 @@ export interface Order {
   order_items?: OrderItem[];
 }
 
+/** ما تُرجعه قائمة الطلبات فقط: عنوان الكتاب والكمية، بلا أسعار السطر.
+ *  نوع منفصل عن OrderItem عمدًا — القائمة لا تجلب price_per_item ولا
+ *  discount_per_item، وادّعاء أنها كاملة عبر cast يخفي أنها undefined. */
+export interface OrderItemSummary {
+  id: string;
+  quantity: number;
+  products: { title: string } | null;
+}
+
+export type OrderListRow = Omit<Order, 'order_items'> & {
+  order_items?: OrderItemSummary[];
+};
+
 /* ── Filters ── */
 export interface OrderFilters {
   status?: string;
@@ -115,7 +128,7 @@ export function useOrders(filters: OrderFilters = {}) {
 
   return useQuery({
     queryKey: ['orders', selectedCountry?.id ?? 'all', filters],
-    queryFn: async (): Promise<Order[]> => {
+    queryFn: async (): Promise<OrderListRow[]> => {
       let query = supabase
         .from('orders')
         .select(`
@@ -139,7 +152,8 @@ export function useOrders(filters: OrderFilters = {}) {
           countries(name, currency_symbol),
           coupons(code),
           payment_methods(method_name, provider),
-          shipping_companies(company_name, logo_url)
+          shipping_companies(company_name, logo_url),
+          order_items(id, quantity, products(title))
         `)
         .order('created_at', { ascending: false });
 
@@ -167,7 +181,7 @@ export function useOrders(filters: OrderFilters = {}) {
       const { data, error } = await query;
       if (error) throw error;
 
-      return (data ?? []) as Order[];
+      return (data ?? []) as OrderListRow[];
     },
   });
 }

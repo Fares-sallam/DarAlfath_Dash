@@ -819,14 +819,44 @@ export default function Orders() {
                             )}
                           </td>
 
-                          <td className="px-4 py-3 text-sm text-gray-500">
-                            <button
-                              onClick={() => setSelectedOrderId(order.id)}
-                              className="flex items-center gap-1 text-xs text-blue-600 hover:underline font-semibold"
-                            >
-                              <Eye size={11} />
-                              عرض العناصر
-                            </button>
+                          <td className="px-4 py-3 text-sm text-gray-500 max-w-[240px]">
+                            {(() => {
+                              const items = order.order_items ?? [];
+                              if (items.length === 0) {
+                                return <span className="text-xs text-gray-300">—</span>;
+                              }
+                              const units = items.reduce((s, it) => s + (it.quantity ?? 0), 0);
+                              return (
+                                <button
+                                  onClick={() => setSelectedOrderId(order.id)}
+                                  className="text-right w-full group"
+                                  title="عرض تفاصيل الطلب"
+                                >
+                                  <span className="inline-flex items-center gap-1 text-[11px] font-bold text-indigo-700 bg-indigo-50 rounded-lg px-1.5 py-0.5 mb-1">
+                                    <Package size={10} />
+                                    {items.length} كتاب · {units} نسخة
+                                  </span>
+                                  <ul className="space-y-0.5">
+                                    {items.slice(0, 3).map((it) => (
+                                      <li
+                                        key={it.id}
+                                        className="text-xs text-gray-600 truncate group-hover:text-blue-700"
+                                      >
+                                        {it.products?.title ?? 'كتاب محذوف'}
+                                        {it.quantity > 1 && (
+                                          <span className="text-gray-400"> ×{it.quantity}</span>
+                                        )}
+                                      </li>
+                                    ))}
+                                    {items.length > 3 && (
+                                      <li className="text-[11px] text-blue-600 font-semibold">
+                                        + {items.length - 3} أخرى
+                                      </li>
+                                    )}
+                                  </ul>
+                                </button>
+                              );
+                            })()}
                           </td>
 
                           <td className="px-4 py-3">

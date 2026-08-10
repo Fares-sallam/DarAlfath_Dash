@@ -15,6 +15,9 @@ import {
 import { useCountry } from '@/contexts/CountryContext';
 
 /* ── Config ── */
+/** أدوار داخلية — تظهر في القائمة (فقد يشترون فعلاً) لكن مع وسم يميّزها. */
+const STAFF_ROLES = new Set(['admin', 'manager', 'support', 'owner']);
+
 const orderStatusConfig: Record<string, string> = {
   'جديد': 'bg-cyan-100 text-cyan-700',
   'قيد المراجعة': 'bg-yellow-100 text-yellow-700',
@@ -59,7 +62,7 @@ interface ProfileModalProps {
 
 function CustomerProfileModal({ customer, onClose }: ProfileModalProps) {
   const { currencySymbol: selectedCurrencySymbol } = useCountry();
-  const { data: orders = [], isLoading: ordersLoading } = useCustomerOrders(customer.id);
+  const { data: orders = [], isLoading: ordersLoading } = useCustomerOrders(customer);
   const toggleMutation = useToggleCustomerStatus();
   const updateMutation = useUpdateCustomer();
 
@@ -152,9 +155,15 @@ function CustomerProfileModal({ customer, onClose }: ProfileModalProps) {
                 <>
                   <div className="flex items-center gap-2 mb-1 flex-wrap">
                     <h3 className="text-lg font-bold text-gray-800">{customer.full_name ?? 'بدون اسم'}</h3>
-                    <span className={`status-badge ${customer.is_active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-500'}`}>
-                      {customer.is_active ? 'نشط' : 'محظور'}
-                    </span>
+                    {customer.isGuest ? (
+                      <span className="status-badge bg-slate-100 text-slate-600">
+                        اشترى بدون حساب
+                      </span>
+                    ) : (
+                      <span className={`status-badge ${customer.is_active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-500'}`}>
+                        {customer.is_active ? 'نشط' : 'محظور'}
+                      </span>
+                    )}
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1 text-sm text-gray-500">
@@ -273,13 +282,15 @@ function CustomerProfileModal({ customer, onClose }: ProfileModalProps) {
         </div>
 
         <div className="flex flex-wrap gap-2 px-6 py-4 border-t border-gray-100 bg-gray-50/50 rounded-b-3xl">
-          <button
-            onClick={() => setEditMode(true)}
-            className="btn-secondary flex items-center gap-1.5 text-sm"
-          >
-            <Edit size={13} />
-            تعديل البيانات
-          </button>
+          {!customer.isGuest && (
+            <button
+              onClick={() => setEditMode(true)}
+              className="btn-secondary flex items-center gap-1.5 text-sm"
+            >
+              <Edit size={13} />
+              تعديل البيانات
+            </button>
+          )}
 
           <button
             onClick={() => toast.info(`إرسال رسالة لـ ${customer.full_name}`)}
@@ -297,18 +308,20 @@ function CustomerProfileModal({ customer, onClose }: ProfileModalProps) {
             كوبون خاص
           </button>
 
-          <button
-            onClick={handleToggle}
-            disabled={toggleMutation.isPending}
-            className={`flex items-center gap-1.5 text-sm font-semibold px-4 py-2 rounded-xl border transition-colors disabled:opacity-50 ${
-              customer.is_active
-                ? 'border-red-200 text-red-500 hover:bg-red-50'
-                : 'border-green-200 text-green-600 hover:bg-green-50'
-            }`}
-          >
-            <Ban size={13} />
-            {customer.is_active ? 'حظر العميل' : 'رفع الحظر'}
-          </button>
+          {!customer.isGuest && (
+            <button
+              onClick={handleToggle}
+              disabled={toggleMutation.isPending}
+              className={`flex items-center gap-1.5 text-sm font-semibold px-4 py-2 rounded-xl border transition-colors disabled:opacity-50 ${
+                customer.is_active
+                  ? 'border-red-200 text-red-500 hover:bg-red-50'
+                  : 'border-green-200 text-green-600 hover:bg-green-50'
+              }`}
+            >
+              <Ban size={13} />
+              {customer.is_active ? 'حظر العميل' : 'رفع الحظر'}
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -337,7 +350,9 @@ export default function Customers() {
         (c.full_name ?? '').toLowerCase().includes(q) ||
         (c.phone ?? '').includes(q) ||
         (c.email ?? '').toLowerCase().includes(q) ||
-        (c.countries?.name ?? '').toLowerCase().includes(q);
+        (c.countries?.name ?? '').toLowerCase().includes(q) ||
+        // البحث برقم الطلب يصل للعميل صاحبه مباشرة
+        (c.orderIds ?? []).some((id) => id.toLowerCase().includes(q));
 
       const matchStatus =
         filterStatus === 'الكل' ||
@@ -435,7 +450,7 @@ export default function Customers() {
           <div className="relative flex-1">
             <input
               type="text"
-              placeholder="ابحث بالاسم، الهاتف، البريد..."
+              placeholder="ابحث بالاسم، الهاتف، البريد، أو رقم الطلب..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="input-field pr-10"
@@ -529,11 +544,27 @@ export default function Customers() {
                               )}
 
                               <div className="min-w-0">
-                                <p className="text-sm font-semibold text-gray-800 truncate">
-                                  {customer.full_name ?? 'بدون اسم'}
-                                </p>
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <p className="text-sm font-semibold text-gray-800 truncate">
+                                    {customer.full_name ?? 'بدون اسم'}
+                                  </p>
+                                  {customer.isGuest ? (
+                                    <span className="status-badge text-[10px] bg-slate-100 text-slate-600">
+                                      بدون حساب
+                                    </span>
+                                  ) : STAFF_ROLES.has(customer.role) ? (
+                                    <span className="status-badge text-[10px] bg-purple-100 text-purple-700">
+                                      {customer.role}
+                                    </span>
+                                  ) : null}
+                                </div>
+                                {customer.email && (
+                                  <p className="text-xs text-gray-400 truncate" dir="ltr">
+                                    {customer.email}
+                                  </p>
+                                )}
                                 <p className="text-xs text-gray-400">
-                                  انضم {formatDate(customer.created_at)}
+                                  {customer.isGuest ? 'أول طلب' : 'انضم'} {formatDate(customer.created_at)}
                                 </p>
                               </div>
                             </div>
@@ -626,13 +657,17 @@ export default function Customers() {
                                     is_active: !customer.is_active,
                                   })
                                 }
-                                disabled={toggleMutation.isPending}
-                                className={`p-1.5 rounded-lg transition-colors disabled:opacity-40 ${
+                                disabled={toggleMutation.isPending || customer.isGuest}
+                                className={`p-1.5 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
                                   customer.is_active
                                     ? 'hover:bg-red-50 text-red-500'
                                     : 'hover:bg-green-50 text-green-600'
                                 }`}
-                                title={customer.is_active ? 'حظر' : 'رفع الحظر'}
+                                title={
+                                  customer.isGuest
+                                    ? 'مشترٍ بدون حساب — لا يمكن حظره'
+                                    : customer.is_active ? 'حظر' : 'رفع الحظر'
+                                }
                               >
                                 <Ban size={14} />
                               </button>

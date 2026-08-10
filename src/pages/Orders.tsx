@@ -469,7 +469,13 @@ export default function Orders() {
     );
   });
 
-  const totalRevenue = filtered.reduce((s, o) => s + o.total_price, 0);
+  // Cancelled/returned orders generated no real revenue — every other
+  // revenue figure in the dashboard (Analytics, Home) already excludes
+  // them; this card was the one place still summing every visible row,
+  // so selecting "الكل" counted a voided order's price as a sale.
+  const totalRevenue = filtered
+    .filter((o) => o.status !== 'ملغي' && o.status !== 'مرتجع')
+    .reduce((s, o) => s + o.total_price, 0);
   const delivered = filtered.filter((o) => o.status === 'تم التوصيل').length;
   const pending = filtered.filter((o) => ['جديد', 'قيد المراجعة', 'تم التأكيد'].includes(o.status)).length;
   const inTransit = filtered.filter((o) => o.status === 'جاري الشحن').length;

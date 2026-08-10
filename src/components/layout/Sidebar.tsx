@@ -4,7 +4,7 @@ import { useLogo } from '@/contexts/LogoContext';
 import { toast } from 'sonner';
 import { 
   LayoutDashboard, Settings, BookOpen, ShoppingCart, Users, BookMarked,
-  Tag, Package, BarChart3, Truck, ShieldCheck, ActivitySquare, LogOut, X,
+  Tag, Package, BarChart3, Truck, ShieldCheck, ActivitySquare, LogOut, X, CreditCard,
   BookOpen as BookIcon
 } from 'lucide-react';
 
@@ -18,6 +18,7 @@ const navItems = [
   { id: 'settings', label: 'الإعدادات', icon: Settings, path: '/settings', requiresAdmin: false },
   { id: 'books', label: 'إدارة الكتب', icon: BookOpen, path: '/books', requiresAdmin: true },
   { id: 'orders', label: 'إدارة الطلبات', icon: ShoppingCart, path: '/orders', requiresAdmin: true },
+  { id: 'payments', label: 'محاولات الدفع', icon: CreditCard, path: '/payments', requiresAdmin: true },
   { id: 'customers', label: 'إدارة العملاء', icon: Users, path: '/customers', requiresAdmin: true },
   { id: 'series', label: 'إدارة السلاسل', icon: BookMarked, path: '/series', requiresAdmin: true },
   { id: 'coupons', label: 'إدارة الكوبونات', icon: Tag, path: '/coupons', requiresAdmin: true },

@@ -95,7 +95,7 @@ function mapOrderToShipment(order: Order, fallbackCurrency = 'ج.م'): ShipmentO
     ...order,
     customer: order.profiles?.full_name ?? addr.name ?? 'زائر',
     customerAvatar: order.profiles?.avatar_url ?? null,
-    customerPhone: order.profiles?.phone ?? addr.phone ?? null,
+    customerPhone: addr.phone ?? order.profiles?.phone ?? null,
     city: addr.city ?? '',
     governorate: addr.governorate ?? '',
     countryName: order.countries?.name ?? addr.country ?? '',

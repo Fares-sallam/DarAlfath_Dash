@@ -96,7 +96,7 @@ function OrderDetailModal({ orderId, onClose }: DetailModalProps) {
 
   const addr = order?.shipping_address;
   const customerName = order?.profiles?.full_name ?? addr?.name ?? 'زائر';
-  const customerPhone = order?.profiles?.phone ?? addr?.phone ?? '';
+  const customerPhone = addr?.phone ?? order?.profiles?.phone ?? '';
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-start justify-center p-4 overflow-y-auto" dir="rtl">
@@ -780,7 +780,7 @@ export default function Orders() {
                       const sc = statusConfig[order.status] ?? statusConfig['جديد'];
                       const psc = paymentStatusConfig[order.payment_status] ?? 'bg-gray-100 text-gray-500';
                       const customerName = order.profiles?.full_name ?? order.shipping_address?.name ?? 'زائر';
-                      const customerPhone = order.profiles?.phone ?? order.shipping_address?.phone ?? '';
+                      const customerPhone = order.shipping_address?.phone ?? order.profiles?.phone ?? '';
                       const location = [order.shipping_address?.governorate, order.shipping_address?.city]
                         .filter(Boolean)
                         .join(' — ');

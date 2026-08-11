@@ -373,7 +373,7 @@ export function exportOrdersCsv(orders: Order[]) {
     o.id,
     o.countries?.name ?? '',
     o.profiles?.full_name ?? 'زائر',
-    o.profiles?.phone ?? o.shipping_address?.phone ?? '',
+    o.shipping_address?.phone ?? o.profiles?.phone ?? '',
     o.shipping_address?.governorate ?? '',
     o.shipping_address?.city ?? '',
     o.total_price,

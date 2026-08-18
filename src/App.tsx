@@ -17,6 +17,7 @@ import Orders from "./pages/Orders";
 import Customers from "./pages/Customers";
 import Coupons from "./pages/Coupons";
 import PendingPayments from "./pages/PendingPayments";
+import HeroSlides from "./pages/HeroSlides";
 import Series from "./pages/Series";
 import Inventory from "./pages/Inventory";
 import Analytics from "./pages/Analytics";
@@ -97,6 +98,15 @@ const App = () => {
                     element={
                       <ProtectedRoute permission="can_manage_orders">
                         <PendingPayments />
+                      </ProtectedRoute>
+                    }
+                  />
+
+                  <Route
+                    path="/hero-slides"
+                    element={
+                      <ProtectedRoute permission="can_manage_products">
+                        <HeroSlides />
                       </ProtectedRoute>
                     }
                   />

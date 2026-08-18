@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import Layout from '@/components/layout/Layout';
 import {
   Image as ImageIcon, Upload, Trash2, ArrowUp, ArrowDown, Eye, EyeOff,
-  Loader2, AlertTriangle, ExternalLink, Save,
+  Loader2, AlertTriangle, ExternalLink, Save, Smartphone, X,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -11,6 +11,12 @@ import {
 } from '@/hooks/useHeroSlides';
 
 const MAX_MB = 5;
+
+function validateImageFile(file: File): string | null {
+  if (!file.type.startsWith('image/')) return 'الملف لازم يكون صورة (JPG, PNG, WEBP)';
+  if (file.size > MAX_MB * 1024 * 1024) return `حجم الصورة أكبر من ${MAX_MB} ميجابايت`;
+  return null;
+}
 
 export default function HeroSlides() {
   const { data: slides = [], isLoading, isError, error } = useHeroSlides();
@@ -24,24 +30,37 @@ export default function HeroSlides() {
   const [newLink, setNewLink] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
 
+  // The mobile variant is picked first but uploaded together with the
+  // desktop one — it's optional, so nothing commits until the required
+  // desktop image is chosen.
+  const [mobileFile, setMobileFile] = useState<File | null>(null);
+  const [mobilePreview, setMobilePreview] = useState<string | null>(null);
+  const mobileFileRef = useRef<HTMLInputElement>(null);
+
+  const clearMobilePick = () => {
+    if (mobilePreview) URL.revokeObjectURL(mobilePreview);
+    setMobileFile(null);
+    setMobilePreview(null);
+    if (mobileFileRef.current) mobileFileRef.current.value = '';
+  };
+
   const handleUpload = async (file: File) => {
-    if (!file.type.startsWith('image/')) {
-      toast.error('الملف لازم يكون صورة (JPG, PNG, WEBP)');
-      return;
-    }
-    if (file.size > MAX_MB * 1024 * 1024) {
-      toast.error(`حجم الصورة أكبر من ${MAX_MB} ميجابايت`);
+    const err = validateImageFile(file);
+    if (err) {
+      toast.error(err);
       return;
     }
 
     setUploading(true);
     try {
       const url = await uploadHeroImage(file);
+      const mobileUrl = mobileFile ? await uploadHeroImage(mobileFile) : null;
       const nextOrder = slides.length
         ? Math.max(...slides.map((s) => s.sort_order)) + 1
         : 0;
       await createSlide.mutateAsync({
         image_url: url,
+        image_url_mobile: mobileUrl,
         title: newTitle.trim() || undefined,
         link_url: newLink.trim() || undefined,
         sort_order: nextOrder,
@@ -49,6 +68,7 @@ export default function HeroSlides() {
       setNewTitle('');
       setNewLink('');
       if (fileRef.current) fileRef.current.value = '';
+      clearMobilePick();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'تعذّر رفع الصورة');
     } finally {
@@ -101,31 +121,81 @@ export default function HeroSlides() {
             />
           </div>
 
-          <label className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-gray-200 rounded-xl py-8 cursor-pointer hover:border-indigo-300 hover:bg-indigo-50/30 transition-colors">
-            <input
-              ref={fileRef}
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              className="hidden"
-              disabled={uploading}
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) void handleUpload(file);
-              }}
-            />
-            {uploading ? (
-              <>
-                <Loader2 size={22} className="animate-spin text-indigo-500" />
-                <span className="text-sm text-gray-500">جارٍ الرفع...</span>
-              </>
-            ) : (
-              <>
-                <Upload size={22} className="text-gray-400" />
-                <span className="text-sm font-semibold text-gray-600">اضغط لاختيار صورة</span>
-                <span className="text-xs text-gray-400">JPG, PNG أو WEBP — حتى {MAX_MB} ميجابايت</span>
-              </>
-            )}
-          </label>
+          <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3 items-stretch">
+            <label className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-gray-200 rounded-xl py-8 cursor-pointer hover:border-indigo-300 hover:bg-indigo-50/30 transition-colors">
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="hidden"
+                disabled={uploading}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) void handleUpload(file);
+                }}
+              />
+              {uploading ? (
+                <>
+                  <Loader2 size={22} className="animate-spin text-indigo-500" />
+                  <span className="text-sm text-gray-500">جارٍ الرفع...</span>
+                </>
+              ) : (
+                <>
+                  <Upload size={22} className="text-gray-400" />
+                  <span className="text-sm font-semibold text-gray-600">اضغط لاختيار صورة (الكمبيوتر)</span>
+                  <span className="text-xs text-gray-400">JPG, PNG أو WEBP — حتى {MAX_MB} ميجابايت</span>
+                </>
+              )}
+            </label>
+
+            {/* نسخة الموبايل — اختيارية، تُرفع مع صورة الكمبيوتر عند الإضافة.
+                نفس الصورة عادة بتبان مقصوصة أو صغيرة على الموبايل، فهنا تقدر
+                ترفع نسخة تانية بأبعاد مناسبة للشاشات الضيقة. */}
+            <label className="flex flex-col items-center justify-center gap-1.5 border-2 border-dashed border-gray-200 rounded-xl py-8 px-4 cursor-pointer hover:border-indigo-300 hover:bg-indigo-50/30 transition-colors md:w-40 relative">
+              <input
+                ref={mobileFileRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="hidden"
+                disabled={uploading}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  const err = validateImageFile(file);
+                  if (err) {
+                    toast.error(err);
+                    e.target.value = '';
+                    return;
+                  }
+                  if (mobilePreview) URL.revokeObjectURL(mobilePreview);
+                  setMobileFile(file);
+                  setMobilePreview(URL.createObjectURL(file));
+                }}
+              />
+              {mobilePreview ? (
+                <>
+                  <img src={mobilePreview} alt="" className="w-10 h-10 rounded-lg object-contain bg-gray-50" />
+                  <span className="text-xs font-semibold text-gray-600">نسخة الموبايل جاهزة</span>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      clearMobilePick();
+                    }}
+                    className="absolute top-2 left-2 p-1 rounded-full bg-white border border-gray-200 text-gray-400 hover:text-red-500"
+                    aria-label="إلغاء نسخة الموبايل"
+                  >
+                    <X size={12} />
+                  </button>
+                </>
+              ) : (
+                <>
+                  <Smartphone size={20} className="text-gray-400" />
+                  <span className="text-xs font-semibold text-gray-600 text-center">نسخة الموبايل<br />(اختياري)</span>
+                </>
+              )}
+            </label>
+          </div>
         </div>
 
         {/* ── القائمة ── */}
@@ -190,7 +260,7 @@ function SlideRow({
   onMoveDown: () => void;
   onToggleActive: () => void;
   onDelete: () => void;
-  onSave: (patch: { title?: string | null; link_url?: string | null }) => void;
+  onSave: (patch: { title?: string | null; link_url?: string | null; image_url_mobile?: string | null }) => void;
 }) {
   const [title, setTitle] = useState(slide.title ?? '');
   const [link, setLink] = useState(slide.link_url ?? '');
@@ -220,8 +290,11 @@ function SlideRow({
       <img
         src={slide.image_url}
         alt={slide.title ?? ''}
+        title="صورة الكمبيوتر"
         className="w-14 h-14 rounded-xl object-contain bg-gray-50 border border-gray-100 flex-shrink-0"
       />
+
+      <MobileImageSlot slide={slide} onSave={onSave} />
 
       <div className="flex-1 min-w-0 grid grid-cols-1 md:grid-cols-2 gap-2">
         <input
@@ -282,5 +355,80 @@ function SlideRow({
         <Trash2 size={16} />
       </button>
     </li>
+  );
+}
+
+/* ── نسخة الموبايل داخل الصف: إضافة / تغيير / إزالة ── */
+function MobileImageSlot({
+  slide,
+  onSave,
+}: {
+  slide: HeroSlide;
+  onSave: (patch: { image_url_mobile?: string | null }) => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState(false);
+
+  const handlePick = async (file: File) => {
+    const err = validateImageFile(file);
+    if (err) {
+      toast.error(err);
+      return;
+    }
+    setBusy(true);
+    try {
+      const url = await uploadHeroImage(file);
+      onSave({ image_url_mobile: url });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'تعذّر رفع الصورة');
+    } finally {
+      setBusy(false);
+      if (inputRef.current) inputRef.current.value = '';
+    }
+  };
+
+  return (
+    <div className="relative flex-shrink-0 group">
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) void handlePick(file);
+        }}
+      />
+
+      {slide.image_url_mobile ? (
+        <>
+          <img
+            src={slide.image_url_mobile}
+            alt=""
+            title="نسخة الموبايل — اضغط للتغيير"
+            onClick={() => inputRef.current?.click()}
+            className="w-9 h-9 rounded-lg object-contain bg-gray-50 border border-gray-100 cursor-pointer"
+          />
+          <button
+            onClick={() => onSave({ image_url_mobile: null })}
+            className="absolute -top-1.5 -left-1.5 w-4 h-4 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+            aria-label="إزالة نسخة الموبايل"
+            title="إزالة نسخة الموبايل"
+          >
+            <X size={10} />
+          </button>
+        </>
+      ) : (
+        <button
+          onClick={() => inputRef.current?.click()}
+          disabled={busy}
+          className="w-9 h-9 rounded-lg border border-dashed border-gray-300 text-gray-300 hover:text-indigo-500 hover:border-indigo-300 flex items-center justify-center"
+          aria-label="إضافة نسخة موبايل"
+          title="إضافة نسخة موبايل (اختياري)"
+        >
+          {busy ? <Loader2 size={13} className="animate-spin" /> : <Smartphone size={13} />}
+        </button>
+      )}
+    </div>
   );
 }

@@ -6,6 +6,9 @@ import { toast } from 'sonner';
 export interface HeroSlide {
   id: string;
   image_url: string;
+  /** Optional phone-shaped version of the same slide — the storefront
+   *  swaps to it under ~640px. Falls back to image_url when not set. */
+  image_url_mobile: string | null;
   title: string | null;
   link_url: string | null;
   sort_order: number;
@@ -48,6 +51,7 @@ export async function uploadHeroImage(file: File): Promise<string> {
 /* ── Create ─────────────────────────────────────────────────────────── */
 export interface CreateHeroSlideInput {
   image_url: string;
+  image_url_mobile?: string | null;
   title?: string | null;
   link_url?: string | null;
   sort_order?: number;
@@ -60,6 +64,7 @@ export function useCreateHeroSlide() {
     mutationFn: async (input: CreateHeroSlideInput) => {
       const { error } = await supabase.from('home_hero_slides').insert({
         image_url: input.image_url,
+        image_url_mobile: input.image_url_mobile || null,
         title: input.title || null,
         link_url: input.link_url || null,
         sort_order: input.sort_order ?? 0,
@@ -77,6 +82,7 @@ export function useCreateHeroSlide() {
 /* ── Update (title / link / active / order) ────────────────────────── */
 export interface UpdateHeroSlideInput {
   id: string;
+  image_url_mobile?: string | null;
   title?: string | null;
   link_url?: string | null;
   is_active?: boolean;
@@ -131,10 +137,12 @@ export function useDeleteHeroSlide() {
 
   return useMutation({
     mutationFn: async (slide: HeroSlide) => {
-      if (slide.image_url.includes('/hero-images/')) {
-        const path = slide.image_url.split('/hero-images/')[1];
-        if (path) await supabase.storage.from('hero-images').remove([path]);
-      }
+      const paths = [slide.image_url, slide.image_url_mobile]
+        .filter((url): url is string => !!url && url.includes('/hero-images/'))
+        .map((url) => url.split('/hero-images/')[1])
+        .filter((p): p is string => !!p);
+      if (paths.length) await supabase.storage.from('hero-images').remove(paths);
+
       const { error } = await supabase.from('home_hero_slides').delete().eq('id', slide.id);
       if (error) throw error;
     },

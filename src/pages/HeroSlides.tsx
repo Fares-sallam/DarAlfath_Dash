@@ -74,7 +74,8 @@ export default function HeroSlides() {
               صور الصفحة الرئيسية
             </h1>
             <p className="text-sm text-gray-500 mt-1">
-              الصور المعروضة على القواعد في هيرو الصفحة الرئيسية — أضِف، رتّب، أو أخفِ أي صورة في أي وقت.
+              صور البانر المعروضة في هيرو الصفحة الرئيسية — أضِف، رتّب، أو أخفِ أي صورة في أي وقت.
+              الصورة تظهر بعرضها الطبيعي كاملة، فالأنسب رفع صورة بانر جاهزة (عريضة) لا صورة غلاف كتاب مفردة.
               التغيير يظهر في الموقع فورًا.
             </p>
           </div>
@@ -146,7 +147,7 @@ export default function HeroSlides() {
             <div className="py-16 flex flex-col items-center gap-2 text-gray-400">
               <ImageIcon size={28} />
               <p className="text-sm font-semibold text-gray-600">لا توجد صور بعد</p>
-              <p className="text-xs">أضِف أول صورة من الأعلى — هيرو الصفحة الرئيسية سيبقى بلا صور قواعد حتى ذلك.</p>
+              <p className="text-xs">أضِف أول صورة من الأعلى — هيرو الصفحة الرئيسية سيبقى بلا صور حتى ذلك.</p>
             </div>
           ) : (
             <ul className="divide-y divide-gray-50">

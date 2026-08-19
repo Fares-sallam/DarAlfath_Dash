@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import Layout from '@/components/layout/Layout';
 import {
   Plus, Edit, Trash2, BookMarked, X, Search, Loader2,
   AlertCircle, RefreshCw, ArrowUp, ArrowDown, BookOpen,
-  Check, ChevronRight, GripVertical, Image, Power, Globe2
+  Check, ChevronRight, GripVertical, Image, Power, Globe2, Upload
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
@@ -12,8 +12,11 @@ import {
   useSeriesList, useSeriesBooks, useAvailableProducts,
   useCreateSeries, useUpdateSeries, useDeleteSeries,
   useAddBookToSeries, useRemoveBookFromSeries, useUpdateBookSortOrder,
+  uploadSeriesCover,
   type BookSeries, type SeriesBook,
 } from '@/hooks/useSeries';
+
+const MAX_COVER_MB = 5;
 
 interface SeriesFormProps {
   editing: BookSeries | null;
@@ -32,6 +35,31 @@ function SeriesFormModal({ editing, onClose }: SeriesFormProps) {
     year: editing?.year ? String(editing.year) : '',
     is_active: editing?.is_active ?? true,
   });
+
+  const [uploadingCover, setUploadingCover] = useState(false);
+  const coverFileRef = useRef<HTMLInputElement>(null);
+
+  const handleCoverUpload = async (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      toast.error('الملف لازم يكون صورة (JPG, PNG, WEBP)');
+      return;
+    }
+    if (file.size > MAX_COVER_MB * 1024 * 1024) {
+      toast.error(`حجم الصورة أكبر من ${MAX_COVER_MB} ميجابايت`);
+      return;
+    }
+
+    setUploadingCover(true);
+    try {
+      const url = await uploadSeriesCover(file);
+      setForm((f) => ({ ...f, cover_url: url }));
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'تعذّر رفع الصورة');
+    } finally {
+      setUploadingCover(false);
+      if (coverFileRef.current) coverFileRef.current.value = '';
+    }
+  };
 
   const isPending = createMutation.isPending || updateMutation.isPending;
 
@@ -132,24 +160,75 @@ function SeriesFormModal({ editing, onClose }: SeriesFormProps) {
 
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1.5 flex items-center gap-1.5">
-              <Image size={13} /> رابط صورة الغلاف
+              <Image size={13} /> صورة الغلاف
             </label>
+
             <input
-              value={form.cover_url}
-              onChange={(e) => setForm((f) => ({ ...f, cover_url: e.target.value }))}
-              placeholder="https://..."
-              className="input-field"
-              dir="ltr"
+              ref={coverFileRef}
+              id="series-cover-upload"
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              className="hidden"
+              disabled={uploadingCover}
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) void handleCoverUpload(file);
+              }}
             />
-            {form.cover_url && (
-              <img
-                src={form.cover_url}
-                alt="preview"
-                className="mt-2 w-16 h-20 rounded-xl object-cover shadow-sm"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).style.display = 'none';
-                }}
-              />
+
+            {form.cover_url ? (
+              <div className="flex items-center gap-3">
+                <img
+                  src={form.cover_url}
+                  alt="preview"
+                  className="w-16 h-20 rounded-xl object-cover shadow-sm border border-gray-100 flex-shrink-0"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.display = 'none';
+                  }}
+                />
+                <div className="flex flex-col gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => coverFileRef.current?.click()}
+                    disabled={uploadingCover}
+                    className="btn-secondary text-xs flex items-center gap-1.5 py-1.5 disabled:opacity-60"
+                  >
+                    {uploadingCover ? (
+                      <Loader2 size={13} className="animate-spin" />
+                    ) : (
+                      <Upload size={13} />
+                    )}
+                    تغيير الصورة
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setForm((f) => ({ ...f, cover_url: '' }))}
+                    className="text-xs text-red-500 hover:text-red-600 flex items-center gap-1"
+                  >
+                    <X size={12} /> إزالة الصورة
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <label
+                htmlFor="series-cover-upload"
+                className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-gray-200 rounded-xl py-6 cursor-pointer hover:border-blue-300 hover:bg-blue-50/30 transition-colors"
+              >
+                {uploadingCover ? (
+                  <>
+                    <Loader2 size={20} className="animate-spin text-blue-500" />
+                    <span className="text-xs text-gray-500">جارٍ الرفع...</span>
+                  </>
+                ) : (
+                  <>
+                    <Upload size={20} className="text-gray-400" />
+                    <span className="text-xs font-semibold text-gray-600">اضغط لاختيار صورة</span>
+                    <span className="text-[11px] text-gray-400">
+                      JPG, PNG أو WEBP — حتى {MAX_COVER_MB} ميجابايت
+                    </span>
+                  </>
+                )}
+              </label>
             )}
           </div>
 

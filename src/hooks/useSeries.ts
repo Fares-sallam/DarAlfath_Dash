@@ -3,6 +3,21 @@ import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { useCountry } from '@/contexts/CountryContext';
 
+/* ── Upload a cover image file, return its public URL (bucket is public) ── */
+export async function uploadSeriesCover(file: File): Promise<string> {
+  const ext = file.name.split('.').pop();
+  const path = `${crypto.randomUUID()}.${ext}`;
+
+  const { error } = await supabase.storage
+    .from('series-images')
+    .upload(path, file, { upsert: false });
+
+  if (error) throw error;
+
+  const { data } = supabase.storage.from('series-images').getPublicUrl(path);
+  return data.publicUrl;
+}
+
 /* ── Types ── */
 export interface BookSeries {
   id: string;

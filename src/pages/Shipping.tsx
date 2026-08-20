@@ -1097,6 +1097,104 @@ function ShippingRatesSection() {
         )}
       </div>
 
+      {showForm && (
+        <div className="bg-blue-50/40 border border-blue-100 rounded-2xl p-5 mb-4" dir="rtl">
+          <div className="flex items-center justify-between mb-5">
+            <h3 className="font-bold text-gray-800">
+              {editingRate ? 'تعديل سعر الشحن' : 'إضافة سعر شحن'} — {selectedCompanyName}
+            </h3>
+            <button
+              onClick={() => { setShowForm(false); setEditingRate(null); }}
+              className="p-1.5 rounded-xl hover:bg-white text-gray-400"
+            >
+              <X size={18} />
+            </button>
+          </div>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 mb-1.5">المحافظة</label>
+              <select
+                value={form.governorate}
+                onChange={(e) => setForm((f) => ({ ...f, governorate: e.target.value }))}
+                className="w-full px-3 py-2 rounded-xl border border-gray-200 bg-white text-sm outline-none focus:border-blue-400"
+              >
+                {EGYPT_GOVERNORATES.map((g) => (
+                  <option key={g} value={g}>{g}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1.5">من (كجم)</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="any"
+                  value={form.weight_from_kg}
+                  onChange={(e) => setForm((f) => ({ ...f, weight_from_kg: e.target.value }))}
+                  className="w-full px-3 py-2 rounded-xl border border-gray-200 bg-white text-sm outline-none focus:border-blue-400"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1.5">إلى (كجم)</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="any"
+                  value={form.weight_to_kg}
+                  onChange={(e) => setForm((f) => ({ ...f, weight_to_kg: e.target.value }))}
+                  className="w-full px-3 py-2 rounded-xl border border-gray-200 bg-white text-sm outline-none focus:border-blue-400"
+                  placeholder="بدون حد"
+                />
+                <p className="text-[10px] text-gray-400 mt-1">اتركه فارغًا لعدم وضع حد أقصى للوزن</p>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 mb-1.5">السعر (ج.م)</label>
+              <input
+                type="number"
+                min="0"
+                step="any"
+                required
+                value={form.price}
+                onChange={(e) => setForm((f) => ({ ...f, price: e.target.value }))}
+                className="w-full px-3 py-2 rounded-xl border border-gray-200 bg-white text-sm outline-none focus:border-blue-400"
+                placeholder="97"
+              />
+            </div>
+
+            <label className="flex items-center gap-2 text-sm text-gray-700">
+              <input
+                type="checkbox"
+                checked={form.is_active}
+                onChange={(e) => setForm((f) => ({ ...f, is_active: e.target.checked }))}
+              />
+              نشط
+            </label>
+
+            <div className="flex gap-3 pt-1">
+              <button
+                type="button"
+                onClick={() => { setShowForm(false); setEditingRate(null); }}
+                className="flex-1 btn-secondary"
+              >
+                إلغاء
+              </button>
+              <button
+                type="submit"
+                disabled={upsertRate.isPending}
+                className="flex-1 btn-primary flex items-center justify-center gap-2 disabled:opacity-60"
+              >
+                {upsertRate.isPending ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                {editingRate ? 'حفظ' : 'إضافة'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
       {isLoading ? (
         <div className="flex items-center justify-center py-10 gap-2 text-gray-400">
           <Loader2 size={18} className="animate-spin" />
@@ -1151,105 +1249,6 @@ function ShippingRatesSection() {
         </div>
       )}
 
-      {showForm && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" dir="rtl">
-          <div className="bg-white rounded-2xl shadow-xl p-6 max-w-md w-full">
-            <div className="flex items-center justify-between mb-5">
-              <h3 className="font-bold text-gray-800">
-                {editingRate ? 'تعديل سعر الشحن' : 'إضافة سعر شحن'} — {selectedCompanyName}
-              </h3>
-              <button
-                onClick={() => { setShowForm(false); setEditingRate(null); }}
-                className="p-1.5 rounded-xl hover:bg-gray-100 text-gray-400"
-              >
-                <X size={18} />
-              </button>
-            </div>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1.5">المحافظة</label>
-                <select
-                  value={form.governorate}
-                  onChange={(e) => setForm((f) => ({ ...f, governorate: e.target.value }))}
-                  className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm outline-none focus:border-blue-400"
-                >
-                  {EGYPT_GOVERNORATES.map((g) => (
-                    <option key={g} value={g}>{g}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">من (كجم)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="any"
-                    value={form.weight_from_kg}
-                    onChange={(e) => setForm((f) => ({ ...f, weight_from_kg: e.target.value }))}
-                    className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm outline-none focus:border-blue-400"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">إلى (كجم)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="any"
-                    value={form.weight_to_kg}
-                    onChange={(e) => setForm((f) => ({ ...f, weight_to_kg: e.target.value }))}
-                    className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm outline-none focus:border-blue-400"
-                    placeholder="بدون حد"
-                  />
-                  <p className="text-[10px] text-gray-400 mt-1">اتركه فارغًا لعدم وضع حد أقصى للوزن</p>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1.5">السعر (ج.م)</label>
-                <input
-                  type="number"
-                  min="0"
-                  step="any"
-                  required
-                  value={form.price}
-                  onChange={(e) => setForm((f) => ({ ...f, price: e.target.value }))}
-                  className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm outline-none focus:border-blue-400"
-                  placeholder="97"
-                />
-              </div>
-
-              <label className="flex items-center gap-2 text-sm text-gray-700">
-                <input
-                  type="checkbox"
-                  checked={form.is_active}
-                  onChange={(e) => setForm((f) => ({ ...f, is_active: e.target.checked }))}
-                />
-                نشط
-              </label>
-
-              <div className="flex gap-3 pt-1">
-                <button
-                  type="button"
-                  onClick={() => { setShowForm(false); setEditingRate(null); }}
-                  className="flex-1 btn-secondary"
-                >
-                  إلغاء
-                </button>
-                <button
-                  type="submit"
-                  disabled={upsertRate.isPending}
-                  className="flex-1 btn-primary flex items-center justify-center gap-2 disabled:opacity-60"
-                >
-                  {upsertRate.isPending ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
-                  {editingRate ? 'حفظ' : 'إضافة'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
 
       {deleteTarget && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" dir="rtl">

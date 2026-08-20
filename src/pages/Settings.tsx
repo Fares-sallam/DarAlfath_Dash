@@ -1038,8 +1038,14 @@ function PaymentMethodsSection() {
   const [editing, setEditing] = useState<PaymentMethod | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<PaymentMethod | null>(null);
 
-  const emptyForm = { method_name: '', provider: '', country_id: (selectedCountry?.id ?? '') as string | null, is_active: true };
+  const emptyForm = { method_name: '', provider: '', country_id: (selectedCountry?.id ?? '') as string | null, is_active: true, integration_id: '' };
   const [form, setForm] = useState(emptyForm);
+  // "Paymob" providers (paymob_card / paymob_wallet / paymob_apple_pay / ...)
+  // are the only ones that need a numeric Paymob integration id — it's what
+  // initiate-paymob-payment sends Paymob to say which payment method to
+  // charge against, read straight from this row so no code deploy is needed
+  // to add or change one.
+  const needsIntegrationId = form.provider.toLowerCase().trim().startsWith('paymob');
 
   useEffect(() => {
     if (!editing) {
@@ -1054,11 +1060,13 @@ function PaymentMethodsSection() {
   };
 
   const openEdit = (m: PaymentMethod) => {
+    const existingId = (m.config as Record<string, unknown> | undefined)?.integration_id;
     setForm({
       method_name: m.method_name,
       provider: m.provider ?? '',
       country_id: m.country_id ?? selectedCountry?.id ?? null,
       is_active: m.is_active,
+      integration_id: existingId != null ? String(existingId) : '',
     });
     setEditing(m);
     setShowForm(true);
@@ -1066,11 +1074,23 @@ function PaymentMethodsSection() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const trimmedProvider = form.provider.toLowerCase().trim();
+    const isPaymobProvider = trimmedProvider.startsWith('paymob');
+    // Merge into whatever config already exists on the row (icon/type/etc. from
+    // older rows) instead of clobbering it — only integration_id is owned here.
+    const nextConfig: Record<string, unknown> = { ...(editing?.config ?? {}) };
+    if (isPaymobProvider && form.integration_id.trim()) {
+      nextConfig.integration_id = Number(form.integration_id.trim());
+    } else {
+      delete nextConfig.integration_id;
+    }
+
     const payload = {
       method_name: form.method_name,
       provider: form.provider || undefined,
       country_id: form.country_id || selectedCountry?.id || null,
       is_active: form.is_active,
+      config: nextConfig,
     };
 
     if (editing) await updateMutation.mutateAsync({ id: editing.id, ...payload });
@@ -1127,6 +1147,11 @@ function PaymentMethodsSection() {
                     <div className="flex items-center gap-2 flex-wrap">
                       {m.provider && <span className="text-xs text-blue-600 font-semibold">{m.provider}</span>}
                       {m.countries?.name && <span className="text-xs text-gray-400">· {m.countries.name}</span>}
+                      {(m.config as Record<string, unknown> | undefined)?.integration_id != null && (
+                        <span className="text-xs text-gray-400 font-mono" dir="ltr">
+                          · ID {String((m.config as Record<string, unknown>).integration_id)}
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1159,7 +1184,21 @@ function PaymentMethodsSection() {
                 <label className="block text-xs font-semibold text-gray-600 mb-1.5">المزوّد (اختياري)</label>
                 <input value={form.provider} onChange={e => setForm(f => ({ ...f, provider: e.target.value }))}
                   placeholder="مثل: Paymob, HyperPay, Stripe" className="input-field text-sm py-2 h-auto" dir="ltr" />
+                <p className="text-[11px] text-gray-400 mt-1">
+                  اكتب قيمة تبدأ بـ paymob_ (مثل paymob_card، paymob_wallet، paymob_apple_pay) عشان الموقع والتطبيق يوجّهوا الدفع لـ Paymob فعليًا.
+                </p>
               </div>
+
+              {needsIntegrationId && (
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">رقم Integration ID من Paymob</label>
+                  <input value={form.integration_id} onChange={e => setForm(f => ({ ...f, integration_id: e.target.value.replace(/[^0-9]/g, '') }))}
+                    placeholder="مثل: 5862585" className="input-field text-sm py-2 h-auto" dir="ltr" inputMode="numeric" />
+                  <p className="text-[11px] text-gray-400 mt-1">
+                    الرقم من لوحة تحكم Paymob لطريقة الدفع دي بالظبط. بيتحفظ هنا فقط — مش في كود الموقع أو التطبيق، فتقدر تغيّره في أي وقت من غير أي تعديل برمجي.
+                  </p>
+                </div>
+              )}
 
               <div className="p-3 bg-gray-50 rounded-xl text-sm text-gray-600">
                 الدولة المرتبطة: <span className="font-bold text-gray-800">{selectedCountry?.name ?? 'غير محددة'}</span>

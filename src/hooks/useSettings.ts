@@ -143,12 +143,13 @@ export function useCreatePaymentMethod() {
   const { selectedCountry } = useCountry();
 
   return useMutation({
-    mutationFn: async (input: { method_name: string; provider?: string; country_id?: string | null; is_active: boolean }) => {
+    mutationFn: async (input: { method_name: string; provider?: string; country_id?: string | null; is_active: boolean; config?: Record<string, unknown> }) => {
       const payload = {
         method_name: input.method_name,
         provider: input.provider || null,
         country_id: input.country_id || selectedCountry?.id || null,
         is_active: input.is_active,
+        ...(input.config !== undefined ? { config: input.config } : {}),
       };
       const { error } = await supabase.from('payment_methods').insert(payload);
       if (error) throw error;
@@ -167,7 +168,7 @@ export function useUpdatePaymentMethod() {
   const { selectedCountry } = useCountry();
 
   return useMutation({
-    mutationFn: async ({ id, ...patch }: { id: string; method_name?: string; provider?: string | null; country_id?: string | null; is_active?: boolean }) => {
+    mutationFn: async ({ id, ...patch }: { id: string; method_name?: string; provider?: string | null; country_id?: string | null; is_active?: boolean; config?: Record<string, unknown> }) => {
       const payload = {
         ...patch,
         country_id: patch.country_id ?? selectedCountry?.id ?? null,

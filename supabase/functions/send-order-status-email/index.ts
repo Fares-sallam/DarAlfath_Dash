@@ -70,7 +70,7 @@ const COPY: Record<TrackedKind, {
   shipped: {
     emoji: '🚚',
     accent: '#1D4ED8',
-    subject: (id) => `طلبك في الطريق إليك #${id} - دار الفتح`,
+    subject: (id) => `Dar Alfath - Order #${id} is on its way`,
     headline: 'طلبك في الطريق إليك',
     bodyHtml: (name, id, tracking, company) => `
       أهلاً ${escapeHtml(name)},<br>
@@ -81,7 +81,7 @@ const COPY: Record<TrackedKind, {
   delivered: {
     emoji: '✅',
     accent: '#16A34A',
-    subject: (id) => `تم توصيل طلبك #${id} - دار الفتح`,
+    subject: (id) => `Dar Alfath - Order #${id} delivered`,
     headline: 'تم توصيل طلبك بنجاح',
     bodyHtml: (name, id) => `
       أهلاً ${escapeHtml(name)},<br>
@@ -91,7 +91,7 @@ const COPY: Record<TrackedKind, {
   cancelled: {
     emoji: '⚠️',
     accent: '#DC2626',
-    subject: (id) => `تم إلغاء طلبك #${id} - دار الفتح`,
+    subject: (id) => `Dar Alfath - Order #${id} cancelled`,
     headline: 'تم إلغاء طلبك',
     bodyHtml: (name, id) => `
       أهلاً ${escapeHtml(name)},<br>
@@ -159,7 +159,12 @@ async function sendViaSmtp(to: string, subject: string, html: string) {
 
   try {
     await client.send({
-      from:    `دار الفتح <${GMAIL_USER}>`,
+      // ASCII-only display name — denomailer's header encoder mis-folds long
+      // non-ASCII Subject/From values (confirmed live: an Arabic subject
+      // arrived as raw undecoded quoted-printable, corrupting the whole
+      // message). The Arabic branding lives in the HTML body instead, which
+      // isn't subject to this header-folding bug.
+      from:    `Dar Alfath <${GMAIL_USER}>`,
       to,
       subject,
       content: 'text/html',

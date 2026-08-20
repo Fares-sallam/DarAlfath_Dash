@@ -48,12 +48,17 @@ function escapeHtml(s: string): string {
     .replace(/'/g, '&#039;');
 }
 
-// ── The three tracked transitions. Keyed by the exact status string the
+// ── The four tracked transitions. Keyed by the exact status string the
 //    dashboard writes to orders.status (see DarAlfath_Dash's useShipping.ts /
-//    useOrders.ts) — anything else is intentionally not handled here. ──────
-type TrackedKind = 'shipped' | 'delivered' | 'cancelled';
+//    useOrders.ts) — anything else is intentionally not handled here. Note
+//    "confirmed" here is distinct from send-order-email's order-creation
+//    confirmation: this one fires when an admin explicitly moves the order
+//    to تم التأكيد from the dashboard, which can be well after creation (or
+//    never, if the admin ships straight from جديد). ─────────────────────
+type TrackedKind = 'confirmed' | 'shipped' | 'delivered' | 'cancelled';
 
 const STATUS_TO_KIND: Record<string, TrackedKind> = {
+  'تم التأكيد': 'confirmed',
   'جاري الشحن': 'shipped',
   'تم الشحن':   'shipped',
   'تم التوصيل': 'delivered',
@@ -67,6 +72,16 @@ const COPY: Record<TrackedKind, {
   headline: string;
   bodyHtml: (customerName: string, orderId: string, tracking?: string, company?: string) => string;
 }> = {
+  confirmed: {
+    emoji: '🎉',
+    accent: '#4F46E5',
+    subject: (id) => `Dar Alfath - Order #${id} confirmed`,
+    headline: 'تم تأكيد طلبك',
+    bodyHtml: (name, id) => `
+      أهلاً ${escapeHtml(name)},<br>
+      تم تأكيد طلبك رقم <strong>${escapeHtml(id)}</strong> وجاري تجهيزه الآن. هنبعتلك تحديث تاني أول ما يتحرك للشحن.
+    `,
+  },
   shipped: {
     emoji: '🚚',
     accent: '#3B82F6',

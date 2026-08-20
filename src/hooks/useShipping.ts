@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { useCountry } from '@/contexts/CountryContext';
 import type { Order, ShippingAddress } from '@/hooks/useOrders';
+import { notifyOrderStatusChange, getCurrentOrderStatus } from '@/lib/orderStatusEmail';
 
 /* ────────────────────────────────────────────── */
 /* Types */
@@ -332,14 +333,17 @@ export function useCreateShipment() {
 
   return useMutation({
     mutationFn: async (input: CreateShipmentInput) => {
+      const newStatus = input.status ?? 'جاري الشحن';
       const payload: Record<string, unknown> = {
         shipping_company_id: input.shipping_company_id,
         tracking_number: input.tracking_number,
-        status: input.status ?? 'جاري الشحن',
+        status: newStatus,
       };
 
       if (input.shipping_cost !== undefined) payload.shipping_cost = input.shipping_cost;
       if (input.notes !== undefined) payload.notes = input.notes;
+
+      const previousStatus = await getCurrentOrderStatus(input.orderId);
 
       const { error } = await supabase
         .from('orders')
@@ -347,6 +351,10 @@ export function useCreateShipment() {
         .eq('id', input.orderId);
 
       if (error) throw error;
+
+      if (newStatus !== previousStatus) {
+        void notifyOrderStatusChange(input.orderId, newStatus);
+      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['shipping-orders'] });
@@ -377,12 +385,18 @@ export function useUpdateShipment() {
       if (input.shipping_cost !== undefined) payload.shipping_cost = input.shipping_cost;
       if (input.notes !== undefined) payload.notes = input.notes;
 
+      const previousStatus = input.status !== undefined ? await getCurrentOrderStatus(input.orderId) : null;
+
       const { error } = await supabase
         .from('orders')
         .update(payload)
         .eq('id', input.orderId);
 
       if (error) throw error;
+
+      if (input.status !== undefined && input.status !== previousStatus) {
+        void notifyOrderStatusChange(input.orderId, input.status);
+      }
     },
     onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: ['shipping-orders'] });

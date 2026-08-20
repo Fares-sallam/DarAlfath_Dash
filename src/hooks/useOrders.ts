@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { useCountry } from '@/contexts/CountryContext';
+import { notifyOrderStatusChange, getCurrentOrderStatus } from '@/lib/orderStatusEmail';
 
 /* ── Types ── */
 export interface OrderItem {
@@ -289,12 +290,21 @@ export function useUpdateOrder() {
     mutationFn: async (input: UpdateOrderInput) => {
       const { id, ...patch } = input;
 
+      // Read the current status before writing, so a status email only fires
+      // on an actual change (not e.g. re-saving tracking_number with the same
+      // status, or the admin hitting save without changing anything).
+      const previousStatus = patch.status !== undefined ? await getCurrentOrderStatus(id) : null;
+
       const { error } = await supabase
         .from('orders')
         .update(patch)
         .eq('id', id);
 
       if (error) throw error;
+
+      if (patch.status !== undefined && patch.status !== previousStatus) {
+        void notifyOrderStatusChange(id, patch.status);
+      }
     },
     onSuccess: (_, input) => {
       qc.invalidateQueries({ queryKey: ['orders'] });

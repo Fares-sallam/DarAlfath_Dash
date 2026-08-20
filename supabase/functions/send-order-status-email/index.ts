@@ -69,7 +69,7 @@ const COPY: Record<TrackedKind, {
 }> = {
   shipped: {
     emoji: '🚚',
-    accent: '#1D4ED8',
+    accent: '#3B82F6',
     subject: (id) => `Dar Alfath - Order #${id} is on its way`,
     headline: 'طلبك في الطريق إليك',
     bodyHtml: (name, id, tracking, company) => `

@@ -105,7 +105,7 @@ const COPY: Record<TrackedKind, {
   },
   cancelled: {
     emoji: '⚠️',
-    accent: '#DC2626',
+    accent: '#F87171',
     subject: (id) => `Dar Alfath - Order #${id} cancelled`,
     headline: 'تم إلغاء طلبك',
     bodyHtml: (name, id) => `

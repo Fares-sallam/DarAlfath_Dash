@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import Layout from '@/components/layout/Layout';
 import {
   Truck,
@@ -1045,8 +1045,96 @@ function ShippingRatesSection() {
     setEditingRate(null);
   };
 
+  const closeForm = () => {
+    setShowForm(false);
+    setEditingRate(null);
+  };
+
   const isDefaultCompany = !!selectedCompanyId && storeSettings?.default_shipping_company_id === selectedCompanyId;
   const selectedCompanyName = companies.find((c) => c.id === selectedCompanyId)?.company_name ?? '';
+
+  // Shared by the add-new panel above the table and the inline edit row
+  // inside it — identical fields, so it lives in one place.
+  const rateFormFields = (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div>
+        <label className="block text-xs font-semibold text-gray-600 mb-1.5">المحافظة</label>
+        <select
+          value={form.governorate}
+          onChange={(e) => setForm((f) => ({ ...f, governorate: e.target.value }))}
+          className="w-full px-3 py-2 rounded-xl border border-gray-200 bg-white text-sm outline-none focus:border-blue-400"
+        >
+          {EGYPT_GOVERNORATES.map((g) => (
+            <option key={g} value={g}>{g}</option>
+          ))}
+        </select>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="block text-xs font-semibold text-gray-600 mb-1.5">من (كجم)</label>
+          <input
+            type="number"
+            min="0"
+            step="any"
+            value={form.weight_from_kg}
+            onChange={(e) => setForm((f) => ({ ...f, weight_from_kg: e.target.value }))}
+            className="w-full px-3 py-2 rounded-xl border border-gray-200 bg-white text-sm outline-none focus:border-blue-400"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-semibold text-gray-600 mb-1.5">إلى (كجم)</label>
+          <input
+            type="number"
+            min="0"
+            step="any"
+            value={form.weight_to_kg}
+            onChange={(e) => setForm((f) => ({ ...f, weight_to_kg: e.target.value }))}
+            className="w-full px-3 py-2 rounded-xl border border-gray-200 bg-white text-sm outline-none focus:border-blue-400"
+            placeholder="بدون حد"
+          />
+          <p className="text-[10px] text-gray-400 mt-1">اتركه فارغًا لعدم وضع حد أقصى للوزن</p>
+        </div>
+      </div>
+
+      <div>
+        <label className="block text-xs font-semibold text-gray-600 mb-1.5">السعر (ج.م)</label>
+        <input
+          type="number"
+          min="0"
+          step="any"
+          required
+          value={form.price}
+          onChange={(e) => setForm((f) => ({ ...f, price: e.target.value }))}
+          className="w-full px-3 py-2 rounded-xl border border-gray-200 bg-white text-sm outline-none focus:border-blue-400"
+          placeholder="97"
+        />
+      </div>
+
+      <label className="flex items-center gap-2 text-sm text-gray-700">
+        <input
+          type="checkbox"
+          checked={form.is_active}
+          onChange={(e) => setForm((f) => ({ ...f, is_active: e.target.checked }))}
+        />
+        نشط
+      </label>
+
+      <div className="flex gap-3 pt-1">
+        <button type="button" onClick={closeForm} className="flex-1 btn-secondary">
+          إلغاء
+        </button>
+        <button
+          type="submit"
+          disabled={upsertRate.isPending}
+          className="flex-1 btn-primary flex items-center justify-center gap-2 disabled:opacity-60"
+        >
+          {upsertRate.isPending ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+          {editingRate ? 'حفظ' : 'إضافة'}
+        </button>
+      </div>
+    </form>
+  );
 
   return (
     <div className="bg-white rounded-2xl p-5 shadow-sm mb-6 border border-blue-100">
@@ -1097,101 +1185,20 @@ function ShippingRatesSection() {
         )}
       </div>
 
-      {showForm && (
+      {/* Add-new only. Editing renders inline under its own row below, so the
+          admin never gets yanked back up to the top of a long list. */}
+      {showForm && !editingRate && (
         <div className="bg-blue-50/40 border border-blue-100 rounded-2xl p-5 mb-4" dir="rtl">
           <div className="flex items-center justify-between mb-5">
-            <h3 className="font-bold text-gray-800">
-              {editingRate ? 'تعديل سعر الشحن' : 'إضافة سعر شحن'} — {selectedCompanyName}
-            </h3>
+            <h3 className="font-bold text-gray-800">إضافة سعر شحن — {selectedCompanyName}</h3>
             <button
-              onClick={() => { setShowForm(false); setEditingRate(null); }}
+              onClick={closeForm}
               className="p-1.5 rounded-xl hover:bg-white text-gray-400"
             >
               <X size={18} />
             </button>
           </div>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-xs font-semibold text-gray-600 mb-1.5">المحافظة</label>
-              <select
-                value={form.governorate}
-                onChange={(e) => setForm((f) => ({ ...f, governorate: e.target.value }))}
-                className="w-full px-3 py-2 rounded-xl border border-gray-200 bg-white text-sm outline-none focus:border-blue-400"
-              >
-                {EGYPT_GOVERNORATES.map((g) => (
-                  <option key={g} value={g}>{g}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1.5">من (كجم)</label>
-                <input
-                  type="number"
-                  min="0"
-                  step="any"
-                  value={form.weight_from_kg}
-                  onChange={(e) => setForm((f) => ({ ...f, weight_from_kg: e.target.value }))}
-                  className="w-full px-3 py-2 rounded-xl border border-gray-200 bg-white text-sm outline-none focus:border-blue-400"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1.5">إلى (كجم)</label>
-                <input
-                  type="number"
-                  min="0"
-                  step="any"
-                  value={form.weight_to_kg}
-                  onChange={(e) => setForm((f) => ({ ...f, weight_to_kg: e.target.value }))}
-                  className="w-full px-3 py-2 rounded-xl border border-gray-200 bg-white text-sm outline-none focus:border-blue-400"
-                  placeholder="بدون حد"
-                />
-                <p className="text-[10px] text-gray-400 mt-1">اتركه فارغًا لعدم وضع حد أقصى للوزن</p>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-gray-600 mb-1.5">السعر (ج.م)</label>
-              <input
-                type="number"
-                min="0"
-                step="any"
-                required
-                value={form.price}
-                onChange={(e) => setForm((f) => ({ ...f, price: e.target.value }))}
-                className="w-full px-3 py-2 rounded-xl border border-gray-200 bg-white text-sm outline-none focus:border-blue-400"
-                placeholder="97"
-              />
-            </div>
-
-            <label className="flex items-center gap-2 text-sm text-gray-700">
-              <input
-                type="checkbox"
-                checked={form.is_active}
-                onChange={(e) => setForm((f) => ({ ...f, is_active: e.target.checked }))}
-              />
-              نشط
-            </label>
-
-            <div className="flex gap-3 pt-1">
-              <button
-                type="button"
-                onClick={() => { setShowForm(false); setEditingRate(null); }}
-                className="flex-1 btn-secondary"
-              >
-                إلغاء
-              </button>
-              <button
-                type="submit"
-                disabled={upsertRate.isPending}
-                className="flex-1 btn-primary flex items-center justify-center gap-2 disabled:opacity-60"
-              >
-                {upsertRate.isPending ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
-                {editingRate ? 'حفظ' : 'إضافة'}
-              </button>
-            </div>
-          </form>
+          {rateFormFields}
         </div>
       )}
 
@@ -1219,31 +1226,60 @@ function ShippingRatesSection() {
               </tr>
             </thead>
             <tbody>
-              {rates.map((rate) => (
-                <tr key={rate.id} className="border-b border-gray-50 hover:bg-gray-50/50">
-                  <td className="py-2 px-2 font-semibold text-gray-700">{rate.governorate}</td>
-                  <td className="py-2 px-2 text-gray-500">{rate.weight_from_kg}</td>
-                  <td className="py-2 px-2 text-gray-500">{rate.weight_to_kg ?? '∞'}</td>
-                  <td className="py-2 px-2 font-bold text-gray-800">{rate.price} ج.م</td>
-                  <td className="py-2 px-2">
-                    {rate.is_active ? (
-                      <span className="text-xs font-semibold px-2 py-0.5 rounded-lg bg-green-50 text-green-700">نشط</span>
-                    ) : (
-                      <span className="text-xs font-semibold px-2 py-0.5 rounded-lg bg-gray-100 text-gray-500">معطل</span>
+              {rates.map((rate) => {
+                const isEditingThis = editingRate?.id === rate.id;
+                return (
+                  <Fragment key={rate.id}>
+                    <tr className={`border-b border-gray-50 ${isEditingThis ? 'bg-blue-50/50' : 'hover:bg-gray-50/50'}`}>
+                      <td className="py-2 px-2 font-semibold text-gray-700">{rate.governorate}</td>
+                      <td className="py-2 px-2 text-gray-500">{rate.weight_from_kg}</td>
+                      <td className="py-2 px-2 text-gray-500">{rate.weight_to_kg ?? '∞'}</td>
+                      <td className="py-2 px-2 font-bold text-gray-800">{rate.price} ج.م</td>
+                      <td className="py-2 px-2">
+                        {rate.is_active ? (
+                          <span className="text-xs font-semibold px-2 py-0.5 rounded-lg bg-green-50 text-green-700">نشط</span>
+                        ) : (
+                          <span className="text-xs font-semibold px-2 py-0.5 rounded-lg bg-gray-100 text-gray-500">معطل</span>
+                        )}
+                      </td>
+                      <td className="py-2 px-2">
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            onClick={() => (isEditingThis ? closeForm() : openEdit(rate))}
+                            className={`p-1.5 rounded-lg text-blue-600 ${isEditingThis ? 'bg-blue-100' : 'hover:bg-blue-50'}`}
+                            title={isEditingThis ? 'إغلاق التعديل' : 'تعديل'}
+                          >
+                            <Edit size={13} />
+                          </button>
+                          <button onClick={() => setDeleteTarget(rate)} className="p-1.5 rounded-lg hover:bg-red-50 text-red-500" title="حذف">
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+
+                    {/* Edit form expands directly under the row being edited —
+                        no scrolling back up to a form at the top. */}
+                    {isEditingThis && (
+                      <tr className="border-b border-gray-100">
+                        <td colSpan={6} className="p-0">
+                          <div className="bg-blue-50/40 border-y border-blue-100 p-5" dir="rtl">
+                            <div className="flex items-center justify-between mb-5">
+                              <h3 className="font-bold text-gray-800">
+                                تعديل سعر {rate.governorate} — {selectedCompanyName}
+                              </h3>
+                              <button onClick={closeForm} className="p-1.5 rounded-xl hover:bg-white text-gray-400">
+                                <X size={18} />
+                              </button>
+                            </div>
+                            {rateFormFields}
+                          </div>
+                        </td>
+                      </tr>
                     )}
-                  </td>
-                  <td className="py-2 px-2">
-                    <div className="flex items-center gap-1.5">
-                      <button onClick={() => openEdit(rate)} className="p-1.5 rounded-lg hover:bg-blue-50 text-blue-600" title="تعديل">
-                        <Edit size={13} />
-                      </button>
-                      <button onClick={() => setDeleteTarget(rate)} className="p-1.5 rounded-lg hover:bg-red-50 text-red-500" title="حذف">
-                        <Trash2 size={13} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                  </Fragment>
+                );
+              })}
             </tbody>
           </table>
         </div>

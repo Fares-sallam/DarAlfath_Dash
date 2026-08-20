@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Layout from '@/components/layout/Layout';
 import {
   Truck,
@@ -17,10 +17,12 @@ import {
   AlertCircle,
   Globe2,
   CreditCard,
+  Save,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCountry } from '@/contexts/CountryContext';
+import { useStoreSettings, useUpsertStoreSettings } from '@/hooks/useSettings';
 import {
   useShippingStats,
   useShipmentDetail,
@@ -104,6 +106,43 @@ function composeNotes(notes: string, weight: string, dimensions: string) {
 export default function Shipping() {
   const qc = useQueryClient();
   const { selectedCountry, currencySymbol } = useCountry();
+
+  // ── Shipping settings (global) ─────────────────────────────
+  const { data: storeSettings } = useStoreSettings();
+  const upsertStoreSettings = useUpsertStoreSettings();
+  const [shippingCost, setShippingCost] = useState<string>('');
+  const [freeShipThreshold, setFreeShipThreshold] = useState<string>('');
+
+  useEffect(() => {
+    if (storeSettings) {
+      setShippingCost(String(storeSettings.default_shipping_cost ?? 45));
+      setFreeShipThreshold(String(storeSettings.free_shipping_threshold ?? 499));
+    }
+  }, [storeSettings]);
+
+  const handleSaveShippingSettings = async () => {
+    const cost = Number(shippingCost);
+    const threshold = Number(freeShipThreshold);
+
+    if (!Number.isFinite(cost) || cost < 0) {
+      toast.error('سعر الشحن يجب أن يكون رقماً موجباً');
+      return;
+    }
+    if (!Number.isFinite(threshold) || threshold < 0) {
+      toast.error('الحد الأدنى للشحن المجاني يجب أن يكون رقماً موجباً');
+      return;
+    }
+
+    try {
+      await upsertStoreSettings.mutateAsync({
+        default_shipping_cost: cost,
+        free_shipping_threshold: threshold,
+      });
+      toast.success('تم حفظ إعدادات الشحن');
+    } catch (err) {
+      toast.error('فشل حفظ الإعدادات: ' + (err instanceof Error ? err.message : 'خطأ غير معروف'));
+    }
+  };
 
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('الكل');
@@ -246,6 +285,67 @@ export default function Shipping() {
               <Plus size={15} />
               إنشاء شحنة
             </button>
+          </div>
+        </div>
+
+        {/* ── إعدادات الشحن العامة ───────────────────────────────── */}
+        <div className="bg-white rounded-2xl p-5 shadow-sm mb-6 border border-blue-100">
+          <div className="flex items-center gap-2 mb-4">
+            <div className="p-2 rounded-xl bg-blue-50">
+              <Truck size={18} className="text-blue-600" />
+            </div>
+            <div>
+              <h3 className="font-bold text-gray-800">إعدادات الشحن العامة</h3>
+              <p className="text-xs text-gray-500">هذه القيم تظهر تلقائياً للعملاء في صفحة الدفع</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 mb-1.5">
+                سعر الشحن الافتراضي ({currencySymbol})
+              </label>
+              <input
+                type="number"
+                min="0"
+                step="any"
+                value={shippingCost}
+                onChange={(e) => setShippingCost(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl border border-gray-200 focus:border-blue-400 focus:ring-1 focus:ring-blue-200 outline-none text-sm"
+                placeholder="45"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 mb-1.5">
+                الحد الأدنى للشحن المجاني ({currencySymbol})
+              </label>
+              <input
+                type="number"
+                min="0"
+                step="any"
+                value={freeShipThreshold}
+                onChange={(e) => setFreeShipThreshold(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl border border-gray-200 focus:border-blue-400 focus:ring-1 focus:ring-blue-200 outline-none text-sm"
+                placeholder="499"
+              />
+              <p className="text-[10px] text-gray-400 mt-1">ضع 0 لإلغاء الشحن المجاني التلقائي</p>
+            </div>
+
+            <div className="flex items-end">
+              <button
+                onClick={handleSaveShippingSettings}
+                disabled={upsertStoreSettings.isPending}
+                className="btn-primary flex items-center gap-2 w-full justify-center"
+              >
+                {upsertStoreSettings.isPending ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : (
+                  <Save size={14} />
+                )}
+                حفظ
+              </button>
+            </div>
           </div>
         </div>
 

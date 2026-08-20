@@ -74,7 +74,7 @@ const COPY: Record<TrackedKind, {
 }> = {
   confirmed: {
     emoji: '🎉',
-    accent: '#4F46E5',
+    accent: '#16A34A',
     subject: (id) => `Dar Alfath - Order #${id} confirmed`,
     headline: 'تم تأكيد طلبك',
     bodyHtml: (name, id) => `

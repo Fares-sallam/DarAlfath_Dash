@@ -462,3 +462,99 @@ export function exportShippingCsv(rows: ShipmentOrder[]) {
   a.click();
   URL.revokeObjectURL(url);
 }
+
+/* ────────────────────────────────────────────── */
+/* Weight + governorate shipping rates */
+/* ────────────────────────────────────────────── */
+
+// Same 27 governorates the storefront's checkout form offers — kept in sync
+// by hand since there's no shared package between the two repos.
+export const EGYPT_GOVERNORATES = [
+  'القاهرة', 'الجيزة', 'الإسكندرية', 'الدقهلية', 'الشرقية', 'القليوبية',
+  'الغربية', 'المنوفية', 'كفر الشيخ', 'البحيرة', 'الإسماعيلية', 'السويس',
+  'بورسعيد', 'الأقصر', 'أسوان', 'الفيوم', 'بني سويف', 'المنيا', 'أسيوط',
+  'سوهاج', 'قنا', 'الوادي الجديد', 'مطروح', 'شمال سيناء', 'جنوب سيناء',
+  'البحر الأحمر', 'دمياط',
+];
+
+export interface ShippingRate {
+  id: string;
+  shipping_company_id: string;
+  governorate: string;
+  weight_from_kg: number;
+  weight_to_kg: number | null;
+  price: number;
+  is_active: boolean;
+}
+
+/** All rate rows for one shipping company — this is what the checkout-time
+ *  calculation reads from (see create-storefront-order / initiate-paymob-
+ *  payment), scoped to whichever company store_settings.default_shipping_
+ *  company_id points at. */
+export function useShippingRates(companyId: string | null) {
+  return useQuery({
+    queryKey: ['shipping-rates', companyId ?? 'none'],
+    queryFn: async (): Promise<ShippingRate[]> => {
+      if (!companyId) return [];
+      const { data, error } = await supabase
+        .from('shipping_rates')
+        .select('id, shipping_company_id, governorate, weight_from_kg, weight_to_kg, price, is_active')
+        .eq('shipping_company_id', companyId)
+        .order('governorate')
+        .order('weight_from_kg');
+
+      if (error) throw error;
+      return (data ?? []) as ShippingRate[];
+    },
+    enabled: !!companyId,
+  });
+}
+
+export interface UpsertShippingRateInput {
+  id?: string;
+  shipping_company_id: string;
+  governorate: string;
+  weight_from_kg: number;
+  weight_to_kg: number | null;
+  price: number;
+  is_active: boolean;
+}
+
+export function useUpsertShippingRate() {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (input: UpsertShippingRateInput) => {
+      const { id, ...payload } = input;
+
+      if (id) {
+        const { error } = await supabase.from('shipping_rates').update(payload).eq('id', id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from('shipping_rates').insert(payload);
+        if (error) throw error;
+      }
+    },
+    onSuccess: (_, input) => {
+      qc.invalidateQueries({ queryKey: ['shipping-rates', input.shipping_company_id] });
+      toast.success('تم حفظ سعر الشحن');
+    },
+    onError: (e: Error) => toast.error('فشل الحفظ: ' + e.message),
+  });
+}
+
+export function useDeleteShippingRate() {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id }: { id: string; shipping_company_id: string }) => {
+      const { error } = await supabase.from('shipping_rates').delete().eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ['shipping-rates', vars.shipping_company_id] });
+      toast.success('تم حذف السعر');
+    },
+    onError: (e: Error) => toast.error('فشل الحذف: ' + e.message),
+  });
+}

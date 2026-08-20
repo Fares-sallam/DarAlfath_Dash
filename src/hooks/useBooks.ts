@@ -30,6 +30,11 @@ export interface ProductVariant {
   reserved_stock?: number | null;
   min_stock?: number | null;
   country_id?: string | null;
+  /** Shipping weight in kg — feeds the weight+governorate shipping-rate
+   *  lookup at checkout (see create-storefront-order / initiate-paymob-
+   *  payment). Defaults to 0.3kg in the DB for variants that predate this
+   *  column. */
+  weight_kg?: number | null;
 }
 
 export interface ProductImage {
@@ -89,6 +94,7 @@ export interface ProductVariantInput {
   stock?: number | null;
   reserved_stock?: number | null;
   min_stock?: number | null;
+  weight_kg?: number | null;
 }
 
 export interface UpsertProductInput {
@@ -155,13 +161,14 @@ function normalizeSale(basePrice: number, salePrice?: number | null) {
   return sale > 0 ? sale : basePrice;
 }
 
-function normalizeVariant(v: ProductVariantInput): ProductVariantInput & { price: number; cost_price: number; base_price: number; sale_price: number; min_stock: number; stock: number; reserved_stock: number } {
+function normalizeVariant(v: ProductVariantInput): ProductVariantInput & { price: number; cost_price: number; base_price: number; sale_price: number; min_stock: number; stock: number; reserved_stock: number; weight_kg: number } {
   const base_price = Math.max(0, num(v.base_price ?? v.price, 0));
   const sale_price = normalizeSale(base_price, v.sale_price ?? v.price ?? base_price);
   const cost_price = Math.max(0, num(v.cost_price, 0));
   const stock = Math.max(0, Math.trunc(num(v.stock, 0)));
   const reserved_stock = Math.max(0, Math.trunc(num(v.reserved_stock, 0)));
   const min_stock = Math.max(0, Math.trunc(num(v.min_stock, 5)));
+  const weight_kg = Math.max(0, num(v.weight_kg, 0.3)) || 0.3;
 
   return {
     ...v,
@@ -174,6 +181,7 @@ function normalizeVariant(v: ProductVariantInput): ProductVariantInput & { price
     stock,
     reserved_stock,
     min_stock,
+    weight_kg,
   };
 }
 
@@ -298,7 +306,7 @@ export function useProducts() {
           id, title, author, description, cover_url, category_id, isbn, keywords,
           type, cost_price, base_price, sale_price, profit, is_active, created_at, updated_at,
           categories(id, name, slug),
-          product_variants(id, product_id, variant_name, variant_type, sku, price, cost_price, base_price, sale_price),
+          product_variants(id, product_id, variant_name, variant_type, sku, price, cost_price, base_price, sale_price, weight_kg),
           electronic_books(id, product_id, file_path, file_format, is_sold_once, file_size_mb, protected, watermark),
           product_series(series_id, book_series(id, name, author))
         `)
@@ -539,6 +547,7 @@ export function useUpsertProduct() {
           base_price: variant.base_price,
           sale_price: variant.sale_price,
           price: variant.sale_price,
+          weight_kg: variant.weight_kg,
         };
 
         let savedVariant: ProductVariant;

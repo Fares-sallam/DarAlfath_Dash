@@ -18,6 +18,11 @@ import {
   Globe2,
   CreditCard,
   Save,
+  Edit,
+  Trash2,
+  Scale,
+  Check,
+  Star,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
@@ -30,9 +35,14 @@ import {
   usePaymentMethodsForShipping,
   useCreateShipment,
   useUpdateShipment,
+  useShippingRates,
+  useUpsertShippingRate,
+  useDeleteShippingRate,
   exportShippingCsv,
+  EGYPT_GOVERNORATES,
   type ShipmentOrder,
   type ShipmentStatus,
+  type ShippingRate,
 } from '@/hooks/useShipping';
 
 /* ────────────────────────────────────────────── */
@@ -348,6 +358,8 @@ export default function Shipping() {
             </div>
           </div>
         </div>
+
+        <ShippingRatesSection />
 
         {/* Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
@@ -940,5 +952,328 @@ export default function Shipping() {
         </div>
       )}
     </Layout>
+  );
+}
+
+/* ════════════════════════════════════════════════════════════
+   Shipping Rates (weight + governorate) Section
+════════════════════════════════════════════════════════════ */
+
+function ShippingRatesSection() {
+  const { data: companies = [] } = useShippingCompaniesForShipping();
+  const { data: storeSettings } = useStoreSettings();
+  const upsertStoreSettings = useUpsertStoreSettings();
+
+  const [selectedCompanyId, setSelectedCompanyId] = useState<string>('');
+
+  useEffect(() => {
+    if (selectedCompanyId) return;
+    if (storeSettings?.default_shipping_company_id) {
+      setSelectedCompanyId(storeSettings.default_shipping_company_id);
+    } else if (companies.length > 0) {
+      setSelectedCompanyId(companies[0].id);
+    }
+  }, [storeSettings, companies, selectedCompanyId]);
+
+  const { data: rates = [], isLoading } = useShippingRates(selectedCompanyId || null);
+  const upsertRate = useUpsertShippingRate();
+  const deleteRate = useDeleteShippingRate();
+
+  const [showForm, setShowForm] = useState(false);
+  const [editingRate, setEditingRate] = useState<ShippingRate | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<ShippingRate | null>(null);
+
+  const emptyRateForm = {
+    governorate: EGYPT_GOVERNORATES[0],
+    weight_from_kg: '0',
+    weight_to_kg: '20',
+    price: '',
+    is_active: true,
+  };
+  const [form, setForm] = useState(emptyRateForm);
+
+  const openAdd = () => {
+    setForm(emptyRateForm);
+    setEditingRate(null);
+    setShowForm(true);
+  };
+
+  const openEdit = (rate: ShippingRate) => {
+    setForm({
+      governorate: rate.governorate,
+      weight_from_kg: String(rate.weight_from_kg),
+      weight_to_kg: rate.weight_to_kg != null ? String(rate.weight_to_kg) : '',
+      price: String(rate.price),
+      is_active: rate.is_active,
+    });
+    setEditingRate(rate);
+    setShowForm(true);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedCompanyId) return;
+
+    const price = Number(form.price);
+    const weightFrom = Number(form.weight_from_kg);
+    const weightTo = form.weight_to_kg.trim() === '' ? null : Number(form.weight_to_kg);
+
+    if (!Number.isFinite(price) || price < 0) {
+      toast.error('السعر يجب أن يكون رقماً موجباً');
+      return;
+    }
+    if (!Number.isFinite(weightFrom) || weightFrom < 0) {
+      toast.error('الوزن (من) غير صالح');
+      return;
+    }
+    if (weightTo !== null && (!Number.isFinite(weightTo) || weightTo <= weightFrom)) {
+      toast.error('الوزن (إلى) يجب أن يكون أكبر من الوزن (من)');
+      return;
+    }
+
+    await upsertRate.mutateAsync({
+      id: editingRate?.id,
+      shipping_company_id: selectedCompanyId,
+      governorate: form.governorate,
+      weight_from_kg: weightFrom,
+      weight_to_kg: weightTo,
+      price,
+      is_active: form.is_active,
+    });
+
+    setShowForm(false);
+    setEditingRate(null);
+  };
+
+  const isDefaultCompany = !!selectedCompanyId && storeSettings?.default_shipping_company_id === selectedCompanyId;
+  const selectedCompanyName = companies.find((c) => c.id === selectedCompanyId)?.company_name ?? '';
+
+  return (
+    <div className="bg-white rounded-2xl p-5 shadow-sm mb-6 border border-blue-100">
+      <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
+        <div className="flex items-center gap-2">
+          <div className="p-2 rounded-xl bg-blue-50">
+            <Scale size={18} className="text-blue-600" />
+          </div>
+          <div>
+            <h3 className="font-bold text-gray-800">أسعار الشحن حسب المحافظة والوزن</h3>
+            <p className="text-xs text-gray-500">
+              سعر الشركة "الافتراضية" هو اللي بيتحسب تلقائيًا وقت الشراء حسب محافظة العميل ووزن السلة
+            </p>
+          </div>
+        </div>
+
+        <button onClick={openAdd} disabled={!selectedCompanyId} className="btn-primary flex items-center gap-1.5 text-sm disabled:opacity-50">
+          <Plus size={14} />
+          إضافة سعر
+        </button>
+      </div>
+
+      <div className="flex items-center gap-3 flex-wrap mb-4">
+        <select
+          value={selectedCompanyId}
+          onChange={(e) => setSelectedCompanyId(e.target.value)}
+          className="px-3 py-2 rounded-xl border border-gray-200 text-sm outline-none focus:border-blue-400"
+        >
+          {companies.map((c) => (
+            <option key={c.id} value={c.id}>{c.company_name}</option>
+          ))}
+        </select>
+
+        {isDefaultCompany ? (
+          <span className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-xl bg-green-50 text-green-700">
+            <Star size={12} className="fill-green-600 text-green-600" />
+            الشركة الافتراضية للحساب التلقائي
+          </span>
+        ) : (
+          <button
+            onClick={() => selectedCompanyId && upsertStoreSettings.mutate({ default_shipping_company_id: selectedCompanyId })}
+            disabled={!selectedCompanyId || upsertStoreSettings.isPending}
+            className="btn-secondary text-xs flex items-center gap-1.5"
+          >
+            <Star size={12} />
+            اجعلها الافتراضية
+          </button>
+        )}
+      </div>
+
+      {isLoading ? (
+        <div className="flex items-center justify-center py-10 gap-2 text-gray-400">
+          <Loader2 size={18} className="animate-spin" />
+          <span className="text-sm">جارٍ التحميل...</span>
+        </div>
+      ) : rates.length === 0 ? (
+        <div className="text-center py-10 text-gray-400">
+          <Scale size={28} className="text-gray-200 mx-auto mb-2" />
+          <p className="text-sm">لا توجد أسعار مضافة لهذه الشركة بعد</p>
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-100 text-gray-500 text-xs">
+                <th className="text-right py-2 px-2">المحافظة</th>
+                <th className="text-right py-2 px-2">من (كجم)</th>
+                <th className="text-right py-2 px-2">إلى (كجم)</th>
+                <th className="text-right py-2 px-2">السعر</th>
+                <th className="text-right py-2 px-2">الحالة</th>
+                <th className="text-right py-2 px-2">إجراءات</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rates.map((rate) => (
+                <tr key={rate.id} className="border-b border-gray-50 hover:bg-gray-50/50">
+                  <td className="py-2 px-2 font-semibold text-gray-700">{rate.governorate}</td>
+                  <td className="py-2 px-2 text-gray-500">{rate.weight_from_kg}</td>
+                  <td className="py-2 px-2 text-gray-500">{rate.weight_to_kg ?? '∞'}</td>
+                  <td className="py-2 px-2 font-bold text-gray-800">{rate.price} ج.م</td>
+                  <td className="py-2 px-2">
+                    {rate.is_active ? (
+                      <span className="text-xs font-semibold px-2 py-0.5 rounded-lg bg-green-50 text-green-700">نشط</span>
+                    ) : (
+                      <span className="text-xs font-semibold px-2 py-0.5 rounded-lg bg-gray-100 text-gray-500">معطل</span>
+                    )}
+                  </td>
+                  <td className="py-2 px-2">
+                    <div className="flex items-center gap-1.5">
+                      <button onClick={() => openEdit(rate)} className="p-1.5 rounded-lg hover:bg-blue-50 text-blue-600" title="تعديل">
+                        <Edit size={13} />
+                      </button>
+                      <button onClick={() => setDeleteTarget(rate)} className="p-1.5 rounded-lg hover:bg-red-50 text-red-500" title="حذف">
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {showForm && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" dir="rtl">
+          <div className="bg-white rounded-2xl shadow-xl p-6 max-w-md w-full">
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="font-bold text-gray-800">
+                {editingRate ? 'تعديل سعر الشحن' : 'إضافة سعر شحن'} — {selectedCompanyName}
+              </h3>
+              <button
+                onClick={() => { setShowForm(false); setEditingRate(null); }}
+                className="p-1.5 rounded-xl hover:bg-gray-100 text-gray-400"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1.5">المحافظة</label>
+                <select
+                  value={form.governorate}
+                  onChange={(e) => setForm((f) => ({ ...f, governorate: e.target.value }))}
+                  className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm outline-none focus:border-blue-400"
+                >
+                  {EGYPT_GOVERNORATES.map((g) => (
+                    <option key={g} value={g}>{g}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">من (كجم)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    value={form.weight_from_kg}
+                    onChange={(e) => setForm((f) => ({ ...f, weight_from_kg: e.target.value }))}
+                    className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm outline-none focus:border-blue-400"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">إلى (كجم)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    value={form.weight_to_kg}
+                    onChange={(e) => setForm((f) => ({ ...f, weight_to_kg: e.target.value }))}
+                    className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm outline-none focus:border-blue-400"
+                    placeholder="بدون حد"
+                  />
+                  <p className="text-[10px] text-gray-400 mt-1">اتركه فارغًا لعدم وضع حد أقصى للوزن</p>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1.5">السعر (ج.م)</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="any"
+                  required
+                  value={form.price}
+                  onChange={(e) => setForm((f) => ({ ...f, price: e.target.value }))}
+                  className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm outline-none focus:border-blue-400"
+                  placeholder="97"
+                />
+              </div>
+
+              <label className="flex items-center gap-2 text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={form.is_active}
+                  onChange={(e) => setForm((f) => ({ ...f, is_active: e.target.checked }))}
+                />
+                نشط
+              </label>
+
+              <div className="flex gap-3 pt-1">
+                <button
+                  type="button"
+                  onClick={() => { setShowForm(false); setEditingRate(null); }}
+                  className="flex-1 btn-secondary"
+                >
+                  إلغاء
+                </button>
+                <button
+                  type="submit"
+                  disabled={upsertRate.isPending}
+                  className="flex-1 btn-primary flex items-center justify-center gap-2 disabled:opacity-60"
+                >
+                  {upsertRate.isPending ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                  {editingRate ? 'حفظ' : 'إضافة'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {deleteTarget && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" dir="rtl">
+          <div className="bg-white rounded-2xl shadow-xl p-6 max-w-sm w-full text-center">
+            <AlertCircle size={32} className="text-red-500 mx-auto mb-3" />
+            <h3 className="font-bold text-gray-800 mb-1">حذف سعر الشحن؟</h3>
+            <p className="text-sm text-gray-500 mb-5">
+              سعر {deleteTarget.governorate} ({deleteTarget.price} ج.م) هيتشال، والحساب التلقائي هيرجع للسعر الثابت العام لباقي طلبات المحافظة دي لحد ما تضيف سعر تاني.
+            </p>
+            <div className="flex gap-3">
+              <button onClick={() => setDeleteTarget(null)} className="flex-1 btn-secondary">إلغاء</button>
+              <button
+                onClick={() => {
+                  deleteRate.mutate({ id: deleteTarget.id, shipping_company_id: deleteTarget.shipping_company_id });
+                  setDeleteTarget(null);
+                }}
+                className="flex-1 bg-red-500 hover:bg-red-600 text-white rounded-xl font-semibold text-sm"
+              >
+                حذف
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }

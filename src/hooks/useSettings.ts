@@ -278,6 +278,10 @@ export interface StoreSettingsInput {
   seo_keywords?: string;
   default_shipping_cost?: number;
   free_shipping_threshold?: number;
+  /** Which shipping company's shipping_rates rows drive the automatic
+   *  weight+governorate checkout-time calculation (falls back to
+   *  default_shipping_cost above when unset or no rate matches). */
+  default_shipping_company_id?: string | null;
   notifications?: {
     emailNewOrder?: boolean;
     smsNewOrder?: boolean;

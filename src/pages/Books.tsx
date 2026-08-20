@@ -28,6 +28,7 @@ interface VariantForm {
   sale_price: string;
   stock: string;
   min_stock: string;
+  weight_kg: string;
 }
 
 interface BookForm {
@@ -68,6 +69,7 @@ const emptyVariant = (): VariantForm => ({
   sale_price: '',
   stock: '0',
   min_stock: '5',
+  weight_kg: '0.3',
 });
 
 const VARIANT_NAMES = ['ورق عادي', 'ورق فاخر', 'A4', 'كوشيه', 'إلكتروني'];
@@ -454,6 +456,7 @@ export default function Books() {
         sale_price: String(v.sale_price ?? v.price ?? v.base_price ?? 0),
         stock: String(v.stock ?? 0),
         min_stock: String(v.min_stock ?? 5),
+        weight_kg: String(v.weight_kg ?? 0.3),
       }))
     );
     const existingEbook = p.electronic_books?.[0];
@@ -575,6 +578,7 @@ export default function Books() {
           stock: v.variant_type === 'مادي' ? toNumber(v.stock) : null,
           reserved_stock: 0,
           min_stock: v.variant_type === 'مادي' ? toNumber(v.min_stock, 5) : 0,
+          weight_kg: toNumber(v.weight_kg, 0.3),
         };
       }),
       ebookFilePath: finalEbookPath || undefined,
@@ -1302,7 +1306,7 @@ export default function Books() {
                               </div>
 
                               {v.variant_type === 'مادي' ? (
-                                <div className="grid grid-cols-2 gap-2">
+                                <div className="grid grid-cols-3 gap-2">
                                   <div className="bg-white rounded-xl p-3">
                                     <label className="text-xs text-gray-500 block mb-1">المخزون</label>
                                     <input
@@ -1330,6 +1334,23 @@ export default function Books() {
                                       }
                                       className="input-field text-sm py-1.5 h-auto"
                                       placeholder="5"
+                                    />
+                                  </div>
+
+                                  <div className="bg-white rounded-xl p-3">
+                                    <label className="text-xs text-gray-500 block mb-1">الوزن (كجم)</label>
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      step="any"
+                                      value={v.weight_kg}
+                                      onChange={(e) =>
+                                        setVariants((prev) =>
+                                          prev.map((x, i) => (i === idx ? { ...x, weight_kg: e.target.value } : x))
+                                        )
+                                      }
+                                      className="input-field text-sm py-1.5 h-auto"
+                                      placeholder="0.3"
                                     />
                                   </div>
                                 </div>

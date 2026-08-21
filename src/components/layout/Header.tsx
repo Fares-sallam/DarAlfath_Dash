@@ -223,20 +223,37 @@ export default function Header({ onMenuToggle, title, subtitle }: HeaderProps) {
       </div>
 
       <div className="flex items-center gap-2 md:gap-4">
-        {/* Search */}
+        {/* Search — jumps to إدارة الكتب with the query pre-filled into that
+            page's own search box (same title/author/ISBN filter it already
+            has), since books are the one thing worth a global quick-search
+            here. */}
         <div className="relative hidden lg:block">
           <input
             type="text"
             placeholder="ابحث هنا..."
             value={searchValue}
             onChange={(e) => setSearchValue(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key !== 'Enter') return;
+              const q = searchValue.trim();
+              if (!q) return;
+              navigate(`/books?q=${encodeURIComponent(q)}`);
+            }}
             className="w-64 h-10 pr-10 pl-4 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
             dir="rtl"
           />
-          <Search
-            size={16}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400"
-          />
+          <button
+            type="button"
+            onClick={() => {
+              const q = searchValue.trim();
+              if (!q) return;
+              navigate(`/books?q=${encodeURIComponent(q)}`);
+            }}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-blue-600"
+            title="بحث"
+          >
+            <Search size={16} />
+          </button>
         </div>
 
         {/* Country Selector */}

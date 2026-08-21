@@ -1,4 +1,5 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { escapeHtml } from '@/lib/utils';
 import * as XLSX from 'xlsx';
 import Layout from '@/components/layout/Layout';
@@ -376,7 +377,14 @@ export default function Books() {
   const deleteMutation = useDeleteProduct();
   const toggleMutation = useToggleProductStatus();
 
-  const [search, setSearch] = useState('');
+  // Pre-fills from ?q=... — the header's global search box lands here with
+  // the query attached, since books are the one thing worth a quick-search.
+  const [searchParams] = useSearchParams();
+  const [search, setSearch] = useState(() => searchParams.get('q') ?? '');
+  useEffect(() => {
+    const q = searchParams.get('q');
+    if (q) setSearch(q);
+  }, [searchParams]);
   const [filterType, setFilterType] = useState('الكل');
   const [filterActive, setFilterActive] = useState('الكل');
   const [filterCategory, setFilterCategory] = useState('الكل');

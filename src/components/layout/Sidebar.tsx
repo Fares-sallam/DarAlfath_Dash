@@ -59,9 +59,17 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         transition-transform duration-300 ease-in-out
         ${isOpen ? 'translate-x-0' : 'translate-x-full lg:translate-x-0'}
       `}>
-        {/* Logo */}
+        {/* Logo — opens the live storefront (where books are actually sold
+            to customers) in a new tab, so the admin doesn't lose their
+            place in the dashboard. */}
         <div className="flex items-center justify-between px-5 py-5 border-b border-white/10">
-          <div className="flex items-center gap-3">
+          <a
+            href="https://dar-alfath-client.vercel.app"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-3 hover:opacity-80 transition-opacity"
+            title="فتح متجر دار الفتح"
+          >
             <div className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center overflow-hidden flex-shrink-0">
               {logoUrl
                 ? <img src={logoUrl} alt="شعار دار الفتح" className="w-full h-full object-cover" />
@@ -72,7 +80,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
               <h1 className="text-white font-bold text-base leading-tight">دار الفتح</h1>
               <p className="text-blue-200 text-xs">لوحة التحكم</p>
             </div>
-          </div>
+          </a>
           <button onClick={onClose} className="lg:hidden text-white/60 hover:text-white">
             <X size={20} />
           </button>

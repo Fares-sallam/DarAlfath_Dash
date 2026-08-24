@@ -6,7 +6,8 @@ import {
   Search as SearchIcon, Plus, Pencil, Trash2, X, Check,
   Loader2, AlertCircle, Globe2, Tag, Wallet, CheckCircle,
   Eye, EyeOff, Camera, Phone, Mail, MapPin, CheckCircle2,
-  Shield, KeyRound, RefreshCw, ImageIcon, Lock
+  Shield, KeyRound, RefreshCw, ImageIcon, Lock,
+  Facebook, Instagram, MessageCircle, Youtube
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
@@ -597,6 +598,11 @@ function StoreSection() {
     store_email: '',
     store_phone: '',
     store_address: '',
+    facebook_url: '',
+    instagram_url: '',
+    whatsapp_url: '',
+    youtube_url: '',
+    website_url: '',
     seo_title: '',
     seo_description: '',
     seo_keywords: '',
@@ -618,6 +624,11 @@ function StoreSection() {
       store_email: settings.store_email ?? '',
       store_phone: settings.store_phone ?? '',
       store_address: settings.store_address ?? '',
+      facebook_url: settings.facebook_url ?? '',
+      instagram_url: settings.instagram_url ?? '',
+      whatsapp_url: settings.whatsapp_url ?? '',
+      youtube_url: settings.youtube_url ?? '',
+      website_url: settings.website_url ?? '',
       seo_title: settings.seo_title ?? '',
       seo_description: settings.seo_description ?? '',
       seo_keywords: settings.seo_keywords ?? '',
@@ -740,6 +751,43 @@ function StoreSection() {
       <div>
         <label className="block text-sm font-semibold text-gray-700 mb-2">وصف المتجر</label>
         <textarea value={form.store_description} onChange={e => setForm(f => ({ ...f, store_description: e.target.value }))} rows={3} className="input-field h-auto py-3 resize-none" />
+      </div>
+
+      <div className="border-t border-gray-100 pt-5">
+        <h4 className="font-bold text-gray-800 mb-1">روابط التواصل الاجتماعي</h4>
+        <p className="text-xs text-gray-400 mb-3">تظهر في تذييل الموقع — اتركها فارغة لإخفاء أي أيقونة لسه معندكش رابط حقيقي ليها.</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              <Globe2 size={14} className="inline ml-1.5 text-gray-400" />الموقع الرسمي
+            </label>
+            <input value={form.website_url} onChange={e => setForm(f => ({ ...f, website_url: e.target.value }))} placeholder="https://" className="input-field" dir="ltr" />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              <Facebook size={14} className="inline ml-1.5 text-gray-400" />فيسبوك
+            </label>
+            <input value={form.facebook_url} onChange={e => setForm(f => ({ ...f, facebook_url: e.target.value }))} placeholder="https://facebook.com/..." className="input-field" dir="ltr" />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              <Instagram size={14} className="inline ml-1.5 text-gray-400" />إنستجرام
+            </label>
+            <input value={form.instagram_url} onChange={e => setForm(f => ({ ...f, instagram_url: e.target.value }))} placeholder="https://instagram.com/..." className="input-field" dir="ltr" />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              <MessageCircle size={14} className="inline ml-1.5 text-gray-400" />واتساب
+            </label>
+            <input value={form.whatsapp_url} onChange={e => setForm(f => ({ ...f, whatsapp_url: e.target.value }))} placeholder="https://wa.me/201xxxxxxxxx" className="input-field" dir="ltr" />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              <Youtube size={14} className="inline ml-1.5 text-gray-400" />يوتيوب
+            </label>
+            <input value={form.youtube_url} onChange={e => setForm(f => ({ ...f, youtube_url: e.target.value }))} placeholder="https://youtube.com/@..." className="input-field" dir="ltr" />
+          </div>
+        </div>
       </div>
 
       <button onClick={handleSave} disabled={upsertStore.isPending} className="btn-primary flex items-center gap-2 disabled:opacity-60">

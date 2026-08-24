@@ -273,6 +273,14 @@ export interface StoreSettingsInput {
   store_email?: string;
   store_phone?: string;
   store_address?: string;
+  /** Shown as icon links in the storefront footer — an entry only
+   *  renders there when it's actually set, so an empty value just
+   *  hides that icon rather than showing a dead link. */
+  facebook_url?: string;
+  instagram_url?: string;
+  whatsapp_url?: string;
+  youtube_url?: string;
+  website_url?: string;
   seo_title?: string;
   seo_description?: string;
   seo_keywords?: string;
@@ -300,9 +308,14 @@ export interface StoreSettings extends StoreSettingsInput {
 const DEFAULT_STORE_SETTINGS: StoreSettings = {
   store_name: 'دار الفتح للنشر والتوزيع',
   store_description: 'دار الفتح — متجر متخصص في بيع الكتب الورقية والرقمية بجودة عالية وتوصيل سريع',
-  store_email: 'info@darelfath.com',
+  store_email: 'info@daralfath.com',
   store_phone: '',
   store_address: '',
+  facebook_url: '',
+  instagram_url: '',
+  whatsapp_url: '',
+  youtube_url: '',
+  website_url: '',
   seo_title: 'دار الفتح — أفضل الكتب الورقية والرقمية',
   seo_description: 'اكتشف مجموعة واسعة من الكتب الورقية والرقمية بأفضل الأسعار مع توصيل سريع.',
   seo_keywords: 'كتب، مكتبة، روايات، تنمية بشرية، كتب رقمية، دار الفتح',

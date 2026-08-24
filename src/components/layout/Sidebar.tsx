@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import { 
   LayoutDashboard, Settings, BookOpen, ShoppingCart, Users, BookMarked,
   Tag, Package, BarChart3, Truck, ShieldCheck, ActivitySquare, LogOut, X, CreditCard,
-  Image as ImageIcon,
+  Image as ImageIcon, Youtube,
   BookOpen as BookIcon
 } from 'lucide-react';
 
@@ -17,6 +17,7 @@ interface SidebarProps {
 const navItems = [
   { id: 'home', label: 'الرئيسية', icon: LayoutDashboard, path: '/', requiresAdmin: false },
   { id: 'hero-slides', label: 'صور الصفحة الرئيسية', icon: ImageIcon, path: '/hero-slides', requiresAdmin: true },
+  { id: 'intro-videos', label: 'فيديوهات "من الدار"', icon: Youtube, path: '/intro-videos', requiresAdmin: true },
   { id: 'settings', label: 'الإعدادات', icon: Settings, path: '/settings', requiresAdmin: false },
   { id: 'books', label: 'إدارة الكتب', icon: BookOpen, path: '/books', requiresAdmin: true },
   { id: 'orders', label: 'إدارة الطلبات', icon: ShoppingCart, path: '/orders', requiresAdmin: true },

@@ -7,14 +7,15 @@ import {
   Search, Plus, Edit, Trash2, BookOpen, Copy, ToggleLeft,
   ToggleRight, BarChart2, X, Upload, Tag, DollarSign, Package,
   FileText, Loader2, AlertCircle, ImageIcon, Star,
-  Download, Filter, Globe2
+  Download, Filter, Globe2, Eye
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   useProducts, useCategories, useBookSeries,
   useUpsertProduct, useDeleteProduct, useToggleProductStatus,
   useProductImages, useDeleteProductImage, useSetPrimaryImage,
-  uploadCoverImage, uploadEbookFile, uploadProductImage,
+  uploadCoverImage, uploadEbookFileWithProgress, uploadProductImage,
+  getEbookSignedUrl,
   type Product, type UpsertProductInput,
 } from '@/hooks/useBooks';
 import { useCountry } from '@/contexts/CountryContext';
@@ -402,6 +403,8 @@ export default function Books() {
   const [ebookFile, setEbookFile] = useState<File | null>(null);
   const [ebookPath, setEbookPath] = useState<string>('');
   const [uploading, setUploading] = useState(false);
+  const [ebookUploadProgress, setEbookUploadProgress] = useState<number | null>(null);
+  const [ebookPreviewLoading, setEbookPreviewLoading] = useState(false);
 
   const coverInputRef = useRef<HTMLInputElement>(null);
   const ebookInputRef = useRef<HTMLInputElement>(null);
@@ -434,6 +437,7 @@ export default function Books() {
     setCoverPreview('');
     setEbookFile(null);
     setEbookPath('');
+    setEbookUploadProgress(null);
     setActiveTab('info');
     setShowModal(true);
   };
@@ -467,11 +471,15 @@ export default function Books() {
         weight_kg: String(v.weight_kg ?? 0.3),
       }))
     );
-    const existingEbook = p.electronic_books?.[0];
-    setEbookPath(existingEbook?.file_path ?? '');
+    // electronic_books is embedded as a single object (product_id is
+    // UNIQUE, one ebook per product) — was read as `?.[0]`, which is
+    // always undefined on a plain object, so an already-uploaded file
+    // never showed as uploaded when reopening the edit form.
+    setEbookPath(p.electronic_books?.file_path ?? '');
     setCoverFile(null);
     setCoverPreview('');
     setEbookFile(null);
+    setEbookUploadProgress(null);
     setActiveTab('info');
     setShowModal(true);
   };
@@ -488,6 +496,36 @@ export default function Books() {
     if (!file) return;
     setEbookFile(file);
     toast.success(`تم اختيار الملف: ${file.name}`);
+  };
+
+  // Local file, not uploaded yet — a plain blob: URL opened in a new tab
+  // lets the browser's own PDF viewer render it, no server round-trip.
+  const handlePreviewLocalEbook = () => {
+    if (!ebookFile) return;
+    window.open(URL.createObjectURL(ebookFile), '_blank', 'noopener');
+  };
+
+  // Already-uploaded file — the `ebooks` bucket is private, so this needs
+  // a short-lived signed URL (same helper getEbookSignedUrl was written
+  // for, just never wired to anything until now) rather than a plain
+  // public link. The tab is opened synchronously, in the same tick as the
+  // click, *before* the await — opening it only after the signed-url
+  // fetch resolves breaks the browser's "was this really a user click"
+  // check on window.open and gets silently popup-blocked.
+  const handlePreviewUploadedEbook = async () => {
+    if (!ebookPath) return;
+    const tab = window.open('', '_blank', 'noopener');
+    setEbookPreviewLoading(true);
+    try {
+      const url = await getEbookSignedUrl(ebookPath);
+      if (tab) tab.location.href = url;
+      else window.open(url, '_blank', 'noopener'); // popup was blocked anyway — last resort
+    } catch (err: unknown) {
+      tab?.close();
+      toast.error(err instanceof Error ? err.message : 'تعذّرت معاينة الملف');
+    } finally {
+      setEbookPreviewLoading(false);
+    }
   };
 
   const handleSave = async () => {
@@ -546,10 +584,12 @@ export default function Books() {
 
     const hasDigitalVariant = variants.some((v) => v.variant_type === 'رقمي');
     if (ebookFile && hasDigitalVariant) {
-      finalEbookPath = await uploadEbookFile(ebookFile, tempId).catch((err) => {
+      setEbookUploadProgress(0);
+      finalEbookPath = await uploadEbookFileWithProgress(ebookFile, tempId, setEbookUploadProgress).catch((err) => {
         toast.error('فشل رفع ملف الكتاب: ' + err.message);
         return finalEbookPath;
       });
+      setEbookUploadProgress(null);
     }
 
     setUploading(false);
@@ -1384,18 +1424,58 @@ export default function Books() {
                                   <button
                                     type="button"
                                     onClick={() => ebookInputRef.current?.click()}
-                                    className="flex items-center gap-2 px-4 py-2 bg-white border border-purple-200 rounded-xl text-sm text-purple-700 hover:bg-purple-50 transition-colors"
+                                    disabled={ebookUploadProgress !== null}
+                                    className="flex items-center gap-2 px-4 py-2 bg-white border border-purple-200 rounded-xl text-sm text-purple-700 hover:bg-purple-50 transition-colors disabled:opacity-50"
                                   >
                                     <Upload size={14} />
                                     {ebookFile ? ebookFile.name : 'رفع ملف'}
                                   </button>
 
-                                  {(ebookFile || ebookPath) && (
+                                  {ebookFile && (
+                                    <button
+                                      type="button"
+                                      onClick={handlePreviewLocalEbook}
+                                      className="flex items-center gap-1.5 px-3 py-2 text-xs text-purple-600 hover:text-purple-800 hover:bg-purple-100 rounded-lg transition-colors"
+                                      title="معاينة الملف قبل الرفع"
+                                    >
+                                      <Eye size={13} /> معاينة
+                                    </button>
+                                  )}
+
+                                  {!ebookFile && ebookPath && (
+                                    <button
+                                      type="button"
+                                      onClick={handlePreviewUploadedEbook}
+                                      disabled={ebookPreviewLoading}
+                                      className="flex items-center gap-1.5 px-3 py-2 text-xs text-purple-600 hover:text-purple-800 hover:bg-purple-100 rounded-lg transition-colors disabled:opacity-50"
+                                      title="معاينة الملف المرفوع قبل التحميل"
+                                    >
+                                      {ebookPreviewLoading ? <Loader2 size={13} className="animate-spin" /> : <Eye size={13} />}
+                                      معاينة
+                                    </button>
+                                  )}
+
+                                  {(ebookFile || ebookPath) && ebookUploadProgress === null && (
                                     <span className="text-xs text-purple-600 font-mono">
                                       {ebookFile ? '✓ ملف جديد' : '✓ ملف مرفوع'}
                                     </span>
                                   )}
                                 </div>
+
+                                {ebookUploadProgress !== null && (
+                                  <div className="mt-2.5">
+                                    <div className="flex items-center justify-between text-[11px] text-purple-600 font-mono mb-1">
+                                      <span>جارٍ رفع الملف...</span>
+                                      <span>{ebookUploadProgress}٪</span>
+                                    </div>
+                                    <div className="h-1.5 w-full bg-purple-100 rounded-full overflow-hidden">
+                                      <div
+                                        className="h-full bg-purple-500 rounded-full transition-all duration-200 ease-out"
+                                        style={{ width: `${ebookUploadProgress}%` }}
+                                      />
+                                    </div>
+                                  </div>
+                                )}
 
                                 <div className="flex gap-3 text-xs text-purple-600 mt-2 flex-wrap">
                                   <span>✓ يباع مرة واحدة لكل عميل</span>

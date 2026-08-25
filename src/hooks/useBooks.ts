@@ -77,7 +77,10 @@ export interface Product {
   updated_at: string;
   categories?: Category;
   product_variants?: ProductVariant[];
-  electronic_books?: ElectronicBook[];
+  // electronic_books.product_id has a UNIQUE constraint (one ebook file
+  // per product), so PostgREST embeds it as a single object, not an
+  // array — matches `categories` above, not `product_variants`.
+  electronic_books?: ElectronicBook | null;
   product_series?: { series_id: string; book_series: BookSeries }[];
   product_images?: ProductImage[];
 }
@@ -769,6 +772,55 @@ export async function uploadEbookFile(file: File, productId: string): Promise<st
     .upload(path, file, { upsert: true });
 
   if (error) throw error;
+  return path;
+}
+
+/* ── Same upload, but reports real 0–100% progress ──────────────────────
+ * The supabase-js storage client wraps `fetch`, which has no reliable
+ * cross-browser upload-progress event — only XMLHttpRequest's
+ * `upload.onprogress` gives real byte-level progress, so this hits the
+ * Storage REST endpoint directly instead of going through the SDK. Same
+ * bucket/path/upsert semantics as uploadEbookFile above (x-upsert header
+ * is the REST equivalent of the SDK's `{ upsert: true }`), so both stay
+ * interchangeable for anything that doesn't need the progress callback. */
+export async function uploadEbookFileWithProgress(
+  file: File,
+  productId: string,
+  onProgress: (percent: number) => void
+): Promise<string> {
+  const ext = file.name.split('.').pop();
+  const path = `ebooks/${productId}.${ext}`;
+
+  const { data: sessionData } = await supabase.auth.getSession();
+  const accessToken = sessionData.session?.access_token;
+  if (!accessToken) throw new Error('يجب تسجيل الدخول لرفع الملف');
+
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
+  const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
+
+  await new Promise<void>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', `${supabaseUrl}/storage/v1/object/ebooks/${path}`);
+    xhr.setRequestHeader('Authorization', `Bearer ${accessToken}`);
+    xhr.setRequestHeader('apikey', anonKey);
+    xhr.setRequestHeader('x-upsert', 'true');
+    xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
+    };
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        onProgress(100);
+        resolve();
+      } else {
+        reject(new Error(`فشل رفع الملف (${xhr.status})`));
+      }
+    };
+    xhr.onerror = () => reject(new Error('فشل رفع الملف — تحقق من الاتصال'));
+    xhr.send(file);
+  });
+
   return path;
 }
 

@@ -521,14 +521,21 @@ export default function Books() {
   // click, *before* the await — opening it only after the signed-url
   // fetch resolves breaks the browser's "was this really a user click"
   // check on window.open and gets silently popup-blocked.
+  //
+  // Deliberately NOT passing 'noopener' here: it makes window.open()
+  // itself return null in real Chrome/Safari (that's the whole point of
+  // noopener — no reference back), which silently defeated this exact
+  // fix by falling through to the async window.open() every time. The
+  // destination is our own signed Supabase URL, never third-party
+  // content, so there's nothing noopener would have protected against.
   const handlePreviewUploadedEbook = async () => {
     if (!ebookPath) return;
-    const tab = window.open('', '_blank', 'noopener');
+    const tab = window.open('', '_blank');
     setEbookPreviewLoading(true);
     try {
       const url = await getEbookSignedUrl(ebookPath);
       if (tab) tab.location.href = url;
-      else window.open(url, '_blank', 'noopener'); // popup was blocked anyway — last resort
+      else window.open(url, '_blank'); // popup was blocked anyway — last resort
     } catch (err: unknown) {
       tab?.close();
       toast.error(err instanceof Error ? err.message : 'تعذّرت معاينة الملف');

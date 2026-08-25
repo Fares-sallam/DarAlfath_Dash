@@ -56,6 +56,10 @@ export interface ElectronicBook {
   file_size_mb?: number;
   protected: boolean;
   watermark: boolean;
+  /** The name the admin actually uploaded (e.g. "kitab.pdf") — the
+   *  storage path itself is renamed to {productId}.{ext} to avoid
+   *  collisions, so this is the only place the real name survives. */
+  original_filename?: string | null;
 }
 
 export interface Product {
@@ -117,6 +121,9 @@ export interface UpsertProductInput {
   is_active?: boolean;
   variants: ProductVariantInput[];
   ebookFilePath?: string;
+  ebookFileFormat?: string;
+  ebookFileSizeMb?: number;
+  ebookOriginalFilename?: string;
   seriesIds?: string[];
   additionalImages?: { url: string; alt_text?: string; is_primary?: boolean }[];
 }
@@ -310,7 +317,7 @@ export function useProducts() {
           type, cost_price, base_price, sale_price, profit, is_active, created_at, updated_at,
           categories(id, name, slug),
           product_variants(id, product_id, variant_name, variant_type, sku, price, cost_price, base_price, sale_price, weight_kg),
-          electronic_books(id, product_id, file_path, file_format, is_sold_once, file_size_mb, protected, watermark),
+          electronic_books(id, product_id, file_path, file_format, is_sold_once, file_size_mb, protected, watermark, original_filename),
           product_series(series_id, book_series(id, name, author))
         `)
         .order('created_at', { ascending: false })
@@ -645,14 +652,20 @@ export function useUpsertProduct() {
       // Electronic book entry
       const hasDigital = normalizedVariants.some((v) => v.variant_type === 'رقمي');
       if (hasDigital) {
-        const ebookPayload = {
+        const ebookPayload: Record<string, unknown> = {
           product_id: productId,
-          file_path: input.ebookFilePath || null,
-          file_format: 'PDF',
           is_sold_once: true,
           protected: true,
           watermark: true,
         };
+        if (input.ebookFilePath) ebookPayload.file_path = input.ebookFilePath;
+        // format/size only get set when a file was actually (re)uploaded
+        // this save — otherwise upsert leaves the existing values alone,
+        // instead of a hardcoded 'PDF' clobbering a real EPUB/MOBI file's
+        // format on every unrelated edit to the book.
+        if (input.ebookFileFormat) ebookPayload.file_format = input.ebookFileFormat;
+        if (input.ebookFileSizeMb !== undefined) ebookPayload.file_size_mb = input.ebookFileSizeMb;
+        if (input.ebookOriginalFilename) ebookPayload.original_filename = input.ebookOriginalFilename;
 
         await supabase
           .from('electronic_books')

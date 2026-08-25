@@ -405,6 +405,9 @@ export default function Books() {
   const [uploading, setUploading] = useState(false);
   const [ebookUploadProgress, setEbookUploadProgress] = useState<number | null>(null);
   const [ebookPreviewLoading, setEbookPreviewLoading] = useState(false);
+  const [ebookFormat, setEbookFormat] = useState<string>('');
+  const [ebookSizeMb, setEbookSizeMb] = useState<number | null>(null);
+  const [ebookOriginalFilename, setEbookOriginalFilename] = useState<string>('');
 
   const coverInputRef = useRef<HTMLInputElement>(null);
   const ebookInputRef = useRef<HTMLInputElement>(null);
@@ -438,6 +441,9 @@ export default function Books() {
     setEbookFile(null);
     setEbookPath('');
     setEbookUploadProgress(null);
+    setEbookFormat('');
+    setEbookSizeMb(null);
+    setEbookOriginalFilename('');
     setActiveTab('info');
     setShowModal(true);
   };
@@ -476,6 +482,9 @@ export default function Books() {
     // always undefined on a plain object, so an already-uploaded file
     // never showed as uploaded when reopening the edit form.
     setEbookPath(p.electronic_books?.file_path ?? '');
+    setEbookFormat(p.electronic_books?.file_format ?? '');
+    setEbookSizeMb(p.electronic_books?.file_size_mb ?? null);
+    setEbookOriginalFilename(p.electronic_books?.original_filename ?? '');
     setCoverFile(null);
     setCoverPreview('');
     setEbookFile(null);
@@ -583,9 +592,13 @@ export default function Books() {
     }
 
     const hasDigitalVariant = variants.some((v) => v.variant_type === 'رقمي');
+    let uploadedEbook = false;
     if (ebookFile && hasDigitalVariant) {
       setEbookUploadProgress(0);
-      finalEbookPath = await uploadEbookFileWithProgress(ebookFile, tempId, setEbookUploadProgress).catch((err) => {
+      finalEbookPath = await uploadEbookFileWithProgress(ebookFile, tempId, setEbookUploadProgress).then((path) => {
+        uploadedEbook = true;
+        return path;
+      }).catch((err) => {
         toast.error('فشل رفع ملف الكتاب: ' + err.message);
         return finalEbookPath;
       });
@@ -630,6 +643,9 @@ export default function Books() {
         };
       }),
       ebookFilePath: finalEbookPath || undefined,
+      ebookFileFormat: uploadedEbook && ebookFile ? (ebookFile.name.split('.').pop() || '').toUpperCase() : undefined,
+      ebookFileSizeMb: uploadedEbook && ebookFile ? Math.round((ebookFile.size / (1024 * 1024)) * 100) / 100 : undefined,
+      ebookOriginalFilename: uploadedEbook && ebookFile ? ebookFile.name : undefined,
       seriesIds: form.seriesIds,
     };
 
@@ -1420,6 +1436,32 @@ export default function Books() {
                                   <FileText size={13} />
                                   ملف الكتاب الرقمي (PDF / EPUB)
                                 </p>
+
+                                {/* Unambiguous status line — is there a file at all, and what is
+                                    it? The upload button below used to be the only indicator, and
+                                    for an already-uploaded file it just said generic "رفع ملف" with
+                                    no name, size, or format shown anywhere. */}
+                                {ebookUploadProgress === null && (
+                                  <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs mb-2.5 ${
+                                    ebookFile || ebookPath ? 'bg-white border border-purple-200 text-purple-800' : 'bg-gray-100 text-gray-500'
+                                  }`}>
+                                    {ebookFile || ebookPath ? <FileText size={14} className="text-purple-500 flex-shrink-0" /> : <AlertCircle size={14} className="flex-shrink-0" />}
+                                    {ebookFile ? (
+                                      <span className="truncate font-mono">
+                                        {ebookFile.name} <span className="text-purple-400">— {(ebookFile.size / (1024 * 1024)).toFixed(2)} م.ب — لسه مش متحفظ، دوس "حفظ التعديلات"</span>
+                                      </span>
+                                    ) : ebookPath ? (
+                                      <span className="truncate font-mono">
+                                        {ebookOriginalFilename || ebookPath.split('/').pop()}
+                                        {ebookFormat && <span className="text-purple-400"> — {ebookFormat}</span>}
+                                        {ebookSizeMb != null && <span className="text-purple-400"> — {ebookSizeMb} م.ب</span>}
+                                      </span>
+                                    ) : (
+                                      <span>لا يوجد ملف مرفوع — الكتاب لن يظهر متاحًا للبيع للعملاء بدونه</span>
+                                    )}
+                                  </div>
+                                )}
+
                                 <div className="flex items-center gap-3 flex-wrap">
                                   <button
                                     type="button"
@@ -1428,7 +1470,7 @@ export default function Books() {
                                     className="flex items-center gap-2 px-4 py-2 bg-white border border-purple-200 rounded-xl text-sm text-purple-700 hover:bg-purple-50 transition-colors disabled:opacity-50"
                                   >
                                     <Upload size={14} />
-                                    {ebookFile ? ebookFile.name : 'رفع ملف'}
+                                    {ebookFile ? ebookFile.name : ebookPath ? 'رفع ملف بديل' : 'رفع ملف'}
                                   </button>
 
                                   {ebookFile && (
@@ -1453,12 +1495,6 @@ export default function Books() {
                                       {ebookPreviewLoading ? <Loader2 size={13} className="animate-spin" /> : <Eye size={13} />}
                                       معاينة
                                     </button>
-                                  )}
-
-                                  {(ebookFile || ebookPath) && ebookUploadProgress === null && (
-                                    <span className="text-xs text-purple-600 font-mono">
-                                      {ebookFile ? '✓ ملف جديد' : '✓ ملف مرفوع'}
-                                    </span>
                                   )}
                                 </div>
 
@@ -1586,16 +1622,36 @@ export default function Books() {
               <button
                 onClick={handleSave}
                 disabled={isBusy}
-                className="btn-primary flex items-center gap-2 disabled:opacity-60"
+                className="btn-primary flex items-center gap-2 disabled:opacity-60 relative overflow-hidden"
               >
-                {isBusy ? (
-                  <Loader2 size={15} className="animate-spin" />
-                ) : editProduct ? (
-                  <Edit size={15} />
-                ) : (
-                  <Plus size={15} />
+                {/* Same 0-100% number as the inline bar above, but on the
+                    one element that's always on screen no matter where the
+                    modal is scrolled to when "حفظ التعديلات" gets clicked —
+                    the inline bar lives inside the scrollable "أنواع
+                    النسخ" tab content, so it's easy to click save from
+                    further down and never see it move. */}
+                {ebookUploadProgress !== null && (
+                  <span
+                    className="absolute inset-y-0 right-0 bg-white/20 transition-all duration-200 ease-out"
+                    style={{ width: `${ebookUploadProgress}%` }}
+                  />
                 )}
-                {isBusy ? 'جارٍ الحفظ...' : editProduct ? 'حفظ التعديلات' : 'إضافة الكتاب'}
+                <span className="relative flex items-center gap-2">
+                  {isBusy ? (
+                    <Loader2 size={15} className="animate-spin" />
+                  ) : editProduct ? (
+                    <Edit size={15} />
+                  ) : (
+                    <Plus size={15} />
+                  )}
+                  {ebookUploadProgress !== null
+                    ? `جارٍ رفع الملف... ${ebookUploadProgress}٪`
+                    : isBusy
+                    ? 'جارٍ الحفظ...'
+                    : editProduct
+                    ? 'حفظ التعديلات'
+                    : 'إضافة الكتاب'}
+                </span>
               </button>
             </div>
           </div>

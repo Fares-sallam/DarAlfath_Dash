@@ -82,6 +82,28 @@ const typeConfig: Record<string, string> = {
   'ورقي ورقمي': 'bg-teal-100 text-teal-700',
 };
 
+// Both storage buckets (book-covers, product-images) only accept these
+// three mime types and reject anything else server-side — a plain
+// `file.type.startsWith('image/')` check (the pattern used elsewhere in
+// this codebase, e.g. HeroSlides.tsx) still lets HEIC through, since
+// "image/heic" does start with "image/". HEIC is also the *default*
+// photo format on iPhone, so it's the single most likely real-world
+// trigger for "فشل رفع الصورة" — catching it here with a clear message
+// beats a raw "mime type image/heic is not supported" toast from the
+// storage API after the round-trip already happened.
+const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+const MAX_IMAGE_MB = 5;
+
+function validateImageFile(file: File): string | null {
+  if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+    return 'صيغة الصورة غير مدعومة — لازم تكون JPG أو PNG أو WEBP. لو الصورة من آيفون فهي غالبًا HEIC، حوّلها الأول (فيه خيار "الأكثر توافقًا" في إعدادات الكاميرا بيخليها JPG تلقائيًا).';
+  }
+  if (file.size > MAX_IMAGE_MB * 1024 * 1024) {
+    return `حجم الصورة أكبر من ${MAX_IMAGE_MB} ميجابايت — قلّل حجمها وحاول تاني.`;
+  }
+  return null;
+}
+
 function deriveType(variants: VariantForm[]): Product['type'] {
   const hasD = variants.some((v) => v.variant_type === 'رقمي');
   const hasP = variants.some((v) => v.variant_type === 'مادي');
@@ -255,8 +277,18 @@ function ImageGallery({
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files ?? []);
-    if (!files.length) return;
+    const allFiles = Array.from(e.target.files ?? []);
+    if (!allFiles.length) return;
+
+    const files = allFiles.filter((file) => {
+      const err = validateImageFile(file);
+      if (err) toast.error(`${file.name}: ${err}`);
+      return !err;
+    });
+    if (!files.length) {
+      e.target.value = '';
+      return;
+    }
 
     setUploading(true);
     try {
@@ -496,6 +528,12 @@ export default function Books() {
   const handleCoverSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    const err = validateImageFile(file);
+    if (err) {
+      toast.error(err);
+      e.target.value = '';
+      return;
+    }
     setCoverFile(file);
     setCoverPreview(URL.createObjectURL(file));
   };
@@ -1377,6 +1415,13 @@ export default function Books() {
                               </div>
 
                               {v.variant_type === 'مادي' ? (
+                                // .input-field's shared px-4 (16px each side) is meant for
+                                // full-width inputs — inside this 3-column grid each box is
+                                // only ~40-50px wide, so 32px of padding ate almost the entire
+                                // field and typed digits rendered invisibly clipped. px-1.5
+                                // (added *after* input-field so the utility wins the cascade)
+                                // fixes it without touching input-field itself, which is used
+                                // at full width everywhere else in this form.
                                 <div className="grid grid-cols-3 gap-2">
                                   <div className="bg-white rounded-xl p-3">
                                     <label className="text-xs text-gray-500 block mb-1">المخزون</label>
@@ -1388,7 +1433,7 @@ export default function Books() {
                                           prev.map((x, i) => (i === idx ? { ...x, stock: e.target.value } : x))
                                         )
                                       }
-                                      className="input-field text-sm py-1.5 h-auto"
+                                      className="input-field text-sm py-1.5 h-auto px-1.5 text-center"
                                       placeholder="0"
                                     />
                                   </div>
@@ -1403,7 +1448,7 @@ export default function Books() {
                                           prev.map((x, i) => (i === idx ? { ...x, min_stock: e.target.value } : x))
                                         )
                                       }
-                                      className="input-field text-sm py-1.5 h-auto"
+                                      className="input-field text-sm py-1.5 h-auto px-1.5 text-center"
                                       placeholder="5"
                                     />
                                   </div>
@@ -1420,7 +1465,7 @@ export default function Books() {
                                           prev.map((x, i) => (i === idx ? { ...x, weight_kg: e.target.value } : x))
                                         )
                                       }
-                                      className="input-field text-sm py-1.5 h-auto"
+                                      className="input-field text-sm py-1.5 h-auto px-1.5 text-center"
                                       placeholder="0.3"
                                     />
                                   </div>

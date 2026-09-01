@@ -9,6 +9,13 @@ export interface HeroSlide {
   /** Optional phone-shaped version of the same slide — the storefront
    *  swaps to it under ~640px. Falls back to image_url when not set. */
   image_url_mobile: string | null;
+  /** Optional dark-mode variant of image_url — the design can differ
+   *  enough between themes that one image can't serve both. Falls back
+   *  to image_url when not set. */
+  image_url_dark: string | null;
+  /** Optional dark-mode variant of image_url_mobile. Falls back to
+   *  image_url_dark, then image_url_mobile, when not set. */
+  image_url_mobile_dark: string | null;
   title: string | null;
   link_url: string | null;
   sort_order: number;
@@ -52,6 +59,8 @@ export async function uploadHeroImage(file: File): Promise<string> {
 export interface CreateHeroSlideInput {
   image_url: string;
   image_url_mobile?: string | null;
+  image_url_dark?: string | null;
+  image_url_mobile_dark?: string | null;
   title?: string | null;
   link_url?: string | null;
   sort_order?: number;
@@ -65,6 +74,8 @@ export function useCreateHeroSlide() {
       const { error } = await supabase.from('home_hero_slides').insert({
         image_url: input.image_url,
         image_url_mobile: input.image_url_mobile || null,
+        image_url_dark: input.image_url_dark || null,
+        image_url_mobile_dark: input.image_url_mobile_dark || null,
         title: input.title || null,
         link_url: input.link_url || null,
         sort_order: input.sort_order ?? 0,
@@ -83,6 +94,8 @@ export function useCreateHeroSlide() {
 export interface UpdateHeroSlideInput {
   id: string;
   image_url_mobile?: string | null;
+  image_url_dark?: string | null;
+  image_url_mobile_dark?: string | null;
   title?: string | null;
   link_url?: string | null;
   is_active?: boolean;
@@ -137,7 +150,12 @@ export function useDeleteHeroSlide() {
 
   return useMutation({
     mutationFn: async (slide: HeroSlide) => {
-      const paths = [slide.image_url, slide.image_url_mobile]
+      const paths = [
+        slide.image_url,
+        slide.image_url_mobile,
+        slide.image_url_dark,
+        slide.image_url_mobile_dark,
+      ]
         .filter((url): url is string => !!url && url.includes('/hero-images/'))
         .map((url) => url.split('/hero-images/')[1])
         .filter((p): p is string => !!p);

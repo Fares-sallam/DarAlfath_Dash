@@ -2,12 +2,16 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { useCountry } from '@/contexts/CountryContext';
-
-export interface Category {
-  id: string;
-  name: string;
-  slug?: string;
-}
+// Category (the type) and useCategories (the fetch hook) live in
+// useSettings.ts, not here — categories are a shared taxonomy concern,
+// not book-specific, and Settings' "تصنيفات الكتب" tab owns their CRUD.
+// This used to be duplicated here with its own query key ('categories'
+// vs Settings' 'settings-categories'), so creating/renaming/deleting a
+// category from Settings never invalidated Books.tsx's copy of the list —
+// it would silently show stale categories until a hard refresh. One
+// import, one query key, one cache.
+import type { Category } from '@/hooks/useSettings';
+export type { Category };
 
 export interface BookSeries {
   id: string;
@@ -418,22 +422,6 @@ export function useProducts() {
           product_images: imagesByProduct[p.id] ?? [],
         };
       });
-    },
-  });
-}
-
-/* ── Fetch categories ── */
-export function useCategories() {
-  return useQuery({
-    queryKey: ['categories'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('categories')
-        .select('id, name, slug')
-        .order('name');
-
-      if (error) throw error;
-      return (data ?? []) as Category[];
     },
   });
 }

@@ -11,13 +11,16 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
-  useProducts, useCategories, useBookSeries,
+  useProducts, useBookSeries,
   useUpsertProduct, useDeleteProduct, useToggleProductStatus,
   useProductImages, useDeleteProductImage, useSetPrimaryImage,
   uploadCoverImage, uploadEbookFileWithProgress, uploadProductImage,
   getEbookSignedUrl,
   type Product, type UpsertProductInput,
 } from '@/hooks/useBooks';
+// Shared with Settings' "تصنيفات الكتب" tab — one query key so creating/
+// editing/deleting a category there is reflected here without a reload.
+import { useCategories } from '@/hooks/useSettings';
 import { useCountry } from '@/contexts/CountryContext';
 
 interface VariantForm {

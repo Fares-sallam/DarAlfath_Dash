@@ -20,6 +20,7 @@ import PendingPayments from "./pages/PendingPayments";
 import HeroSlides from "./pages/HeroSlides";
 import IntroVideos from "./pages/IntroVideos";
 import Series from "./pages/Series";
+import Reviews from "./pages/Reviews";
 import Inventory from "./pages/Inventory";
 import Analytics from "./pages/Analytics";
 import Shipping from "./pages/Shipping";
@@ -117,6 +118,15 @@ const App = () => {
                     element={
                       <ProtectedRoute permission="can_manage_products">
                         <IntroVideos />
+                      </ProtectedRoute>
+                    }
+                  />
+
+                  <Route
+                    path="/reviews"
+                    element={
+                      <ProtectedRoute permission="can_manage_products">
+                        <Reviews />
                       </ProtectedRoute>
                     }
                   />

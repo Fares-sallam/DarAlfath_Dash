@@ -2,10 +2,10 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLogo } from '@/contexts/LogoContext';
 import { toast } from 'sonner';
-import { 
+import {
   LayoutDashboard, Settings, BookOpen, ShoppingCart, Users, BookMarked,
   Tag, Package, BarChart3, Truck, ShieldCheck, ActivitySquare, LogOut, X, CreditCard,
-  Image as ImageIcon, Youtube,
+  Image as ImageIcon, Youtube, Star,
   BookOpen as BookIcon
 } from 'lucide-react';
 
@@ -24,6 +24,7 @@ const navItems = [
   { id: 'payments', label: 'محاولات الدفع', icon: CreditCard, path: '/payments', requiresAdmin: true },
   { id: 'customers', label: 'إدارة العملاء', icon: Users, path: '/customers', requiresAdmin: true },
   { id: 'series', label: 'إدارة السلاسل', icon: BookMarked, path: '/series', requiresAdmin: true },
+  { id: 'reviews', label: 'تقييمات العملاء', icon: Star, path: '/reviews', requiresAdmin: true },
   { id: 'coupons', label: 'إدارة الكوبونات', icon: Tag, path: '/coupons', requiresAdmin: true },
   { id: 'inventory', label: 'إدارة المخزون', icon: Package, path: '/inventory', requiresAdmin: true },
   { id: 'analytics', label: 'لوحة التحليلات', icon: BarChart3, path: '/analytics', requiresAdmin: true },

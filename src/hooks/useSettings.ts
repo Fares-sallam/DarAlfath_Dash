@@ -127,8 +127,14 @@ export function usePaymentMethods() {
         .select('*, countries(id, name)')
         .order('method_name');
 
+      // A method with no country_id is global (e.g. apple_iap/google_iap —
+      // in-app-purchase methods aren't tied to a shipping country at all),
+      // so it belongs in every country's list, not just when "كل الدول" is
+      // selected. Plain `.eq('country_id', ...)` would silently hide it
+      // the moment any specific country is picked — this was exactly why
+      // App Store/Google Play never showed up here to be managed.
       if (selectedCountry?.id) {
-        query = query.eq('country_id', selectedCountry.id);
+        query = query.or(`country_id.eq.${selectedCountry.id},country_id.is.null`);
       }
 
       const { data, error } = await query;

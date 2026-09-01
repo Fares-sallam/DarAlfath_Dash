@@ -754,7 +754,18 @@ export function useDeleteProduct() {
       }).catch(() => {});
 
       const { error } = await supabase.from('products').delete().eq('id', id);
-      if (error) throw error;
+      if (error) {
+        // order_items.product_id has no ON DELETE CASCADE (and never
+        // should — deleting a product's order history along with it would
+        // corrupt real sales records). A book that's ever been ordered
+        // hits this FK violation on hard delete; the fix is deactivating
+        // it instead (already a first-class action — see
+        // useToggleProductStatus), not deleting order history.
+        if (error.code === '23503' && error.message.includes('order_items_product_id_fkey')) {
+          throw new Error('هذا الكتاب مرتبط بطلبات سابقة، فلا يمكن حذفه نهائيًا حفاظًا على سجل الطلبات — استخدم "إخفاء" بدلًا من الحذف لإزالته من المتجر.');
+        }
+        throw error;
+      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['products'] });

@@ -1013,7 +1013,11 @@ export default function Books() {
                             </button>
 
                             <button
-                              onClick={() => deleteMutation.mutate(product.id)}
+                              onClick={() => {
+                                if (confirm(`حذف "${product.title}" نهائيًا؟`)) {
+                                  deleteMutation.mutate(product.id);
+                                }
+                              }}
                               title="حذف"
                               className="p-1.5 rounded-lg hover:bg-red-50 text-red-500"
                             >

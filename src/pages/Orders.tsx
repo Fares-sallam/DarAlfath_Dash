@@ -6,7 +6,7 @@ import {
   Search, Eye, Download, Printer, MessageCircle, Truck, X,
   Package, MapPin, CreditCard, Calendar, ChevronDown, Loader2,
   AlertCircle, RefreshCw, BookOpen, Phone, Hash, Check,
-  ChevronUp, User, FileText, DollarSign
+  ChevronUp, User, FileText, DollarSign, Scale
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
@@ -169,14 +169,31 @@ function OrderDetailModal({ orderId, onClose }: DetailModalProps) {
             </div>
 
             <div>
-              <h3 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
-                <Package size={14} className="text-indigo-600" />
-                عناصر الطلب ({order.order_items?.length ?? 0})
+              <h3 className="text-sm font-bold text-gray-700 mb-3 flex items-center justify-between gap-2">
+                <span className="flex items-center gap-2">
+                  <Package size={14} className="text-indigo-600" />
+                  عناصر الطلب ({order.order_items?.length ?? 0})
+                </span>
+                {(() => {
+                  const physicalItems = (order.order_items ?? []).filter((it) => !it.is_digital);
+                  const totalWeight = physicalItems.reduce(
+                    (sum, it) => sum + (it.product_variants?.weight_kg ?? 0) * it.quantity,
+                    0
+                  );
+                  if (physicalItems.length < 2 || totalWeight <= 0) return null;
+                  return (
+                    <span className="flex items-center gap-1 text-xs font-bold text-amber-700 bg-amber-50 px-2 py-1 rounded-lg">
+                      <Scale size={12} />
+                      إجمالي الوزن: {totalWeight.toLocaleString('ar-EG', { maximumFractionDigits: 2 })} كجم
+                    </span>
+                  );
+                })()}
               </h3>
 
               <div className="space-y-2 max-h-56 overflow-y-auto">
                 {(order.order_items ?? []).map((item) => {
                   const subtotal = (item.price_per_item - item.discount_per_item) * item.quantity;
+                  const itemWeight = item.product_variants?.weight_kg;
 
                   return (
                     <div key={item.id} className="flex items-center gap-3 bg-gray-50 rounded-xl px-4 py-2.5">
@@ -211,6 +228,13 @@ function OrderDetailModal({ orderId, onClose }: DetailModalProps) {
                           {item.discount_per_item > 0 && (
                             <span className="text-xs text-red-500">
                               خصم: {item.discount_per_item.toLocaleString()} {currency}
+                            </span>
+                          )}
+
+                          {!item.is_digital && itemWeight != null && (
+                            <span className="text-xs text-amber-700 flex items-center gap-0.5">
+                              <Scale size={11} />
+                              {itemWeight} كجم{item.quantity > 1 ? ` × ${item.quantity}` : ''}
                             </span>
                           )}
                         </div>

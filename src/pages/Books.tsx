@@ -45,6 +45,9 @@ interface BookForm {
   sale_price: string;
   cover_url: string;
   seriesIds: string[];
+  /** Extra categories beyond the required category_id above — same
+   *  additive shape as seriesIds. */
+  additionalCategoryIds: string[];
 }
 
 const emptyForm: BookForm = {
@@ -59,6 +62,7 @@ const emptyForm: BookForm = {
   sale_price: '',
   cover_url: '',
   seriesIds: [],
+  additionalCategoryIds: [],
 };
 
 const emptyVariant = (): VariantForm => ({
@@ -494,6 +498,7 @@ export default function Books() {
       sale_price: String(p.sale_price ?? ''),
       cover_url: p.cover_url ?? '',
       seriesIds: (p.product_series ?? []).map((s) => s.series_id),
+      additionalCategoryIds: (p.product_categories ?? []).map((c) => c.category_id),
     });
     setVariants(
       (p.product_variants ?? []).map((v) => ({
@@ -692,6 +697,7 @@ export default function Books() {
       ebookFileSizeMb: uploadedEbook && ebookFile ? Math.round((ebookFile.size / (1024 * 1024)) * 100) / 100 : undefined,
       ebookOriginalFilename: uploadedEbook && ebookFile ? ebookFile.name : undefined,
       seriesIds: form.seriesIds,
+      additionalCategoryIds: form.additionalCategoryIds,
     };
 
     await upsertMutation.mutateAsync(input);
@@ -1173,6 +1179,43 @@ export default function Books() {
                   </div>
 
                   <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                      تصنيفات إضافية <span className="text-xs font-normal text-gray-400">(اختياري — بالإضافة للتصنيف الأساسي فوق)</span>
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                      {categories
+                        .filter((c) => c.id !== form.category_id)
+                        .map((c) => {
+                          const selected = form.additionalCategoryIds.includes(c.id);
+                          return (
+                            <button
+                              key={c.id}
+                              type="button"
+                              onClick={() =>
+                                setForm((f) => ({
+                                  ...f,
+                                  additionalCategoryIds: selected
+                                    ? f.additionalCategoryIds.filter((id) => id !== c.id)
+                                    : [...f.additionalCategoryIds, c.id],
+                                }))
+                              }
+                              className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
+                                selected
+                                  ? 'bg-blue-700 text-white border-blue-700'
+                                  : 'border-gray-200 text-gray-600 hover:border-blue-300'
+                              }`}
+                            >
+                              {c.name}
+                            </button>
+                          );
+                        })}
+                      {categories.length <= 1 && (
+                        <p className="text-xs text-gray-400">مفيش تصنيفات تانية لسه</p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-1.5 flex items-center gap-1.5">
                       <Tag size={14} />
                       الكلمات المفتاحية
@@ -1399,7 +1442,11 @@ export default function Books() {
                               </div>
                             </div>
 
-                            <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3">
+                            {/* خصم/ربح are short read-only text, stock/threshold/weight are
+                                actual number inputs that need real room to type into — equal
+                                thirds left the inputs cramped to ~44px each. 1fr/1fr/2fr gives
+                                the input block double the width of each stat box instead. */}
+                            <div className="mt-3 grid grid-cols-1 md:grid-cols-[1fr_1fr_2fr] gap-3">
                               <div className="bg-white rounded-xl p-3">
                                 <p className="text-xs text-gray-500 mb-1">خصم النسخة</p>
                                 <p className="text-sm font-bold text-amber-600">
@@ -1433,7 +1480,7 @@ export default function Books() {
                                           prev.map((x, i) => (i === idx ? { ...x, stock: e.target.value } : x))
                                         )
                                       }
-                                      className="input-field text-sm py-1.5 h-auto px-1.5 text-center"
+                                      className="input-field text-sm py-1.5 h-auto px-2 text-center"
                                       placeholder="0"
                                     />
                                   </div>
@@ -1448,7 +1495,7 @@ export default function Books() {
                                           prev.map((x, i) => (i === idx ? { ...x, min_stock: e.target.value } : x))
                                         )
                                       }
-                                      className="input-field text-sm py-1.5 h-auto px-1.5 text-center"
+                                      className="input-field text-sm py-1.5 h-auto px-2 text-center"
                                       placeholder="5"
                                     />
                                   </div>
@@ -1465,7 +1512,7 @@ export default function Books() {
                                           prev.map((x, i) => (i === idx ? { ...x, weight_kg: e.target.value } : x))
                                         )
                                       }
-                                      className="input-field text-sm py-1.5 h-auto px-1.5 text-center"
+                                      className="input-field text-sm py-1.5 h-auto px-2 text-center"
                                       placeholder="0.3"
                                     />
                                   </div>

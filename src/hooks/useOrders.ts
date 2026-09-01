@@ -24,6 +24,7 @@ export interface OrderItem {
   product_variants?: {
     id: string;
     variant_name: string;
+    weight_kg?: number | null;
   } | null;
 }
 
@@ -256,7 +257,7 @@ export function useOrderDetail(orderId: string | null) {
             discount_per_item,
             is_digital,
             products(id, title, author, cover_url, type),
-            product_variants(id, variant_name)
+            product_variants(id, variant_name, weight_kg)
           )
         `)
         .eq('id', orderId!)

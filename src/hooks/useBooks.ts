@@ -87,6 +87,10 @@ export interface Product {
   electronic_books?: ElectronicBook | null;
   product_series?: { series_id: string; book_series: BookSeries }[];
   product_images?: ProductImage[];
+  /** Categories this product ALSO shows under, beyond its required
+   *  `category_id` primary category — same additive shape as
+   *  product_series (a book can be in one primary category + N more). */
+  product_categories?: { category_id: string; categories: Category }[];
 }
 
 export interface ProductVariantInput {
@@ -125,6 +129,8 @@ export interface UpsertProductInput {
   ebookFileSizeMb?: number;
   ebookOriginalFilename?: string;
   seriesIds?: string[];
+  /** Extra categories beyond the required `category_id`. */
+  additionalCategoryIds?: string[];
   additionalImages?: { url: string; alt_text?: string; is_primary?: boolean }[];
 }
 
@@ -315,10 +321,11 @@ export function useProducts() {
         .select(`
           id, title, author, description, cover_url, category_id, isbn, keywords,
           type, cost_price, base_price, sale_price, profit, is_active, created_at, updated_at,
-          categories(id, name, slug),
+          categories!products_category_id_fkey(id, name, slug),
           product_variants(id, product_id, variant_name, variant_type, sku, price, cost_price, base_price, sale_price, weight_kg),
           electronic_books(id, product_id, file_path, file_format, is_sold_once, file_size_mb, protected, watermark, original_filename),
-          product_series(series_id, book_series(id, name, author))
+          product_series(series_id, book_series(id, name, author)),
+          product_categories(category_id, categories(id, name, slug))
         `)
         .order('created_at', { ascending: false })
         .limit(300);
@@ -686,6 +693,24 @@ export function useUpsertProduct() {
           sort_order: idx,
         }));
         await supabase.from('product_series').insert(seriesData);
+      }
+
+      // Sync additional categories — exclude the primary category_id so a
+      // book never shows the same category twice (once as primary, once
+      // as "additional").
+      if (isEdit) {
+        await supabase.from('product_categories').delete().eq('product_id', productId);
+      }
+
+      const extraCategoryIds = (input.additionalCategoryIds ?? []).filter(
+        (cid) => cid && cid !== input.category_id
+      );
+      if (extraCategoryIds.length > 0) {
+        const categoryData = extraCategoryIds.map((cid) => ({
+          product_id: productId,
+          category_id: cid,
+        }));
+        await supabase.from('product_categories').insert(categoryData);
       }
 
       // Additional images

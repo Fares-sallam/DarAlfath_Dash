@@ -1,15 +1,16 @@
 // ════════════════════════════════════════════════════════════════════════
 //  send-order-status-email
 //  ──────────────────────────────────────────────────────────────────────
-//  Emails the customer when their order reaches one of three tracked
-//  status changes — shipped, delivered, or cancelled. Order-confirmation
-//  emails (on order creation) are a separate concern, handled by
-//  send-order-email; this function only fires on a later status update.
+//  Emails the customer when their order reaches one of five tracked
+//  status changes — confirmed, shipped, delivered, cancelled, or
+//  returned. Order-confirmation emails (on order creation) are a separate
+//  concern, handled by send-order-email; this function only fires on a
+//  later status update.
 //
 //  Trigger: called DIRECTLY from the dashboard (browser) right after a
 //  successful `orders.status` update (useUpdateOrder / useCreateShipment /
 //  useUpdateShipment in DarAlfath_Dash), whenever the new status is one of
-//  the three tracked values below and actually differs from what it was.
+//  the tracked values below and actually differs from what it was.
 //  Unlike send-order-email (server-to-server, gated by
 //  INTERNAL_FUNCTION_SECRET), this is called from a browser session, so it
 //  authenticates the caller the same way delete-account does: resolve the
@@ -18,10 +19,10 @@
 //  auth.uid()/auth.jwt(), which only resolve inside the caller's own RLS
 //  session, not from this service-role client.
 //
-//  Any other status value (جديد، قيد المراجعة، تم التأكيد، مرتجع، …) is a
-//  deliberate no-op — those aren't customer-facing milestones the business
-//  asked to notify on, so this returns { skipped: true } rather than an
-//  error, and the caller shouldn't treat that as a failure.
+//  Any other status value (جديد، قيد المراجعة، …) is a deliberate no-op —
+//  those aren't customer-facing milestones the business asked to notify
+//  on, so this returns { skipped: true } rather than an error, and the
+//  caller shouldn't treat that as a failure.
 // ════════════════════════════════════════════════════════════════════════
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { SMTPClient } from 'https://deno.land/x/denomailer@1.6.0/mod.ts';
@@ -48,14 +49,14 @@ function escapeHtml(s: string): string {
     .replace(/'/g, '&#039;');
 }
 
-// ── The four tracked transitions. Keyed by the exact status string the
+// ── The five tracked transitions. Keyed by the exact status string the
 //    dashboard writes to orders.status (see DarAlfath_Dash's useShipping.ts /
 //    useOrders.ts) — anything else is intentionally not handled here. Note
 //    "confirmed" here is distinct from send-order-email's order-creation
 //    confirmation: this one fires when an admin explicitly moves the order
 //    to تم التأكيد from the dashboard, which can be well after creation (or
 //    never, if the admin ships straight from جديد). ─────────────────────
-type TrackedKind = 'confirmed' | 'shipped' | 'delivered' | 'cancelled';
+type TrackedKind = 'confirmed' | 'shipped' | 'delivered' | 'cancelled' | 'returned';
 
 const STATUS_TO_KIND: Record<string, TrackedKind> = {
   'تم التأكيد': 'confirmed',
@@ -63,6 +64,7 @@ const STATUS_TO_KIND: Record<string, TrackedKind> = {
   'تم الشحن':   'shipped',
   'تم التوصيل': 'delivered',
   'ملغي':       'cancelled',
+  'مرتجع':      'returned',
 };
 
 const COPY: Record<TrackedKind, {
@@ -111,6 +113,17 @@ const COPY: Record<TrackedKind, {
     bodyHtml: (name, id) => `
       أهلاً ${escapeHtml(name)},<br>
       نأسف لإبلاغك أنه تم إلغاء طلبك رقم <strong>${escapeHtml(id)}</strong>.
+      لو دفعت إلكترونيًا، هيتم رد المبلغ خلال أيام العمل القادمة. لو عندك أي استفسار، تواصل معنا وهنساعدك فورًا.
+    `,
+  },
+  returned: {
+    emoji: '📦',
+    accent: '#F97316',
+    subject: (id) => `Dar Alfath - Order #${id} return processed`,
+    headline: 'تم استلام طلبك المرتجع',
+    bodyHtml: (name, id) => `
+      أهلاً ${escapeHtml(name)},<br>
+      تم استلام طلبك رقم <strong>${escapeHtml(id)}</strong> كمرتجع بنجاح.
       لو دفعت إلكترونيًا، هيتم رد المبلغ خلال أيام العمل القادمة. لو عندك أي استفسار، تواصل معنا وهنساعدك فورًا.
     `,
   },
@@ -258,7 +271,7 @@ Deno.serve(async (req) => {
 
     const kind = STATUS_TO_KIND[status];
     if (!kind) {
-      // Not one of the three tracked milestones — nothing to send.
+      // Not one of the tracked milestones — nothing to send.
       return jsonOk({ skipped: true, reason: `untracked status: ${status}` });
     }
 

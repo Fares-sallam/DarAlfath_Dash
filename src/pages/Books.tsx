@@ -278,10 +278,12 @@ function ImageGallery({
   const deleteMutation = useDeleteProductImage();
   const setPrimaryMutation = useSetPrimaryImage();
   const [uploading, setUploading] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const allFiles = Array.from(e.target.files ?? []);
+  // Shared by both the click-to-pick input and drag-and-drop — either path
+  // ends up with a plain File[] here.
+  const processFiles = async (allFiles: File[]) => {
     if (!allFiles.length) return;
 
     const files = allFiles.filter((file) => {
@@ -289,10 +291,7 @@ function ImageGallery({
       if (err) toast.error(`${file.name}: ${err}`);
       return !err;
     });
-    if (!files.length) {
-      e.target.value = '';
-      return;
-    }
+    if (!files.length) return;
 
     setUploading(true);
     try {
@@ -315,8 +314,26 @@ function ImageGallery({
       toast.error('فشل رفع الصورة: ' + (err instanceof Error ? err.message : String(err)));
     } finally {
       setUploading(false);
-      e.target.value = '';
     }
+  };
+
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    await processFiles(Array.from(e.target.files ?? []));
+    e.target.value = '';
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setDragOver(false);
+    void processFiles(Array.from(e.dataTransfer.files ?? []));
+  };
+  const dropZoneHandlers = {
+    onDragOver: (e: React.DragEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      setDragOver(true);
+    },
+    onDragLeave: () => setDragOver(false),
+    onDrop: handleDrop,
   };
 
   if (isLoading) {
@@ -344,11 +361,14 @@ function ImageGallery({
 
       {images.length === 0 ? (
         <div
-          className="border-2 border-dashed border-gray-200 rounded-2xl p-8 text-center cursor-pointer hover:border-blue-300 transition-colors"
+          className={`border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-colors ${
+            dragOver ? 'border-blue-400 bg-blue-50/50' : 'border-gray-200 hover:border-blue-300'
+          }`}
           onClick={() => inputRef.current?.click()}
+          {...dropZoneHandlers}
         >
           <ImageIcon size={32} className="text-gray-300 mx-auto mb-2" />
-          <p className="text-sm text-gray-400">اضغط لرفع صور المنتج</p>
+          <p className="text-sm text-gray-400">اضغط لرفع صور المنتج، أو اسحبها هنا</p>
           <p className="text-xs text-gray-300 mt-1">يمكنك رفع أكثر من صورة في نفس الوقت</p>
         </div>
       ) : (
@@ -389,8 +409,11 @@ function ImageGallery({
           ))}
 
           <div
-            className="aspect-[3/4] rounded-xl border-2 border-dashed border-gray-200 flex items-center justify-center cursor-pointer hover:border-blue-300 transition-colors"
+            className={`aspect-[3/4] rounded-xl border-2 border-dashed flex items-center justify-center cursor-pointer transition-colors ${
+              dragOver ? 'border-blue-400 bg-blue-50/50' : 'border-gray-200 hover:border-blue-300'
+            }`}
             onClick={() => inputRef.current?.click()}
+            {...dropZoneHandlers}
           >
             <div className="text-center">
               <Plus size={20} className="text-gray-300 mx-auto mb-1" />
@@ -413,6 +436,22 @@ export default function Books() {
   const upsertMutation = useUpsertProduct();
   const deleteMutation = useDeleteProduct();
   const toggleMutation = useToggleProductStatus();
+
+  // Safety net for the drag-and-drop image boxes below: a browser's default
+  // behavior for a file dropped anywhere OUTSIDE a designated drop target is
+  // to navigate the whole tab to that file — which would silently wipe out
+  // an in-progress, unsaved edit to a book. The boxes' own onDrop handlers
+  // already preventDefault for an on-target drop; this just makes a
+  // near-miss a no-op instead of losing the form.
+  useEffect(() => {
+    const stop = (e: DragEvent) => e.preventDefault();
+    window.addEventListener('dragover', stop);
+    window.addEventListener('drop', stop);
+    return () => {
+      window.removeEventListener('dragover', stop);
+      window.removeEventListener('drop', stop);
+    };
+  }, []);
 
   // Pre-fills from ?q=... — the header's global search box lands here with
   // the query attached, since books are the one thing worth a quick-search.
@@ -530,17 +569,30 @@ export default function Books() {
     setShowModal(true);
   };
 
-  const handleCoverSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  // Shared by the click-to-pick input, below, and the cover box's
+  // drag-and-drop handler.
+  const setCoverFromFile = (file: File) => {
     const err = validateImageFile(file);
     if (err) {
       toast.error(err);
-      e.target.value = '';
       return;
     }
     setCoverFile(file);
     setCoverPreview(URL.createObjectURL(file));
+  };
+
+  const handleCoverSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) setCoverFromFile(file);
+    e.target.value = '';
+  };
+
+  const [coverDragOver, setCoverDragOver] = useState(false);
+  const handleCoverDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setCoverDragOver(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) setCoverFromFile(file);
   };
 
   const handleEbookSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1639,18 +1691,30 @@ export default function Books() {
                     </label>
 
                     <div className="flex gap-4 items-start">
-                      <div className="w-24 h-32 rounded-xl overflow-hidden bg-gray-100 flex items-center justify-center flex-shrink-0 border border-gray-200">
+                      <div
+                        className={`w-24 h-32 rounded-xl overflow-hidden bg-gray-100 flex items-center justify-center flex-shrink-0 border-2 cursor-pointer transition-colors ${
+                          coverDragOver ? 'border-blue-400 border-dashed bg-blue-50/50' : 'border-gray-200'
+                        }`}
+                        onClick={() => coverInputRef.current?.click()}
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          setCoverDragOver(true);
+                        }}
+                        onDragLeave={() => setCoverDragOver(false)}
+                        onDrop={handleCoverDrop}
+                        title="اضغط أو اسحب صورة هنا"
+                      >
                         {coverPreview || form.cover_url ? (
                           <img
                             src={coverPreview || form.cover_url}
                             alt="غلاف"
-                            className="w-full h-full object-cover"
+                            className="w-full h-full object-cover pointer-events-none"
                             onError={(e) => {
                               (e.target as HTMLImageElement).style.display = 'none';
                             }}
                           />
                         ) : (
-                          <BookOpen size={24} className="text-gray-300" />
+                          <BookOpen size={24} className="text-gray-300 pointer-events-none" />
                         )}
                       </div>
 
@@ -1677,7 +1741,7 @@ export default function Books() {
                           />
                         </div>
 
-                        <p className="text-xs text-gray-400">JPG، PNG، WEBP — حتى 5MB</p>
+                        <p className="text-xs text-gray-400">JPG، PNG، WEBP — حتى 5MB، أو اسحب الصورة على المربع</p>
                       </div>
                     </div>
                   </div>

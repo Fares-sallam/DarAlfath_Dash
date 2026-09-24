@@ -26,6 +26,15 @@ export interface OrderItem {
     variant_name: string;
     weight_kg?: number | null;
   } | null;
+  /** Only on a bundle line: which books to pack, captured (title included)
+   *  when the order was placed, so editing or deleting the bundle or a
+   *  book later never rewrites this order. quantity is already the total
+   *  for this line (the book's count in the bundle × bundles ordered). */
+  order_item_components?: {
+    quantity: number;
+    title: string;
+    variant_name?: string | null;
+  }[];
 }
 
 export interface ShippingAddress {
@@ -257,7 +266,8 @@ export function useOrderDetail(orderId: string | null) {
             discount_per_item,
             is_digital,
             products(id, title, author, cover_url, type),
-            product_variants(id, variant_name, weight_kg)
+            product_variants(id, variant_name, weight_kg),
+            order_item_components(quantity, title, variant_name)
           )
         `)
         .eq('id', orderId!)

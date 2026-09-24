@@ -25,6 +25,7 @@ export interface InventoryRow {
     base_price: number;
     sale_price?: number | null;
     is_active: boolean;
+    is_bundle?: boolean;
   } | null;
   product_variants?: {
     id: string;
@@ -194,7 +195,7 @@ export function useInventory() {
             reserved_stock,
             min_stock,
             updated_at,
-            products(id, title, author, cover_url, type, cost_price, base_price, sale_price, is_active),
+            products(id, title, author, cover_url, type, cost_price, base_price, sale_price, is_active, is_bundle),
             product_variants(id, variant_name, variant_type, sku, price, cost_price, base_price, sale_price),
             countries(id, name, currency_symbol)
           `)
@@ -212,15 +213,22 @@ export function useInventory() {
             cost_price,
             base_price,
             sale_price,
-            products(id, title, author, cover_url, type, cost_price, base_price, sale_price, is_active)
+            products(id, title, author, cover_url, type, cost_price, base_price, sale_price, is_active, is_bundle)
           `),
       ]);
 
       if (inventoryResult.error) throw inventoryResult.error;
       if (variantsResult.error) throw variantsResult.error;
 
-      const inventoryRows = (inventoryResult.data ?? []) as InventoryRow[];
-      const variants = ((variantsResult.data ?? []) as VariantRow[]).filter((v) => v.products?.is_active !== false);
+      // Bundles have no stock of their own — it's derived from their books
+      // (see bundle_available_stock). Listing them here would offer a
+      // stock field that does nothing, and flag every bundle as out of stock.
+      const inventoryRows = ((inventoryResult.data ?? []) as InventoryRow[]).filter(
+        (row) => row.products?.is_bundle !== true
+      );
+      const variants = ((variantsResult.data ?? []) as VariantRow[]).filter(
+        (v) => v.products?.is_active !== false && v.products?.is_bundle !== true
+      );
       const variantIds = variants.map((v) => v.id);
       const variantPriceMap = await fetchVariantCountryPriceMap(variantIds, country.id);
 

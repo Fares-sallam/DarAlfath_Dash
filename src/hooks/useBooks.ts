@@ -51,6 +51,15 @@ export interface ProductImage {
   created_at: string;
 }
 
+/** One book inside a bundle (مجموعة). Keyed by the book's physical copy
+ *  (variant), since that's where price, stock and weight live. */
+export interface BundleItem {
+  component_variant_id: string;
+  component_product_id: string;
+  quantity: number;
+  sort_order: number;
+}
+
 export interface ElectronicBook {
   id: string;
   product_id: string;
@@ -81,6 +90,10 @@ export interface Product {
   sale_price?: number;
   profit?: number;
   is_active: boolean;
+  /** A bundle of other books (مجموعة) rather than a book of its own.
+   *  Fixed at creation — a bundle has no inventory rows of its own. */
+  is_bundle?: boolean;
+  bundle_items?: BundleItem[];
   created_at: string;
   updated_at: string;
   categories?: Category;
@@ -136,6 +149,10 @@ export interface UpsertProductInput {
   /** Extra categories beyond the required `category_id`. */
   additionalCategoryIds?: string[];
   additionalImages?: { url: string; alt_text?: string; is_primary?: boolean }[];
+  /** Only honored on create — a product's kind never changes afterwards. */
+  is_bundle?: boolean;
+  /** The bundle's books, in display order. Required when is_bundle. */
+  bundleItems?: { component_variant_id: string; quantity: number }[];
 }
 
 type CountryPriceRow = {
@@ -310,6 +327,29 @@ async function fetchVariantInventoryMap(
   return map;
 }
 
+/** Titles of the bundles that contain a given book (or any of the given
+ *  copies). bundle_items blocks deleting a book that's inside a bundle
+ *  (ON DELETE RESTRICT) — checking first lets us refuse with a clear
+ *  message *before* touching anything, instead of half-deleting. */
+async function findContainingBundles(filter: { productId?: string; variantIds?: string[] }): Promise<string[]> {
+  let query = supabase
+    .from('bundle_items')
+    .select('bundle:products!bundle_items_bundle_product_id_fkey(title)');
+  if (filter.productId) query = query.eq('component_product_id', filter.productId);
+  if (filter.variantIds) query = query.in('component_variant_id', filter.variantIds);
+
+  const { data, error } = await query;
+  if (error) throw error;
+
+  const rows = (data ?? []) as unknown as { bundle: { title: string } | null }[];
+  return [...new Set(rows.map((r) => r.bundle?.title).filter((t): t is string => !!t))];
+}
+
+function bundleMembershipMessage(subject: string, bundles: string[]) {
+  const label = bundles.length > 1 ? 'المجموعات' : 'المجموعة';
+  return `${subject} جزء من ${label}: «${bundles.join('»، «')}». شيله من ${label} الأول وبعدين احذفه.`;
+}
+
 /* ── Fetch all products (global book data + selected-country prices) ── */
 export function useProducts() {
   const { selectedCountry } = useCountry();
@@ -324,12 +364,13 @@ export function useProducts() {
         .from('products')
         .select(`
           id, title, author, description, cover_url, category_id, isbn, keywords,
-          type, cost_price, base_price, sale_price, profit, is_active, created_at, updated_at,
+          type, cost_price, base_price, sale_price, profit, is_active, is_bundle, created_at, updated_at,
           categories!products_category_id_fkey(id, name, slug),
           product_variants(id, product_id, variant_name, variant_type, sku, price, cost_price, base_price, sale_price, weight_kg),
           electronic_books(id, product_id, file_path, file_format, is_sold_once, file_size_mb, protected, watermark, original_filename),
           product_series(series_id, book_series(id, name, author)),
-          product_categories(category_id, categories(id, name, slug))
+          product_categories(category_id, categories(id, name, slug)),
+          bundle_items!bundle_items_bundle_product_id_fkey(component_variant_id, component_product_id, quantity, sort_order)
         `)
         .order('created_at', { ascending: false })
         .limit(300);
@@ -454,13 +495,29 @@ export function useUpsertProduct() {
       }
 
       const normalizedVariants = input.variants.map(normalizeVariant);
+      const isBundle = input.is_bundle === true;
 
       for (const variant of normalizedVariants) {
         if (!variant.variant_name) throw new Error('اسم النسخة مطلوب');
         if (variant.base_price <= 0) throw new Error(`السعر الأساسي مطلوب للنسخة: ${variant.variant_name}`);
         if (variant.sale_price <= 0) throw new Error(`سعر البيع مطلوب للنسخة: ${variant.variant_name}`);
-        if (variant.sale_price > variant.base_price) {
+        // A bundle's base_price is its "سعر البناء" (its books bought one by
+        // one, kept in sync by the database). Pricing the bundle above that
+        // is allowed — it just won't show the customer a discount.
+        if (!isBundle && variant.sale_price > variant.base_price) {
           throw new Error(`سعر البيع لا يجب أن يكون أكبر من السعر الأساسي في النسخة: ${variant.variant_name}`);
+        }
+      }
+
+      if (isBundle) {
+        const items = input.bundleItems ?? [];
+        const distinct = new Set(items.map((i) => i.component_variant_id));
+        if (normalizedVariants.length !== 1 || normalizedVariants[0].variant_type !== 'مادي') {
+          throw new Error('المجموعة ليها نسخة ورقية واحدة بس');
+        }
+        if (distinct.size < 2) throw new Error('المجموعة لازم فيها كتابين مختلفين على الأقل');
+        if (distinct.size !== items.length) {
+          throw new Error('فيه كتاب متكرر في المجموعة. زوّد عدد نسخه بدل ما تضيفه مرتين');
         }
       }
 
@@ -468,6 +525,25 @@ export function useUpsertProduct() {
       let productId = input.id ?? '';
       const countryId = await resolveCountryId(selectedCountry?.id);
       const summary = summarizeVariants(normalizedVariants);
+
+      // Refuse before any write if this edit drops a copy that a bundle
+      // still contains — the delete further down would fail on the
+      // bundle_items FK only after this copy's stock and prices were
+      // already cleared.
+      if (isEdit && !isBundle) {
+        const { data: currentVariants } = await supabase
+          .from('product_variants')
+          .select('id')
+          .eq('product_id', input.id!);
+        const keptIds = new Set(input.variants.map((v) => v.id).filter((id): id is string => isUuid(id)));
+        const removingIds = ((currentVariants ?? []) as { id: string }[])
+          .map((v) => v.id)
+          .filter((id) => !keptIds.has(id));
+        if (removingIds.length > 0) {
+          const bundles = await findContainingBundles({ variantIds: removingIds });
+          if (bundles.length > 0) throw new Error(bundleMembershipMessage('النسخة اللي بتحذفها', bundles));
+        }
+      }
 
       if (isEdit) {
         const { data: updated, error: updateErr } = await supabase
@@ -508,6 +584,7 @@ export function useUpsertProduct() {
             base_price: summary.base_price,
             sale_price: summary.sale_price ?? null,
             is_active: input.is_active ?? true,
+            is_bundle: isBundle,
           })
           .select()
           .single();
@@ -598,7 +675,11 @@ export function useUpsertProduct() {
             });
         }
 
-        if (variant.variant_type === 'مادي') {
+        // A bundle never gets inventory rows of its own: its stock is
+        // derived from its books by the database, and ordering it reserves
+        // the books' own stock. It falls through to the cleanup branch
+        // below, same as a digital copy.
+        if (variant.variant_type === 'مادي' && !isBundle) {
           if (!countryId) throw new Error('يجب اختيار دولة قبل حفظ مخزون النسخة المادية');
 
           const { error: invErr } = await supabase
@@ -626,6 +707,20 @@ export function useUpsertProduct() {
             .then(() => {})
             .catch(() => {});
         }
+      }
+
+      if (isBundle) {
+        // One atomic call rather than delete-then-insert from here: a half-
+        // applied replace would leave the bundle with no books at all.
+        const { error: itemsErr } = await supabase.rpc('set_bundle_items', {
+          p_bundle_variant_id: keptVariantIds[0],
+          p_items: (input.bundleItems ?? []).map((item, idx) => ({
+            component_variant_id: item.component_variant_id,
+            quantity: Math.max(1, Math.trunc(item.quantity)),
+            sort_order: idx,
+          })),
+        });
+        if (itemsErr) throw itemsErr;
       }
 
       const removedVariantIds = oldVariantIds.filter((id) => !keptVariantIds.includes(id));
@@ -720,7 +815,11 @@ export function useUpsertProduct() {
       qc.invalidateQueries({ queryKey: ['inventory'] });
       qc.invalidateQueries({ queryKey: ['dashboard'] });
       qc.invalidateQueries({ queryKey: ['analytics'] });
-      toast.success(input.id ? 'تم تحديث الكتاب بنجاح' : 'تم إضافة الكتاب بنجاح');
+      if (input.is_bundle) {
+        toast.success(input.id ? 'تم تحديث المجموعة بنجاح' : 'تم إضافة المجموعة بنجاح');
+      } else {
+        toast.success(input.id ? 'تم تحديث الكتاب بنجاح' : 'تم إضافة الكتاب بنجاح');
+      }
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -732,6 +831,22 @@ export function useDeleteProduct() {
 
   return useMutation({
     mutationFn: async (id: string) => {
+      // Both blockers are checked BEFORE anything is deleted. The cleanup
+      // below isn't one transaction, so when the final products delete
+      // was refused by a foreign key, the book stayed but had already lost
+      // its stock and country prices. Checking first means a refused
+      // delete changes nothing.
+      const bundles = await findContainingBundles({ productId: id });
+      if (bundles.length > 0) throw new Error(bundleMembershipMessage('الكتاب ده', bundles));
+
+      const { count: orderCount, error: orderCountErr } = await supabase
+        .from('order_items')
+        .select('id', { count: 'exact', head: true })
+        .eq('product_id', id);
+      if (!orderCountErr && (orderCount ?? 0) > 0) {
+        throw new Error('هذا الكتاب مرتبط بطلبات سابقة، فلا يمكن حذفه نهائيًا حفاظًا على سجل الطلبات — استخدم "إخفاء" بدلًا من الحذف لإزالته من المتجر.');
+      }
+
       await supabase.from('product_country_prices').delete().eq('product_id', id).then(() => {}).catch(() => {});
       await supabase.from('product_inventory').delete().eq('product_id', id).then(() => {}).catch(() => {});
       await supabase.from('product_variants').select('id').eq('product_id', id).then(async ({ data }) => {
@@ -751,6 +866,11 @@ export function useDeleteProduct() {
         // useToggleProductStatus), not deleting order history.
         if (error.code === '23503' && error.message.includes('order_items_product_id_fkey')) {
           throw new Error('هذا الكتاب مرتبط بطلبات سابقة، فلا يمكن حذفه نهائيًا حفاظًا على سجل الطلبات — استخدم "إخفاء" بدلًا من الحذف لإزالته من المتجر.');
+        }
+        // Only reachable if the book was added to a bundle between the
+        // check above and this delete.
+        if (error.code === '23503' && error.message.includes('bundle_items_component')) {
+          throw new Error('الكتاب ده جزء من مجموعة. شيله من المجموعة الأول وبعدين احذفه.');
         }
         throw error;
       }

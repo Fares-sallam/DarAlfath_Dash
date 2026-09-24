@@ -238,6 +238,24 @@ function OrderDetailModal({ orderId, onClose }: DetailModalProps) {
                             </span>
                           )}
                         </div>
+
+                        {(item.order_item_components ?? []).length > 0 && (
+                          <div className="mt-1.5 bg-white rounded-lg border border-gray-100 px-2.5 py-1.5">
+                            <p className="text-[11px] font-bold text-gray-500 mb-0.5">محتوى المجموعة للتجهيز:</p>
+                            <ul className="space-y-0.5">
+                              {item.order_item_components!.map((c, i) => (
+                                <li key={i} className="text-xs text-gray-700 flex items-center gap-1.5">
+                                  <span className="w-1 h-1 rounded-full bg-gray-400 flex-shrink-0" />
+                                  <span className="truncate">{c.title}</span>
+                                  {c.variant_name && (
+                                    <span className="text-gray-400 flex-shrink-0">({c.variant_name})</span>
+                                  )}
+                                  <span className="font-bold text-gray-800 flex-shrink-0">× {c.quantity}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
                       </div>
 
                       <span className="text-sm font-bold text-gray-800 flex-shrink-0">

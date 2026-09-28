@@ -84,6 +84,7 @@ const emptyVariant = (): VariantForm => ({
 });
 
 const VARIANT_NAMES = ['ورق عادي', 'ورق فاخر', 'A4', 'كوشيه', 'إلكتروني'];
+const CUSTOM_VARIANT_NAME = '__custom__';
 
 const typeConfig: Record<string, string> = {
   'ورقي': 'bg-blue-100 text-blue-700',
@@ -1620,15 +1621,25 @@ export default function Books() {
                             : 0;
                         const variantProfit = salePrice - costPrice;
 
+                        const isPresetName = VARIANT_NAMES.includes(v.variant_name);
+
                         return (
                           <div key={v._key} className="bg-gray-50 rounded-2xl p-4 border border-gray-100">
                             <div className="flex items-center justify-between mb-3">
                               <div className="flex gap-2 flex-wrap">
                                 <select
-                                  value={v.variant_name}
+                                  value={isPresetName ? v.variant_name : CUSTOM_VARIANT_NAME}
                                   onChange={(e) =>
                                     setVariants((prev) =>
-                                      prev.map((x, i) => (i === idx ? { ...x, variant_name: e.target.value } : x))
+                                      prev.map((x, i) =>
+                                        i === idx
+                                          ? {
+                                              ...x,
+                                              variant_name:
+                                                e.target.value === CUSTOM_VARIANT_NAME ? '' : e.target.value,
+                                            }
+                                          : x
+                                      )
                                     )
                                   }
                                   className="input-field text-sm py-1.5 h-auto w-36"
@@ -1636,7 +1647,23 @@ export default function Books() {
                                   {VARIANT_NAMES.map((t) => (
                                     <option key={t}>{t}</option>
                                   ))}
+                                  <option value={CUSTOM_VARIANT_NAME}>مخصص</option>
                                 </select>
+
+                                {!isPresetName && (
+                                  <input
+                                    type="text"
+                                    autoFocus
+                                    value={v.variant_name}
+                                    onChange={(e) =>
+                                      setVariants((prev) =>
+                                        prev.map((x, i) => (i === idx ? { ...x, variant_name: e.target.value } : x))
+                                      )
+                                    }
+                                    placeholder="اكتب اسم النوع"
+                                    className="input-field text-sm py-1.5 h-auto w-36"
+                                  />
+                                )}
 
                                 <select
                                   value={v.variant_type}

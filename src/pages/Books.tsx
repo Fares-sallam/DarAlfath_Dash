@@ -9,6 +9,7 @@ import {
   bundleItemsByVariant,
   computeBundleSummary,
   copyItemsToVariantName,
+  hideBookInBundlesWarning,
   type BundleItemDraft,
 } from '@/lib/bundles';
 import {
@@ -20,7 +21,7 @@ import {
 import { toast } from 'sonner';
 import {
   useProducts, useBookSeries,
-  useUpsertProduct, useDeleteProduct, useToggleProductStatus,
+  useUpsertProduct, useDeleteProduct, useToggleProductStatus, findActiveBundlesContaining,
   useProductImages, useDeleteProductImage, useSetPrimaryImage,
   uploadCoverImage, uploadEbookFileWithProgress, uploadProductImage,
   getEbookSignedUrl,
@@ -422,6 +423,17 @@ export default function Books() {
   const upsertMutation = useUpsertProduct();
   const deleteMutation = useDeleteProduct();
   const toggleMutation = useToggleProductStatus();
+
+  // Hiding a book that's inside bundles on sale doesn't stop those bundles
+  // selling it, so ask before doing it. If the lookup itself fails the hide
+  // goes ahead — the warning is advice, not a gate.
+  const handleToggleStatus = async (product: Product) => {
+    if (product.is_active && !product.is_bundle) {
+      const bundles = await findActiveBundlesContaining(product.id).catch(() => [] as string[]);
+      if (bundles.length > 0 && !confirm(hideBookInBundlesWarning(product.title, bundles))) return;
+    }
+    toggleMutation.mutate({ id: product.id, is_active: !product.is_active });
+  };
 
   // Safety net for the drag-and-drop image boxes below: a browser's default
   // behavior for a file dropped anywhere OUTSIDE a designated drop target is
@@ -1258,7 +1270,7 @@ export default function Books() {
                             </button>
 
                             <button
-                              onClick={() => toggleMutation.mutate({ id: product.id, is_active: !product.is_active })}
+                              onClick={() => handleToggleStatus(product)}
                               title={product.is_active ? 'إخفاء' : 'تفعيل'}
                               className="p-1.5 rounded-lg hover:bg-indigo-50 text-indigo-600"
                             >

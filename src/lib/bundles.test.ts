@@ -5,6 +5,7 @@ import {
   bundleItemsByVariant,
   computeBundleSummary,
   copyItemsToVariantName,
+  hideBookInBundlesWarning,
   type BundleComponentOption,
 } from './bundles';
 
@@ -97,5 +98,19 @@ describe('copyItemsToVariantName', () => {
     expect(items).toEqual(source);
     expect(items[0]).not.toBe(source[0]);
     expect(unmatched).toBe(2);
+  });
+});
+
+describe('hideBookInBundlesWarning', () => {
+  it('names the book and the bundle, and says the bundle keeps selling it', () => {
+    const text = hideBookInBundlesWarning('كتاب أ', ['مجموعة التجويد']);
+    expect(text).toContain('«كتاب أ» جزء من المجموعة: «مجموعة التجويد»');
+    expect(text).toContain('هتفضل تتباع وبتخصم من مخزونه');
+    expect(text.endsWith('تكمل إخفاء الكتاب؟')).toBe(true);
+  });
+  it('lists every bundle and switches to the plural', () => {
+    const text = hideBookInBundlesWarning('كتاب أ', ['مجموعة 1', 'مجموعة 2']);
+    expect(text).toContain('جزء من المجموعات: «مجموعة 1»، «مجموعة 2»');
+    expect(text).toContain('اخفيها هي كمان');
   });
 });

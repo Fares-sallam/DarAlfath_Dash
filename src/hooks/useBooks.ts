@@ -334,19 +334,34 @@ async function fetchVariantInventoryMap(
  *  copies). bundle_items blocks deleting a book that's inside a bundle
  *  (ON DELETE RESTRICT) — checking first lets us refuse with a clear
  *  message *before* touching anything, instead of half-deleting. */
-async function findContainingBundles(filter: { productId?: string; variantIds?: string[] }): Promise<string[]> {
+async function findContainingBundles(
+  filter: { productId?: string; variantIds?: string[] },
+  opts: { onlyActive?: boolean } = {}
+): Promise<string[]> {
   let query = supabase
     .from('bundle_items')
-    .select('bundle:products!bundle_items_bundle_product_id_fkey(title)');
+    .select('bundle:products!bundle_items_bundle_product_id_fkey(title, is_active)');
   if (filter.productId) query = query.eq('component_product_id', filter.productId);
   if (filter.variantIds) query = query.in('component_variant_id', filter.variantIds);
 
   const { data, error } = await query;
   if (error) throw error;
 
-  const rows = (data ?? []) as unknown as { bundle: { title: string } | null }[];
-  return [...new Set(rows.map((r) => r.bundle?.title).filter((t): t is string => !!t))];
+  const rows = (data ?? []) as unknown as { bundle: { title: string; is_active: boolean } | null }[];
+  return [
+    ...new Set(
+      rows
+        .filter((r) => !opts.onlyActive || r.bundle?.is_active)
+        .map((r) => r.bundle?.title)
+        .filter((t): t is string => !!t)
+    ),
+  ];
 }
+
+/** Titles of the bundles still on sale that contain this book. Hiding the
+ *  book doesn't stop them selling it, so the admin is warned first. */
+export const findActiveBundlesContaining = (productId: string) =>
+  findContainingBundles({ productId }, { onlyActive: true });
 
 function bundleMembershipMessage(subject: string, bundles: string[]) {
   const label = bundles.length > 1 ? 'المجموعات' : 'المجموعة';

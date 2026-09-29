@@ -55,6 +55,7 @@ const tableLabels: Record<string, string> = {
   order_items: 'عناصر الطلبات',
   product_prices: 'أسعار المنتجات',
   product_variants: 'نسخ المنتجات',
+  bundle_items: 'مجموعات الكتب',
 };
 
 const ALL_ACTIONS = ['INSERT', 'UPDATE', 'DELETE', 'LOGIN', 'LOGOUT'];

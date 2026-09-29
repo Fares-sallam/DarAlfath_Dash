@@ -111,8 +111,16 @@ export interface HidePlanBundle {
   action: 'trim' | 'hide';
   /** Books left in the thinnest affected copy once the book is out. */
   booksLeft: number;
-  /** For `trim`: each copy that held the book, with what it keeps. Empty for `hide`. */
-  copies: { bundle_variant_id: string; remaining: BundleItemDraft[] }[];
+  /** For `trim`: each copy that held the book, with what it keeps and what leaves. Empty for `hide`. */
+  copies: { bundle_variant_id: string; remaining: BundleItemDraft[]; removed: RemovedBookRow[] }[];
+}
+
+/** A row taken out of a bundle copy, with the place it held so it can go back exactly there. */
+export interface RemovedBookRow {
+  component_variant_id: string;
+  quantity: number;
+  /** Index in the copy's books, in display order, before it was removed. */
+  position: number;
 }
 
 export interface HideBookPlan {
@@ -151,6 +159,10 @@ export function planHideBookFromBundles(
       remaining: items
         .filter((i) => i.component_product_id !== bookProductId)
         .map((i) => ({ component_variant_id: i.component_variant_id, quantity: i.quantity })),
+      removed: items
+        .map((i, position) => ({ i, position }))
+        .filter(({ i }) => i.component_product_id === bookProductId)
+        .map(({ i, position }) => ({ component_variant_id: i.component_variant_id, quantity: i.quantity, position })),
     }));
     const booksLeft = Math.min(...remaining.map((c) => new Set(c.remaining.map((r) => r.component_variant_id)).size));
     const hide = booksLeft < MIN_BUNDLE_BOOKS;
@@ -164,6 +176,82 @@ export function planHideBookFromBundles(
     });
   }
   return { bundles: bundles.sort((a, b) => a.title.localeCompare(b.title, 'ar')) };
+}
+
+/**
+ * What hiding a book "from its bundles too" did, kept so that showing the
+ * book again can put everything back: `trim` bundles get the book back in
+ * the same spot, `hide` bundles (which only went off sale because they'd
+ * have been left short) are put back on sale.
+ */
+export interface HiddenFromBundle {
+  bundle_id: string;
+  title: string;
+  action: 'trim' | 'hide';
+  copies: { bundle_variant_id: string; removed: RemovedBookRow[] }[];
+}
+
+export interface RestoreBookPlan {
+  /** Bundle copies to rewrite, with their full new list of books. */
+  copies: { bundle_id: string; bundle_variant_id: string; items: BundleItemDraft[] }[];
+  /** Bundles to put back on sale. */
+  reactivate: string[];
+}
+
+/** The `HiddenFromBundle` entries a hide plan implies (what to remember). */
+export function hiddenFromBundles(plan: HideBookPlan): HiddenFromBundle[] {
+  return plan.bundles.map((b) => ({
+    bundle_id: b.id,
+    title: b.title,
+    action: b.action,
+    copies: b.copies.map((c) => ({ bundle_variant_id: c.bundle_variant_id, removed: c.removed })),
+  }));
+}
+
+/**
+ * Undo a "hide from bundles too". `current` are the bundle_items now, so
+ * whatever the admin changed in between is kept: a copy that already has the
+ * book again is left alone, one that no longer exists is skipped, and the
+ * book goes back at its old position (or the end if the copy got shorter).
+ * `inactiveBundleIds` are the bundles that are off sale right now.
+ */
+export function planRestoreBookToBundles(
+  hidden: HiddenFromBundle[],
+  current: BundleItemRow[],
+  inactiveBundleIds: Set<string>
+): RestoreBookPlan {
+  const byCopy = new Map<string, BundleItemDraft[]>();
+  for (const row of [...current].sort((a, b) => a.sort_order - b.sort_order)) {
+    const list = byCopy.get(row.bundle_variant_id) ?? [];
+    list.push({ component_variant_id: row.component_variant_id, quantity: row.quantity });
+    byCopy.set(row.bundle_variant_id, list);
+  }
+
+  const plan: RestoreBookPlan = { copies: [], reactivate: [] };
+  for (const bundle of hidden) {
+    if (bundle.action === 'hide') {
+      if (inactiveBundleIds.has(bundle.bundle_id)) plan.reactivate.push(bundle.bundle_id);
+      continue;
+    }
+    for (const copy of bundle.copies) {
+      const items = byCopy.get(copy.bundle_variant_id);
+      if (!items) continue; // the copy (or the whole bundle) is gone
+      const next = [...items];
+      let changed = false;
+      for (const row of [...copy.removed].sort((a, b) => a.position - b.position)) {
+        if (next.some((i) => i.component_variant_id === row.component_variant_id)) continue;
+        next.splice(Math.min(row.position, next.length), 0, {
+          component_variant_id: row.component_variant_id,
+          quantity: row.quantity,
+        });
+        changed = true;
+      }
+      if (changed) {
+        plan.copies.push({ bundle_id: bundle.bundle_id, bundle_variant_id: copy.bundle_variant_id, items: next });
+      }
+    }
+  }
+  return plan;
 }
 
 /** A bundle's books grouped by the copy (bundle variant) they belong to, in display order. */

@@ -455,7 +455,7 @@ export default function Books() {
         return;
       }
     }
-    toggleMutation.mutate({ id: product.id, is_active: !product.is_active });
+    toggleMutation.mutate({ id: product.id, is_active: !product.is_active, title: product.title });
   };
 
   // Safety net for the drag-and-drop image boxes below: a browser's default
@@ -2256,11 +2256,11 @@ export default function Books() {
         plan={hidePrompt?.plan ?? { bundles: [] }}
         onCancel={() => setHidePrompt(null)}
         onHideBookOnly={() => {
-          if (hidePrompt) toggleMutation.mutate({ id: hidePrompt.product.id, is_active: false });
+          if (hidePrompt) toggleMutation.mutate({ id: hidePrompt.product.id, is_active: false, title: hidePrompt.product.title });
           setHidePrompt(null);
         }}
         onHideFromBundlesToo={() => {
-          if (hidePrompt) toggleMutation.mutate({ id: hidePrompt.product.id, is_active: false, plan: hidePrompt.plan });
+          if (hidePrompt) toggleMutation.mutate({ id: hidePrompt.product.id, is_active: false, plan: hidePrompt.plan, title: hidePrompt.product.title });
           setHidePrompt(null);
         }}
       />

@@ -70,7 +70,7 @@ export default function HideBookDialog({ bookTitle, plan, onHideBookOnly, onHide
             </span>
             <span className="text-xs font-normal text-red-100 whitespace-normal">
               بيتشال من {label}{anyHidden ? ' (والناقصة بتتخفى)' : ''} ومبيتباعش لوحده. سعر {label} مش بيتغير تلقائيًا، فراجعه.
-              لو رجّعت الكتاب بعدين هتضيفه {many ? 'للمجموعات' : 'للمجموعة'} بنفسك.
+              ولو فعّلته تاني بيرجع {many ? 'للمجموعات' : 'للمجموعة'} في نفس مكانه.
             </span>
           </AlertDialogAction>
 

@@ -8,7 +8,9 @@ import {
   booksLabel,
   bundlesLabel,
   copyItemsToVariantName,
+  hiddenFromBundles,
   planHideBookFromBundles,
+  planRestoreBookToBundles,
   type BundleComponentOption,
   type BundleItemRow,
 } from './bundles';
@@ -141,7 +143,7 @@ describe('planHideBookFromBundles', () => {
         { component_variant_id: 'a-v', quantity: 1 },
         { component_variant_id: 'b-v', quantity: 1 },
         { component_variant_id: 'c-v', quantity: 1 },
-      ] },
+      ], removed: [{ component_variant_id: 'x-v', quantity: 2, position: 0 }] },
     ]);
   });
 
@@ -174,5 +176,63 @@ describe('Arabic counts', () => {
   });
   it('works for any noun', () => {
     expect(arabicCount(4, { one: 'أ', two: 'ب', few: 'ج', many: 'د' })).toBe('٤ ج');
+  });
+});
+
+describe('planRestoreBookToBundles', () => {
+  const row = (bundle: string, copy: string, book: string, sort: number, quantity = 1): BundleItemRow => ({
+    bundle_product_id: bundle,
+    bundle_variant_id: copy,
+    component_variant_id: `${book}-v`,
+    component_product_id: book,
+    quantity,
+    sort_order: sort,
+  });
+  const titles = new Map([['B1', 'مجموعة كبيرة'], ['B2', 'مجموعة صغيرة']]);
+  const before = [
+    row('B1', 'B1-c', 'a', 0), row('B1', 'B1-c', 'x', 1, 2), row('B1', 'B1-c', 'b', 2), row('B1', 'B1-c', 'c', 3),
+    row('B2', 'B2-c', 'x', 0), row('B2', 'B2-c', 'a', 1),
+  ];
+  // What the bundles hold once the book has been taken out of the first.
+  const after = before.filter((r) => !(r.bundle_product_id === 'B1' && r.component_product_id === 'x'));
+  const hidden = hiddenFromBundles(planHideBookFromBundles('x', before, titles));
+
+  it('remembers, per bundle, what happened and where the book sat', () => {
+    const byId = (id: string) => hidden.find((h) => h.bundle_id === id)!;
+    expect([byId('B1').action, byId('B2').action]).toEqual(['trim', 'hide']);
+    expect(byId('B1').copies).toEqual([{ bundle_variant_id: 'B1-c', removed: [{ component_variant_id: 'x-v', quantity: 2, position: 1 }] }]);
+  });
+
+  it('puts the book back at its old position with its old quantity, and puts the short bundle back on sale', () => {
+    const plan = planRestoreBookToBundles(hidden, after, new Set(['B2']));
+    expect(plan.copies).toEqual([
+      { bundle_id: 'B1', bundle_variant_id: 'B1-c', items: [
+        { component_variant_id: 'a-v', quantity: 1 },
+        { component_variant_id: 'x-v', quantity: 2 },
+        { component_variant_id: 'b-v', quantity: 1 },
+        { component_variant_id: 'c-v', quantity: 1 },
+      ] },
+    ]);
+    expect(plan.reactivate).toEqual(['B2']);
+  });
+
+  it('keeps what the admin changed since: a book added by hand is not doubled, extra books stay', () => {
+    const editedByHand = [...after, row('B1', 'B1-c', 'x', 4, 3), row('B1', 'B1-c', 'd', 5)];
+    const plan = planRestoreBookToBundles(hidden, editedByHand, new Set());
+    expect(plan.copies).toEqual([]); // already back in B1, nothing to rewrite
+    expect(plan.reactivate).toEqual([]); // B2 is on sale already
+  });
+
+  it('goes to the end when the copy got shorter, and skips a copy or bundle that no longer exists', () => {
+    const shorter = after.filter((r) => r.component_product_id !== 'b' && r.component_product_id !== 'c');
+    expect(planRestoreBookToBundles(hidden, shorter, new Set()).copies[0].items.map((i) => i.component_variant_id)).toEqual(['a-v', 'x-v']);
+    expect(planRestoreBookToBundles(hidden, [], new Set(['B2']))).toEqual({ copies: [], reactivate: ['B2'] });
+  });
+
+  it('brings back every copy of the book when it sat twice in one copy', () => {
+    const twice = [row('B1', 'B1-c', 'a', 0), row('B1', 'B1-c', 'x', 1), { ...row('B1', 'B1-c', 'x', 2), component_variant_id: 'x-v2' }, row('B1', 'B1-c', 'b', 3), row('B1', 'B1-c', 'c', 4)];
+    const rest = twice.filter((r) => r.component_product_id !== 'x');
+    const plan = planRestoreBookToBundles(hiddenFromBundles(planHideBookFromBundles('x', twice, titles)), rest, new Set());
+    expect(plan.copies[0].items.map((i) => i.component_variant_id)).toEqual(['a-v', 'x-v', 'x-v2', 'b-v', 'c-v']);
   });
 });

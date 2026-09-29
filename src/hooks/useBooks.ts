@@ -2,7 +2,15 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { useCountry } from '@/contexts/CountryContext';
-import { bundlesLabel, planHideBookFromBundles, type BundleItemRow, type HideBookPlan } from '@/lib/bundles';
+import {
+  bundlesLabel,
+  hiddenFromBundles,
+  planHideBookFromBundles,
+  planRestoreBookToBundles,
+  type BundleItemRow,
+  type HiddenFromBundle,
+  type HideBookPlan,
+} from '@/lib/bundles';
 // Category (the type) and useCategories (the fetch hook) live in
 // useSettings.ts, not here — categories are a shared taxonomy concern,
 // not book-specific, and Settings' "تصنيفات الكتب" tab owns their CRUD.
@@ -375,6 +383,108 @@ export async function loadHideBookPlan(productId: string): Promise<HideBookPlan>
   if (rowsErr) throw rowsErr;
 
   return planHideBookFromBundles(productId, (rows ?? []) as unknown as BundleItemRow[], onSale);
+}
+
+/* ── Remembering where a hidden book used to sit ─────────────────────────
+ * Hiding a book "from its bundles too" takes it out of them. So that showing
+ * it again puts it back, the removal is written to audit_logs first — one row
+ * per event, on the book, tagged in `new_data.event`. Reusing the activity
+ * log means nothing new to install, and the entry shows in سجل النشاط as
+ * "تعديل — مجموعات الكتب". A "restored" row closes the removal, so the latest
+ * of the two tells whether something is waiting to be put back. */
+const BUNDLE_EVENT_TABLE = 'bundle_items';
+const EVENT_REMOVED = 'book_removed_from_bundles';
+const EVENT_RESTORED = 'book_restored_to_bundles';
+
+async function writeBundleEvent(bookId: string, payload: Record<string, unknown>) {
+  const { data: { session } } = await supabase.auth.getSession();
+  const row = {
+    user_email: session?.user.email ?? null,
+    action: 'UPDATE',
+    table_name: BUNDLE_EVENT_TABLE,
+    record_id: bookId,
+    new_data: payload,
+  };
+  const withUser = await supabase.from('audit_logs').insert({ ...row, user_id: session?.user.id ?? null });
+  // An owner who signs in by email may have no profile row for the log's user_id to point at.
+  if (withUser.error?.code === '23503') {
+    const { error } = await supabase.from('audit_logs').insert(row);
+    if (error) throw error;
+    return;
+  }
+  if (withUser.error) throw withUser.error;
+}
+
+/** What was taken out of bundles when this book was last hidden and hasn't been put back yet. */
+async function loadPendingRestore(bookId: string): Promise<HiddenFromBundle[]> {
+  const { data, error } = await supabase
+    .from('audit_logs')
+    .select('new_data, created_at')
+    .eq('table_name', BUNDLE_EVENT_TABLE)
+    .eq('action', 'UPDATE')
+    .eq('record_id', bookId)
+    .order('created_at', { ascending: false })
+    .limit(30);
+  if (error) throw error;
+
+  for (const { new_data } of (data ?? []) as { new_data: { event?: string; bundles?: HiddenFromBundle[] } | null }[]) {
+    if (new_data?.event === EVENT_RESTORED) return [];
+    if (new_data?.event === EVENT_REMOVED) {
+      return (Array.isArray(new_data.bundles) ? new_data.bundles : []).filter(
+        (b) => b && typeof b.bundle_id === 'string' && Array.isArray(b.copies)
+      );
+    }
+  }
+  return [];
+}
+
+const rewriteBundleCopy = (bundleVariantId: string, items: { component_variant_id: string; quantity: number }[]) =>
+  supabase.rpc('set_bundle_items', {
+    p_bundle_variant_id: bundleVariantId,
+    p_items: items.map((item, idx) => ({
+      component_variant_id: item.component_variant_id,
+      quantity: Math.max(1, Math.trunc(item.quantity)),
+      sort_order: idx,
+    })),
+  });
+
+/** Put a re-shown book back where it was taken from, keeping whatever was changed in the bundles since. */
+async function restoreBookToBundles(bookId: string, bookTitle: string | undefined, pending: HiddenFromBundle[]) {
+  const titleOf = new Map(pending.map((b) => [b.bundle_id, b.title]));
+
+  const { data: rows, error: rowsErr } = await supabase
+    .from('bundle_items')
+    .select('bundle_product_id, bundle_variant_id, component_variant_id, component_product_id, quantity, sort_order')
+    .in('bundle_product_id', pending.map((b) => b.bundle_id));
+  if (rowsErr) throw rowsErr;
+
+  const offSaleIds = pending.filter((b) => b.action === 'hide').map((b) => b.bundle_id);
+  let inactive = new Set<string>();
+  if (offSaleIds.length > 0) {
+    const { data, error } = await supabase.from('products').select('id').in('id', offSaleIds).eq('is_active', false);
+    if (error) throw error;
+    inactive = new Set((data ?? []).map((r: { id: string }) => r.id));
+  }
+
+  const plan = planRestoreBookToBundles(pending, (rows ?? []) as unknown as BundleItemRow[], inactive);
+
+  for (const copy of plan.copies) {
+    const { error } = await rewriteBundleCopy(copy.bundle_variant_id, copy.items);
+    if (error) throw new Error(`الكتاب اتفعّل، بس تعذّر يرجّعه في «${titleOf.get(copy.bundle_id) ?? ''}»: ${error.message}`);
+  }
+  if (plan.reactivate.length > 0) {
+    const { error } = await supabase.from('products').update({ is_active: true }).in('id', plan.reactivate);
+    if (error) throw new Error(`الكتاب اتفعّل، بس تعذّر يرجّع المجموعات للبيع: ${error.message}`);
+  }
+
+  await writeBundleEvent(bookId, {
+    event: EVENT_RESTORED,
+    book_title: bookTitle ?? null,
+    summary: 'الكتاب رجع لمجموعاته بعد تفعيله',
+    bundles: pending.map((b) => b.title),
+  });
+
+  return { backIn: new Set(plan.copies.map((c) => c.bundle_id)).size, reactivated: plan.reactivate.length };
 }
 
 function bundleMembershipMessage(subject: string, bundles: string[]) {
@@ -932,38 +1042,67 @@ export function useToggleProductStatus() {
   const qc = useQueryClient();
 
   return useMutation({
-    // `plan`: hide the book from its bundles too. Each bundle copy is
-    // rewritten by one atomic set_bundle_items call, then the book (and any
+    // Hiding with a `plan` also takes the book out of its bundles. What's
+    // removed is written down first (so it can go back), then each bundle copy
+    // is rewritten by one atomic set_bundle_items call, then the book (and any
     // bundle that would be left with fewer than two books) is hidden in a
-    // single UPDATE. Books leave the bundles first, so if something fails
-    // the book is still on sale and nothing is half-hidden — hiding it again
-    // just finishes the job.
-    mutationFn: async ({ id, is_active, plan }: { id: string; is_active: boolean; plan?: HideBookPlan }) => {
-      const bundles = !is_active && plan ? plan.bundles : [];
+    // single UPDATE. Books leave the bundles first, so if something fails the
+    // book is still on sale and nothing is half-hidden — hiding it again just
+    // finishes the job.
+    // Showing a book again puts it back in the bundles it was taken out of.
+    mutationFn: async ({ id, is_active, plan, title }: { id: string; is_active: boolean; plan?: HideBookPlan; title?: string }) => {
+      if (is_active) {
+        // The lookup is a courtesy: if it fails the book is still shown.
+        const pending = await loadPendingRestore(id).catch((e) => {
+          console.warn('bundle restore lookup failed', e);
+          return [] as HiddenFromBundle[];
+        });
+
+        const { error } = await supabase.from('products').update({ is_active }).eq('id', id);
+        if (error) throw error;
+
+        const restored = pending.length > 0 ? await restoreBookToBundles(id, title, pending) : { backIn: 0, reactivated: 0 };
+        return { trimmed: 0, hidden: 0, ...restored };
+      }
+
+      const bundles = plan ? plan.bundles : [];
+      if (bundles.length > 0) {
+        try {
+          await writeBundleEvent(id, {
+            event: EVENT_REMOVED,
+            book_title: title ?? null,
+            summary: `الكتاب اتشال من: ${bundles.map((b) => b.title).join('، ')}`,
+            bundles: hiddenFromBundles({ bundles }),
+          });
+        } catch (e) {
+          throw new Error(`تعذّر حفظ مكان الكتاب في المجموعة، فمفيش حاجة اتغيّرت: ${(e as Error).message}`);
+        }
+      }
 
       for (const bundle of bundles) {
         for (const copy of bundle.copies) {
-          const { error } = await supabase.rpc('set_bundle_items', {
-            p_bundle_variant_id: copy.bundle_variant_id,
-            p_items: copy.remaining.map((item, idx) => ({
-              component_variant_id: item.component_variant_id,
-              quantity: Math.max(1, Math.trunc(item.quantity)),
-              sort_order: idx,
-            })),
-          });
+          const { error } = await rewriteBundleCopy(copy.bundle_variant_id, copy.remaining);
           if (error) throw new Error(`تعذّر شيل الكتاب من «${bundle.title}»، والكتاب لسه ظاهر: ${error.message}`);
         }
       }
 
       const hiddenBundleIds = bundles.filter((b) => b.action === 'hide').map((b) => b.id);
-      const { error } = await supabase.from('products').update({ is_active }).in('id', is_active ? [id] : [id, ...hiddenBundleIds]);
+      const { error } = await supabase.from('products').update({ is_active }).in('id', [id, ...hiddenBundleIds]);
       if (error) throw error;
 
-      return { trimmed: bundles.filter((b) => b.action === 'trim').length, hidden: hiddenBundleIds.length };
+      return { trimmed: bundles.filter((b) => b.action === 'trim').length, hidden: hiddenBundleIds.length, backIn: 0, reactivated: 0 };
     },
-    onSuccess: ({ trimmed, hidden }) => {
+    onSuccess: ({ trimmed, hidden, backIn, reactivated }) => {
       qc.invalidateQueries({ queryKey: ['products'] });
       qc.invalidateQueries({ queryKey: ['inventory'] });
+      if (backIn > 0 || reactivated > 0) {
+        const parts = [
+          backIn > 0 && `ورجع في ${bundlesLabel(backIn)}`,
+          reactivated > 0 && `ورجّعنا ${bundlesLabel(reactivated)} للبيع`,
+        ].filter(Boolean);
+        toast.success(`تم تفعيل الكتاب ${parts.join(' ')}`);
+        return;
+      }
       const parts = [
         trimmed > 0 && `وشيله من ${bundlesLabel(trimmed)}`,
         hidden > 0 && `وإخفاء ${bundlesLabel(hidden)} لأنها كانت هتبقى ناقصة`,

@@ -1,7 +1,10 @@
 import { useState } from 'react';
 import Layout from '@/components/layout/Layout';
+import ReportDownloadButton from '@/components/reports/ReportDownloadButton';
+import { buildActivityReport, type ActivityLogRow } from '@/lib/reports/builders/activity';
+import { fmtDateOnlyIso } from '@/lib/reports/format';
 import {
-  Plus, Edit, Trash2, LogIn, LogOut, Filter, Download,
+  Plus, Edit, Trash2, LogIn, LogOut, Filter,
   Search, Calendar, RefreshCw, Loader2, AlertCircle,
   ChevronDown, ChevronRight, Database, X, FileText,
   ArrowUpRight, ArrowDownRight, Globe2
@@ -366,33 +369,6 @@ function LogRow({ log }: { log: AuditLog }) {
   );
 }
 
-function exportCsv(logs: AuditLog[]) {
-  const headers = ['الإجراء', 'المستخدم', 'الجدول', 'رقم السجل', 'عنوان IP', 'التاريخ والوقت'];
-  const rows = logs.map((l) => [
-    actionConfig[l.action]?.label ?? l.action,
-    l.profiles?.full_name ?? l.user_email ?? 'النظام',
-    tableLabels[l.table_name ?? ''] ?? l.table_name ?? '',
-    l.record_id ?? '',
-    String(l.ip_address ?? ''),
-    new Date(l.created_at).toLocaleString('ar-EG'),
-  ]);
-
-  const bom = '\uFEFF';
-  const csv =
-    bom +
-    [headers, ...rows]
-      .map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(','))
-      .join('\n');
-
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `activity-log-${new Date().toISOString().slice(0, 10)}.csv`;
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
 export default function ActivityLog() {
   const qc = useQueryClient();
   const { selectedCountry } = useCountry();
@@ -447,6 +423,27 @@ export default function ActivityLog() {
 
   const hasFilters = filterAction !== 'الكل' || filterTable !== 'الكل' || dateFrom || dateTo || search;
 
+  // The report takes its dates from its own period picker.
+  const activityFiltersActive = filterAction !== 'الكل' || filterTable !== 'الكل' || !!search;
+  const activityFiltersLabel = [
+    filterAction !== 'الكل' && `الإجراء: ${actionConfig[filterAction]?.label ?? filterAction}`,
+    filterTable !== 'الكل' && `القسم: ${tableLabels[filterTable] ?? filterTable}`,
+    search && `بحث: ${search}`,
+  ].filter(Boolean).join(' · ');
+  const matchesActivityFilters = (l: ActivityLogRow) => {
+    if (filterAction !== 'الكل' && l.action !== filterAction) return false;
+    if (filterTable !== 'الكل' && l.table_name !== filterTable) return false;
+    if (!search) return true;
+    const q = search.toLowerCase();
+    return (
+      (l.profiles?.full_name ?? '').toLowerCase().includes(q) ||
+      (l.user_email ?? '').toLowerCase().includes(q) ||
+      (tableLabels[l.table_name ?? ''] ?? l.table_name ?? '').includes(q) ||
+      (l.record_id ?? '').includes(q) ||
+      String(l.ip_address ?? '').includes(q)
+    );
+  };
+
   return (
     <Layout>
       <div className="fade-in" dir="rtl">
@@ -486,12 +483,28 @@ export default function ActivityLog() {
               )}
             </button>
 
-            <button
-              onClick={() => exportCsv(filtered)}
-              className="btn-primary flex items-center gap-2 text-sm"
-            >
-              <Download size={14} /> تصدير CSV
-            </button>
+            <ReportDownloadButton
+              title="تقرير سجل النشاط"
+              periodHint="كل العمليات المسجلة خلال الفترة، مع ملخص نشاط كل مستخدم وكل قسم."
+              defaultPeriod={
+                dateFrom
+                  ? { preset: 'custom', from: dateFrom, to: dateTo || fmtDateOnlyIso(new Date()) }
+                  : { preset: 'last7' }
+              }
+              filters={{ active: activityFiltersActive, label: activityFiltersLabel }}
+              build={({ period, generatedAt, applyFilters }) =>
+                buildActivityReport(
+                  { period, generatedAt, country: selectedCountry, currencySymbol: '' },
+                  {
+                    actionLabel: (a) => actionConfig[a]?.label ?? a,
+                    tableLabel: (t) => tableLabels[t ?? ''] ?? t ?? '—',
+                    predicate: (l) => logMatchesSelectedCountry(l, selectedCountry?.id) && (!applyFilters || matchesActivityFilters(l)),
+                    applyFilters,
+                    filtersLabel: activityFiltersLabel,
+                  }
+                )
+              }
+            />
           </div>
         </div>
 

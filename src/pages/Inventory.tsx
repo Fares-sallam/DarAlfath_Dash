@@ -1,17 +1,16 @@
 import { useState } from 'react';
-import { escapeHtml } from '@/lib/utils';
-import * as XLSX from 'xlsx';
 import Layout from '@/components/layout/Layout';
+import ReportDownloadButton from '@/components/reports/ReportDownloadButton';
+import { buildInventoryReport } from '@/lib/reports/builders/inventory';
 import {
   AlertTriangle, Package, TrendingDown, RefreshCw, Search,
-  Download, Bell, BookOpen, BarChart2, ChevronUp, ChevronDown,
+  Bell, BookOpen, BarChart2, ChevronUp, ChevronDown,
   X, Loader2, AlertCircle, Edit2, Check, Minus, Plus, Layers, Globe2
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   useInventory, useUpdateStock,
-  exportInventoryCsv,
   type EnrichedInventoryRow, type AlertLevel,
 } from '@/hooks/useInventory';
 import { useCountry } from '@/contexts/CountryContext';
@@ -243,79 +242,12 @@ export default function Inventory() {
   const low = rows.filter((r) => r.alertLevel === 'منخفض');
   const digital = rows.filter((r) => r.alertLevel === 'رقمي');
 
-  const handleExport = (fmt: 'CSV' | 'Excel' | 'PDF') => {
-    if (fmt === 'CSV') {
-      exportInventoryCsv(filtered);
-      toast.success('تم تصدير CSV');
-      return;
-    }
-
-    if (fmt === 'Excel') {
-      const wb = XLSX.utils.book_new();
-      const ws = XLSX.utils.aoa_to_sheet([
-        ['الكتاب', 'المؤلف', 'النوع', 'الدولة', 'المخزون الكلي', 'المتاح', 'المحجوز', 'الحد الأدنى', 'التنبيه'],
-        ...filtered.map((r) => [
-          r.products?.title ?? '—',
-          r.products?.author ?? '—',
-          r.product_variants?.variant_type ?? r.products?.type ?? '—',
-          r.countries?.name ?? '—',
-          r.stock,
-          r.availableStock,
-          r.reserved_stock,
-          r.min_stock,
-          r.alertLevel,
-        ]),
-      ]);
-      ws['!cols'] = [{ wch: 35 }, { wch: 20 }, { wch: 12 }, { wch: 14 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 10 }];
-      XLSX.utils.book_append_sheet(wb, ws, 'المخزون');
-      XLSX.writeFile(wb, `مخزون-دار-الفتح-${new Date().toISOString().slice(0, 10)}.xlsx`);
-      toast.success('تم تصدير Excel');
-      return;
-    }
-
-    if (fmt === 'PDF') {
-      const pw = window.open('', '_blank', 'width=900,height=700');
-      if (!pw) { toast.error('يرجى السماح بالنوافذ المنبثقة'); return; }
-      const rows = filtered.map((r) => `
-        <tr>
-          <td>${escapeHtml(r.products?.title ?? '—')}</td>
-          <td>${escapeHtml(r.products?.author ?? '—')}</td>
-          <td>${escapeHtml(r.product_variants?.variant_type ?? r.products?.type ?? '—')}</td>
-          <td>${r.stock}</td>
-          <td>${r.availableStock}</td>
-          <td>${r.reserved_stock}</td>
-          <td>${r.min_stock}</td>
-          <td class="alert-${r.alertLevel}">${r.alertLevel}</td>
-        </tr>`).join('');
-      pw.document.write(`<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8"/>
-        <title>تقرير المخزون</title>
-        <style>
-          @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;900&display=swap');
-          *{margin:0;padding:0;box-sizing:border-box}
-          body{font-family:'Cairo',Arial,sans-serif;direction:rtl;padding:24px;font-size:12px;color:#1e293b}
-          h1{font-size:18px;font-weight:900;color:#1d4ed8;margin-bottom:4px}
-          .meta{color:#64748b;font-size:11px;margin-bottom:16px}
-          table{width:100%;border-collapse:collapse}
-          th{background:#1d4ed8;color:#fff;padding:8px;text-align:right;font-size:11px}
-          td{padding:7px 8px;border-bottom:1px solid #f1f5f9;font-size:11px}
-          tr:nth-child(even) td{background:#f8fafc}
-          .alert-حرج{color:#dc2626;font-weight:700}
-          .alert-منخفض{color:#d97706;font-weight:700}
-          .alert-جيد{color:#16a34a}
-          .alert-رقمي{color:#7c3aed}
-          @media print{body{padding:12px}}
-        </style></head><body>
-        <h1>تقرير المخزون — دار الفتح</h1>
-        <p class="meta">إجمالي السجلات: ${filtered.length} · ${selectedCountry?.name ?? 'كل الدول'} · ${new Date().toLocaleDateString('ar-EG')}</p>
-        <table>
-          <tr><th>الكتاب</th><th>المؤلف</th><th>النوع</th><th>الكلي</th><th>المتاح</th><th>المحجوز</th><th>الحد الأدنى</th><th>التنبيه</th></tr>
-          ${rows}
-        </table>
-        <script>setTimeout(()=>window.print(),600);<\/script></body></html>`);
-      pw.document.close();
-      toast.success('جارٍ فتح نافذة الطباعة — اختر "حفظ كـ PDF"');
-    }
-  };
+  const inventoryFiltersActive = !!search.trim() || filterAlert !== 'الكل' || filterType !== 'الكل';
+  const inventoryFiltersLabel = [
+    search.trim() && `بحث: ${search.trim()}`,
+    filterAlert !== 'الكل' && `الحالة: ${filterAlert}`,
+    filterType !== 'الكل' && `النوع: ${filterType}`,
+  ].filter(Boolean).join(' · ');
 
   return (
     <Layout>
@@ -345,15 +277,17 @@ export default function Inventory() {
               <RefreshCw size={16} />
             </button>
 
-            <button onClick={() => handleExport('CSV')} className="btn-secondary flex items-center gap-1.5 text-sm">
-              <Download size={14} /> CSV
-            </button>
-            <button onClick={() => handleExport('Excel')} className="btn-secondary flex items-center gap-1.5 text-sm">
-              <Download size={14} /> Excel
-            </button>
-            <button onClick={() => handleExport('PDF')} className="btn-secondary flex items-center gap-1.5 text-sm">
-              <Download size={14} /> PDF
-            </button>
+            <ReportDownloadButton
+              title="تقرير المخزون"
+              periodHint="أرصدة المخزون الحالية، مع الكميات المباعة من كل نسخة خلال الفترة المختارة."
+              filters={{ active: inventoryFiltersActive, label: inventoryFiltersLabel }}
+              build={({ period, generatedAt, applyFilters }) =>
+                buildInventoryReport(
+                  { period, generatedAt, country: selectedCountry, currencySymbol },
+                  { rows: applyFilters ? filtered : rows, keepOrder: applyFilters, filtersLabel: inventoryFiltersLabel }
+                )
+              }
+            />
 
             <button
               onClick={() => toast.success('تم إرسال طلب التوريد الجماعي')}

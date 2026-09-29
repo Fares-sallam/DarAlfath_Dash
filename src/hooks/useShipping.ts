@@ -411,59 +411,6 @@ export function useUpdateShipment() {
 }
 
 /* ────────────────────────────────────────────── */
-/* CSV export */
-/* ────────────────────────────────────────────── */
-
-export function exportShippingCsv(rows: ShipmentOrder[]) {
-  const headers = [
-    'رقم الطلب',
-    'العميل',
-    'الهاتف',
-    'الدولة',
-    'المحافظة',
-    'المدينة',
-    'شركة الشحن',
-    'رقم التتبع',
-    'طريقة الدفع',
-    'الحالة',
-    'الإجمالي',
-    'العملة',
-    'التاريخ',
-  ];
-
-  const csvRows = rows.map((row) => [
-    row.id,
-    row.customer,
-    row.customerPhone ?? '',
-    row.countryName,
-    row.governorate,
-    row.city,
-    row.shippingCompany,
-    row.tracking_number ?? '',
-    row.paymentMethod,
-    row.status,
-    row.total,
-    row.currencySymbol,
-    new Date(row.created_at).toLocaleDateString('ar-EG'),
-  ]);
-
-  const bom = '\uFEFF';
-  const csv =
-    bom +
-    [headers, ...csvRows]
-      .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(','))
-      .join('\n');
-
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `shipping-${new Date().toISOString().slice(0, 10)}.csv`;
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
-/* ────────────────────────────────────────────── */
 /* Weight + governorate shipping rates */
 /* ────────────────────────────────────────────── */
 

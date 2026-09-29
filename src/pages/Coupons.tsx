@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import Layout from '@/components/layout/Layout';
+import ReportDownloadButton from '@/components/reports/ReportDownloadButton';
+import { buildCouponsReport } from '@/lib/reports/builders/coupons';
 import {
   Plus, Edit, Trash2, Copy, X, ToggleLeft, ToggleRight,
   Tag, Percent, DollarSign, Truck, Package, Calendar,
-  MapPin, Loader2, AlertCircle, RefreshCw, Search, Download, Globe2,
+  MapPin, Loader2, AlertCircle, RefreshCw, Search, Globe2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -126,6 +128,12 @@ export default function Coupons() {
   const disabled = couponsWithStatus.filter((c) => c._status === 'معطل').length;
   const notStarted = couponsWithStatus.filter((c) => c._status === 'لم يبدأ').length;
   const totalUsages = coupons.reduce((a, c) => a + c.used_count, 0);
+  const couponFiltersActive = filterStatus !== 'الكل' || filterType !== 'الكل' || !!search;
+  const couponFiltersLabel = [
+    filterStatus !== 'الكل' && `الحالة: ${filterStatus}`,
+    filterType !== 'الكل' && `النوع: ${filterType}`,
+    search && `بحث: ${search}`,
+  ].filter(Boolean).join(' · ');
 
   const openAdd = () => {
     setEditCoupon(null);
@@ -233,43 +241,17 @@ export default function Coupons() {
               <RefreshCw size={16} />
             </button>
 
-            <button
-              onClick={() => {
-                const bom = '\uFEFF';
-                const headers = ['الكود', 'النوع', 'القيمة', 'الحد الأدنى', 'الاستخدامات', 'الحد الأقصى', 'الحالة', 'يبدأ', 'ينتهي'];
-                const rows = filtered.map((c) => [
-                  c.code,
-                  c.type,
-                  c.type === 'نسبة' ? `${c.value}٪` : c.type === 'شحن مجاني' ? 'مجاني' : `${c.value} ${currencySymbol}`,
-                  `${c.min_order} ${currencySymbol}`,
-                  c.used_count,
-                  c.max_uses ?? 'غير محدود',
-                  c._status,
-                  new Date(c.valid_from).toLocaleDateString('ar-EG'),
-                  c.valid_to ? new Date(c.valid_to).toLocaleDateString('ar-EG') : 'غير محدود',
-                ]);
-
-                const csv =
-                  bom +
-                  [headers, ...rows]
-                    .map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(','))
-                    .join('\n');
-
-                const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `coupons-${new Date().toISOString().slice(0, 10)}.csv`;
-                a.click();
-                URL.revokeObjectURL(url);
-
-                toast.success('تم تصدير الكوبونات');
-              }}
-              className="btn-secondary flex items-center gap-1.5 text-sm"
-            >
-              <Download size={14} />
-              تصدير CSV
-            </button>
+            <ReportDownloadButton
+              title="تقرير الكوبونات"
+              periodHint="كل الكوبونات بحالتها الحالية، مع استخداماتها والخصم والمبيعات خلال الفترة المختارة."
+              filters={{ active: couponFiltersActive, label: couponFiltersLabel }}
+              build={({ period, generatedAt, applyFilters }) =>
+                buildCouponsReport(
+                  { period, generatedAt, country: selectedCountry, currencySymbol },
+                  { coupons: applyFilters ? filtered : couponsWithStatus, keepOrder: applyFilters, filtersLabel: couponFiltersLabel }
+                )
+              }
+            />
 
             <button onClick={openAdd} className="btn-primary flex items-center gap-2">
               <Plus size={16} />

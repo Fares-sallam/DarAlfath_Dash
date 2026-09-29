@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import Layout from '@/components/layout/Layout';
+import ReportDownloadButton from '@/components/reports/ReportDownloadButton';
+import { buildCustomersReport } from '@/lib/reports/builders/customers';
 import {
   Search, Ban, Eye, X, ShoppingBag, MessageCircle, Tag, Phone,
   Mail, MapPin, Calendar, DollarSign, Users, UserCheck, UserX,
@@ -370,6 +372,11 @@ export default function Customers() {
   const totalActive = customers.filter((c) => c.is_active).length;
   const totalBanned = customers.filter((c) => !c.is_active).length;
   const totalRevenue = customers.reduce((s, c) => s + c.totalSpent, 0);
+  const customerFiltersActive = filterStatus !== 'الكل' || !!search.trim();
+  const customerFiltersLabel = [
+    filterStatus !== 'الكل' && `الحالة: ${filterStatus}`,
+    search.trim() && `بحث: ${search.trim()}`,
+  ].filter(Boolean).join(' · ');
 
   return (
     <Layout>
@@ -387,16 +394,31 @@ export default function Customers() {
             </div>
           </div>
 
-          <button
-            onClick={() => {
-              qc.invalidateQueries({ queryKey: ['customers'] });
-              toast.info('جارٍ التحديث...');
-            }}
-            className="p-2.5 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-gray-500 transition-colors"
-            title="تحديث"
-          >
-            <RefreshCw size={16} />
-          </button>
+          <div className="flex gap-2 flex-wrap">
+            <button
+              onClick={() => {
+                qc.invalidateQueries({ queryKey: ['customers'] });
+                toast.info('جارٍ التحديث...');
+              }}
+              className="p-2.5 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-gray-500 transition-colors"
+              title="تحديث"
+            >
+              <RefreshCw size={16} />
+            </button>
+
+            <ReportDownloadButton
+              title="تقرير العملاء"
+              periodHint="العملاء الذين اشتروا أو سجّلوا خلال الفترة وإنفاقهم فيها؛ الشامل يضم كل العملاء."
+              defaultPeriod={{ preset: 'all' }}
+              filters={{ active: customerFiltersActive, label: customerFiltersLabel }}
+              build={({ period, generatedAt, applyFilters }) =>
+                buildCustomersReport(
+                  { period, generatedAt, country: selectedCountry, currencySymbol },
+                  { customers: applyFilters ? filtered : customers, keepOrder: applyFilters, filtersLabel: customerFiltersLabel }
+                )
+              }
+            />
+          </div>
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">

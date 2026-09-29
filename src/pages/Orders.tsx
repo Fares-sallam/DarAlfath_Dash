@@ -1,9 +1,11 @@
 import { useState } from 'react';
-import { escapeHtml } from '@/lib/utils';
-import * as XLSX from 'xlsx';
 import Layout from '@/components/layout/Layout';
+import ReportDownloadButton from '@/components/reports/ReportDownloadButton';
+import { buildOrdersReport } from '@/lib/reports/builders/orders';
+import { fmtDateOnlyIso } from '@/lib/reports/format';
+import type { ReportOrder } from '@/lib/reports/data';
 import {
-  Search, Eye, Download, Printer, MessageCircle, Truck, X,
+  Search, Eye, Printer, MessageCircle, Truck, X,
   Package, MapPin, CreditCard, Calendar, ChevronDown, Loader2,
   AlertCircle, RefreshCw, BookOpen, Phone, Hash, Check,
   ChevronUp, User, FileText, DollarSign, Scale
@@ -12,7 +14,6 @@ import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   useOrders, useOrderDetail, useUpdateOrder, useShippingCompanies,
-  exportOrdersCsv,
   type Order, type OrderFilters,
 } from '@/hooks/useOrders';
 import { useCountry } from '@/contexts/CountryContext';
@@ -529,6 +530,28 @@ export default function Orders() {
 
   const currency = orders[0]?.countries?.currency_symbol ?? currencySymbol ?? 'ج.م';
 
+  // The report takes its dates from its own period picker; these are the rest of the page's filters.
+  const ordersFiltersActive = filterStatus !== 'الكل' || filterPayStatus !== 'الكل' || !!search;
+  const ordersFiltersLabel = [
+    filterStatus !== 'الكل' && `الحالة: ${filterStatus}`,
+    filterPayStatus !== 'الكل' && `الدفع: ${filterPayStatus}`,
+    search && `بحث: ${search}`,
+  ].filter(Boolean).join(' · ');
+  const matchesOrderFilters = (o: ReportOrder) => {
+    if (filterStatus !== 'الكل' && o.status !== filterStatus) return false;
+    if (filterPayStatus !== 'الكل' && o.payment_status !== filterPayStatus) return false;
+    if (!search) return true;
+    const q = search.toLowerCase();
+    return (
+      o.id.toLowerCase().includes(q) ||
+      (o.profiles?.full_name ?? '').toLowerCase().includes(q) ||
+      (o.profiles?.phone ?? '').includes(q) ||
+      (o.shipping_address?.phone ?? '').includes(q) ||
+      (o.shipping_address?.city ?? '').toLowerCase().includes(q) ||
+      (o.shipping_address?.governorate ?? '').toLowerCase().includes(q)
+    );
+  };
+
   return (
     <Layout>
       <div className="fade-in">
@@ -553,80 +576,22 @@ export default function Orders() {
               <RefreshCw size={16} />
             </button>
 
-            {/* ── Export CSV ── */}
-            <button onClick={() => exportOrdersCsv(filtered)} className="btn-secondary flex items-center gap-1.5 text-sm">
-              <Download size={14} /> CSV
-            </button>
-
-            {/* ── Export Excel ── */}
-            <button
-              onClick={() => {
-                const wb = XLSX.utils.book_new();
-                const ws = XLSX.utils.aoa_to_sheet([
-                  ['رقم الطلب', 'العميل', 'الحالة', 'حالة الدفع', `الإجمالي (${currency})`, 'المدينة', 'التاريخ'],
-                  ...filtered.map((o) => [
-                    o.id.slice(0, 8),
-                    o.profiles?.full_name ?? '—',
-                    o.status,
-                    o.payment_status,
-                    o.total_price,
-                    o.shipping_address?.city ?? o.shipping_address?.governorate ?? '—',
-                    new Date(o.created_at).toLocaleDateString('ar-EG'),
-                  ]),
-                ]);
-                ws['!cols'] = [{ wch: 12 }, { wch: 22 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 16 }, { wch: 14 }];
-                XLSX.utils.book_append_sheet(wb, ws, 'الطلبات');
-                XLSX.writeFile(wb, `طلبات-دار-الفتح-${new Date().toISOString().slice(0, 10)}.xlsx`);
-                toast.success('تم تصدير Excel');
-              }}
-              className="btn-secondary flex items-center gap-1.5 text-sm"
-            >
-              <Download size={14} /> Excel
-            </button>
-
-            {/* ── Export PDF ── */}
-            <button
-              onClick={() => {
-                const pw = window.open('', '_blank', 'width=900,height=700');
-                if (!pw) { toast.error('يرجى السماح بالنوافذ المنبثقة'); return; }
-                const rows = filtered.map((o) => `
-                  <tr>
-                    <td>${o.id.slice(0, 8)}</td>
-                    <td>${escapeHtml(o.profiles?.full_name ?? '—')}</td>
-                    <td>${escapeHtml(o.status)}</td>
-                    <td>${escapeHtml(o.payment_status)}</td>
-                    <td>${o.total_price.toLocaleString()} ${currency}</td>
-                    <td>${escapeHtml(o.shipping_address?.city ?? o.shipping_address?.governorate ?? '—')}</td>
-                    <td>${new Date(o.created_at).toLocaleDateString('ar-EG')}</td>
-                  </tr>`).join('');
-                pw.document.write(`<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8"/>
-                  <title>تقرير الطلبات</title>
-                  <style>
-                    @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;900&display=swap');
-                    *{margin:0;padding:0;box-sizing:border-box}
-                    body{font-family:'Cairo',Arial,sans-serif;direction:rtl;padding:24px;font-size:12px;color:#1e293b}
-                    h1{font-size:18px;font-weight:900;color:#1d4ed8;margin-bottom:4px}
-                    .meta{color:#64748b;font-size:11px;margin-bottom:16px}
-                    table{width:100%;border-collapse:collapse}
-                    th{background:#1d4ed8;color:#fff;padding:8px;text-align:right;font-size:11px}
-                    td{padding:7px 8px;border-bottom:1px solid #f1f5f9;font-size:11px}
-                    tr:nth-child(even) td{background:#f8fafc}
-                    @media print{body{padding:12px}}
-                  </style></head><body>
-                  <h1>تقرير الطلبات — دار الفتح</h1>
-                  <p class="meta">إجمالي الطلبات: ${filtered.length} · الإيرادات: ${totalRevenue.toLocaleString()} ${currency} · ${selectedCountry?.name ?? 'كل الدول'} · ${new Date().toLocaleDateString('ar-EG')}</p>
-                  <table>
-                    <tr><th>رقم الطلب</th><th>العميل</th><th>الحالة</th><th>حالة الدفع</th><th>الإجمالي</th><th>المدينة</th><th>التاريخ</th></tr>
-                    ${rows}
-                  </table>
-                  <script>setTimeout(()=>window.print(),600);<\/script></body></html>`);
-                pw.document.close();
-                toast.success('جارٍ فتح نافذة الطباعة — اختر "حفظ كـ PDF"');
-              }}
-              className="btn-secondary flex items-center gap-1.5 text-sm"
-            >
-              <Download size={14} /> PDF
-            </button>
+            <ReportDownloadButton
+              title="تقرير الطلبات"
+              periodHint="كل الطلبات المسجلة خلال الفترة بتفاصيلها، مع ملخص الحالات وطرق الدفع."
+              defaultPeriod={
+                dateFrom
+                  ? { preset: 'custom', from: dateFrom, to: dateTo || fmtDateOnlyIso(new Date()) }
+                  : { preset: 'thisMonth' }
+              }
+              filters={{ active: ordersFiltersActive, label: ordersFiltersLabel }}
+              build={({ period, generatedAt, applyFilters }) =>
+                buildOrdersReport(
+                  { period, generatedAt, country: selectedCountry, currencySymbol: currency },
+                  applyFilters ? { predicate: matchesOrderFilters, filtersLabel: ordersFiltersLabel } : {}
+                )
+              }
+            />
           </div>
         </div>
 

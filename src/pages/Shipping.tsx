@@ -1,5 +1,8 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import Layout from '@/components/layout/Layout';
+import ReportDownloadButton from '@/components/reports/ReportDownloadButton';
+import { buildShippingReport } from '@/lib/reports/builders/shipping';
+import type { ReportOrder } from '@/lib/reports/data';
 import {
   Truck,
   MapPin,
@@ -7,7 +10,6 @@ import {
   CheckCircle,
   Clock,
   Search,
-  Download,
   Printer,
   Plus,
   Eye,
@@ -38,7 +40,6 @@ import {
   useShippingRates,
   useUpsertShippingRate,
   useDeleteShippingRate,
-  exportShippingCsv,
   EGYPT_GOVERNORATES,
   type ShipmentOrder,
   type ShipmentStatus,
@@ -190,6 +191,22 @@ export default function Shipping() {
     return shippingCompanies.find((c) => c.id === filterCompanyId)?.company_name ?? 'الكل';
   }, [filterCompanyId, shippingCompanies]);
 
+  const shippingFiltersActive = filterStatus !== 'الكل' || filterCompanyId !== 'الكل' || !!search.trim();
+  const shippingFiltersLabel = [
+    filterStatus !== 'الكل' && `الحالة: ${filterStatus}`,
+    filterCompanyId !== 'الكل' && `شركة الشحن: ${selectedCompanyName}`,
+    search.trim() && `بحث: ${search.trim()}`,
+  ].filter(Boolean).join(' · ');
+  const matchesShippingFilters = (o: ReportOrder) => {
+    if (filterStatus !== 'الكل' && o.status !== filterStatus) return false;
+    if (filterCompanyId !== 'الكل' && o.shipping_company_id !== filterCompanyId) return false;
+    const q = search.trim().toLowerCase();
+    if (!q) return true;
+    return [o.id, o.profiles?.full_name ?? o.shipping_address?.name, o.shipping_address?.city, o.shipping_address?.governorate,
+      o.shipping_address?.phone ?? o.profiles?.phone, o.tracking_number]
+      .some((v) => (v ?? '').trim().toLowerCase().includes(q));
+  };
+
   const handleRefresh = () => {
     qc.invalidateQueries({ queryKey: ['shipping-orders'] });
     qc.invalidateQueries({ queryKey: ['shipment-detail'] });
@@ -269,16 +286,17 @@ export default function Shipping() {
               <RefreshCw size={16} />
             </button>
 
-            <button
-              onClick={() => {
-                exportShippingCsv(orders);
-                toast.success('تم تصدير قائمة الشحن');
-              }}
-              className="btn-secondary flex items-center gap-2 text-sm"
-            >
-              <Download size={14} />
-              تصدير
-            </button>
+            <ReportDownloadButton
+              title="تقرير الشحن"
+              periodHint="كل شحنات الفترة بعناوينها وشركات الشحن وأرقام التتبع، مع أداء كل شركة وكل محافظة."
+              filters={{ active: shippingFiltersActive, label: shippingFiltersLabel }}
+              build={({ period, generatedAt, applyFilters }) =>
+                buildShippingReport(
+                  { period, generatedAt, country: selectedCountry, currencySymbol },
+                  applyFilters ? { predicate: matchesShippingFilters, filtersLabel: shippingFiltersLabel } : {}
+                )
+              }
+            />
 
             <button
               onClick={handlePrintShipment}

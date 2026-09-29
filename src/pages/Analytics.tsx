@@ -1,8 +1,10 @@
 import { useMemo, useState } from 'react';
-import { escapeHtml } from '@/lib/utils';
 import { useNavigate } from 'react-router-dom';
-import * as XLSX from 'xlsx';
 import Layout from '@/components/layout/Layout';
+import ReportDownloadButton from '@/components/reports/ReportDownloadButton';
+import { buildAnalyticsReport } from '@/lib/reports/builders/analytics';
+import { fmtDateOnlyIso } from '@/lib/reports/format';
+import type { PeriodSelection } from '@/lib/reports/period';
 import {
   AreaChart,
   Area,
@@ -21,7 +23,6 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import {
-  Download,
   TrendingUp,
   TrendingDown,
   ShoppingCart,
@@ -255,173 +256,27 @@ export default function Analytics() {
     selectedCurrencySymbol ||
     'ج.م';
 
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const fileLabel = `دار-الفتح-${period}-${todayStr}`;
-  const cur = activeCurrencySymbol;
-
-  const handleExport = (fmt: 'CSV' | 'Excel' | 'PDF') => {
-    /* ── CSV ── */
-    if (fmt === 'CSV') {
-      const bom = '﻿';
-      const headers = ['الفترة', `الإيرادات (${cur})`, `الربح (${cur})`, 'الطلبات'];
-      const rows = trend.map((d) => [d.label, d.revenue, d.profit, d.orders]);
-      const csv =
-        bom +
-        [headers, ...rows]
-          .map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(','))
-          .join('\n');
-      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${fileLabel}.csv`;
-      a.click();
-      URL.revokeObjectURL(url);
-      toast.success('تم تصدير CSV');
-      return;
+  // The download panel opens on the same period the page is showing.
+  const reportDefaultPeriod = useMemo<PeriodSelection>(() => {
+    const today = fmtDateOnlyIso(new Date());
+    switch (period) {
+      case 'اليوم': return { preset: 'today' };
+      case 'أمس': return { preset: 'yesterday' };
+      case 'هذا الشهر': return { preset: 'thisMonth' };
+      case 'هذا العام': return { preset: 'thisYear' };
+      case 'هذا الأسبوع': {
+        const start = new Date();
+        start.setDate(start.getDate() - start.getDay());
+        return { preset: 'custom', from: fmtDateOnlyIso(start), to: today };
+      }
+      case 'يوم محدد':
+        return customDay ? { preset: 'custom', from: customDay, to: customDay } : { preset: 'today' };
+      case 'مخصص':
+        return customFrom ? { preset: 'custom', from: customFrom, to: customTo || today } : { preset: 'thisMonth' };
+      default:
+        return { preset: 'thisMonth' };
     }
-
-    /* ── Excel ── */
-    if (fmt === 'Excel') {
-      const wb = XLSX.utils.book_new();
-
-      const ws1 = XLSX.utils.aoa_to_sheet([
-        ['تقرير التحليلات — دار الفتح'],
-        [`الفترة: ${period}`, `الدولة: ${selectedCountry?.name ?? 'كل الدول'}`],
-        [`تاريخ التصدير: ${new Date().toLocaleDateString('ar-EG')}`],
-        [],
-        ['المؤشر', 'القيمة'],
-        ['إجمالي الإيرادات', kpi?.totalRevenue ?? 0],
-        ['صافي الربح', kpi?.totalProfit ?? 0],
-        ['هامش الربح %', kpi ? +kpi.profitMargin.toFixed(1) : 0],
-        ['إجمالي الطلبات', kpi?.totalOrders ?? 0],
-        ['متوسط قيمة الطلب', kpi ? +kpi.avgOrderValue.toFixed(0) : 0],
-      ]);
-      ws1['!cols'] = [{ wch: 28 }, { wch: 20 }];
-      XLSX.utils.book_append_sheet(wb, ws1, 'ملخص KPI');
-
-      const trendRows = trend.filter((d) => d.revenue > 0 || d.orders > 0);
-      const ws2 = XLSX.utils.aoa_to_sheet([
-        ['الفترة', `الإيرادات (${cur})`, `الربح (${cur})`, 'الطلبات'],
-        ...(trendRows.length ? trendRows : trend).map((d) => [d.label, d.revenue, d.profit, d.orders]),
-      ]);
-      ws2['!cols'] = [{ wch: 15 }, { wch: 18 }, { wch: 18 }, { wch: 12 }];
-      XLSX.utils.book_append_sheet(wb, ws2, 'الإيرادات والأرباح');
-
-      if (topBooks.length > 0) {
-        const ws3 = XLSX.utils.aoa_to_sheet([
-          ['الكتاب', 'المؤلف', 'الكميات المبيعة', `الإيرادات (${cur})`],
-          ...topBooks.map((b) => [b.title, b.author, b.totalSold, b.totalRevenue]),
-        ]);
-        ws3['!cols'] = [{ wch: 35 }, { wch: 20 }, { wch: 15 }, { wch: 18 }];
-        XLSX.utils.book_append_sheet(wb, ws3, 'أفضل الكتب');
-      }
-
-      if (topCustomers.length > 0) {
-        const ws4 = XLSX.utils.aoa_to_sheet([
-          ['العميل', 'المدينة', 'الطلبات', `الإنفاق (${cur})`],
-          ...topCustomers.map((c) => [c.fullName || c.email, c.city, c.totalOrders, c.totalSpent]),
-        ]);
-        ws4['!cols'] = [{ wch: 28 }, { wch: 18 }, { wch: 12 }, { wch: 18 }];
-        XLSX.utils.book_append_sheet(wb, ws4, 'أفضل العملاء');
-      }
-
-      if (cities.length > 0) {
-        const ws5 = XLSX.utils.aoa_to_sheet([
-          ['المدينة', 'الطلبات', 'النسبة %', `الإيرادات (${cur})`],
-          ...cities.map((c) => [c.city, c.orders, c.percentage, c.revenue]),
-        ]);
-        ws5['!cols'] = [{ wch: 20 }, { wch: 12 }, { wch: 12 }, { wch: 18 }];
-        XLSX.utils.book_append_sheet(wb, ws5, 'توزيع المدن');
-      }
-
-      XLSX.writeFile(wb, `${fileLabel}.xlsx`);
-      toast.success('تم تصدير ملف Excel بنجاح');
-      return;
-    }
-
-    /* ── PDF (browser print → Save as PDF) ── */
-    if (fmt === 'PDF') {
-      const pw = window.open('', '_blank', 'width=900,height=700');
-      if (!pw) {
-        toast.error('يرجى السماح بالنوافذ المنبثقة لتصدير PDF');
-        return;
-      }
-
-      const htmlRow = (cells: string[], header = false) => {
-        const tag = header ? 'th' : 'td';
-        return `<tr>${cells.map((c) => `<${tag}>${escapeHtml(c)}</${tag}>`).join('')}</tr>`;
-      };
-
-      const trendActive = trend.filter((d) => d.revenue > 0 || d.orders > 0);
-      const trendSection = trendActive.length > 0
-        ? `<table>
-            ${htmlRow(['الفترة', `الإيرادات (${cur})`, `الربح (${cur})`, 'الطلبات'], true)}
-            ${trendActive.map((d) => htmlRow([d.label, d.revenue.toLocaleString(), d.profit.toLocaleString(), String(d.orders)])).join('')}
-           </table>`
-        : '<p class="empty">لا توجد بيانات إيرادات في هذه الفترة</p>';
-
-      const booksSection = topBooks.length > 0
-        ? `<table>
-            ${htmlRow(['الكتاب', 'المؤلف', 'المبيع', `الإيرادات (${cur})`], true)}
-            ${topBooks.map((b) => htmlRow([b.title, b.author, String(b.totalSold), b.totalRevenue.toLocaleString()])).join('')}
-           </table>`
-        : '<p class="empty">لا توجد مبيعات في هذه الفترة</p>';
-
-      const customersSection = topCustomers.length > 0
-        ? `<table>
-            ${htmlRow(['العميل', 'المدينة', 'الطلبات', `الإنفاق (${cur})`], true)}
-            ${topCustomers.map((c) => htmlRow([c.fullName || c.email, c.city, String(c.totalOrders), c.totalSpent.toLocaleString()])).join('')}
-           </table>`
-        : '<p class="empty">لا توجد بيانات عملاء</p>';
-
-      pw.document.write(`<!DOCTYPE html>
-<html dir="rtl" lang="ar">
-<head>
-  <meta charset="UTF-8"/>
-  <title>تقرير التحليلات — دار الفتح</title>
-  <style>
-    @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap');
-    *{margin:0;padding:0;box-sizing:border-box}
-    body{font-family:'Cairo',Arial,sans-serif;direction:rtl;color:#1e293b;background:#fff;padding:32px;font-size:13px}
-    h1{font-size:22px;font-weight:900;color:#1d4ed8;margin-bottom:4px}
-    .meta{color:#64748b;font-size:12px;margin-bottom:24px}
-    .section{margin-bottom:28px}
-    h2{font-size:14px;font-weight:700;color:#334155;border-right:3px solid #1d4ed8;padding-right:8px;margin-bottom:10px}
-    .kpi-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:28px}
-    .kpi-card{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:14px}
-    .kpi-card .num{font-size:20px;font-weight:900;color:#1d4ed8}
-    .kpi-card .lbl{font-size:11px;color:#64748b;margin-top:2px}
-    table{width:100%;border-collapse:collapse;font-size:12px}
-    th{background:#1d4ed8;color:#fff;padding:8px 10px;text-align:right;font-weight:600}
-    td{padding:7px 10px;border-bottom:1px solid #f1f5f9}
-    tr:nth-child(even) td{background:#f8fafc}
-    .empty{color:#94a3b8;font-style:italic;padding:12px 0}
-    .footer{margin-top:32px;font-size:11px;color:#94a3b8;text-align:center;border-top:1px solid #e2e8f0;padding-top:12px}
-    @media print{body{padding:16px}}
-  </style>
-</head>
-<body>
-  <h1>تقرير التحليلات — دار الفتح</h1>
-  <p class="meta">الفترة: ${escapeHtml(period)} &nbsp;|&nbsp; الدولة: ${escapeHtml(selectedCountry?.name ?? 'كل الدول')} &nbsp;|&nbsp; تاريخ التصدير: ${new Date().toLocaleDateString('ar-EG')}</p>
-  <div class="kpi-grid">
-    <div class="kpi-card"><div class="num">${(kpi?.totalRevenue ?? 0).toLocaleString()} ${cur}</div><div class="lbl">إجمالي الإيرادات</div></div>
-    <div class="kpi-card"><div class="num">${(kpi?.totalProfit ?? 0).toLocaleString()} ${cur}</div><div class="lbl">صافي الربح</div></div>
-    <div class="kpi-card"><div class="num">${kpi?.profitMargin.toFixed(1) ?? 0}٪</div><div class="lbl">هامش الربح</div></div>
-    <div class="kpi-card"><div class="num">${kpi?.totalOrders ?? 0}</div><div class="lbl">إجمالي الطلبات</div></div>
-    <div class="kpi-card"><div class="num">${(kpi?.avgOrderValue ?? 0).toFixed(0)} ${cur}</div><div class="lbl">متوسط قيمة الطلب</div></div>
-  </div>
-  <div class="section"><h2>الإيرادات والأرباح</h2>${trendSection}</div>
-  <div class="section"><h2>أفضل الكتب مبيعاً</h2>${booksSection}</div>
-  <div class="section"><h2>أفضل العملاء</h2>${customersSection}</div>
-  <div class="footer">دار الفتح للنشر والتوزيع &copy; ${new Date().getFullYear()}</div>
-  <script>setTimeout(()=>window.print(),700);<\/script>
-</body>
-</html>`);
-      pw.document.close();
-      toast.success('جارٍ فتح نافذة الطباعة — اختر "حفظ كـ PDF"');
-    }
-  };
+  }, [period, customFrom, customTo, customDay]);
 
   const trendChartData = useMemo(() => trend.map((d) => ({ ...d, name: d.label })), [trend]);
 return (
@@ -458,16 +313,19 @@ return (
               <RefreshCw size={14} /> تحديث
             </button>
 
-            {(['CSV', 'Excel', 'PDF'] as const).map((f) => (
-              <button
-                key={f}
-                onClick={() => handleExport(f)}
-                className="btn-secondary flex items-center gap-1.5 text-sm"
-              >
-                <Download size={14} />
-                {f}
-              </button>
-            ))}
+            <ReportDownloadButton
+              title="تقرير التحليلات والأداء"
+              periodHint="الإيرادات والأرباح والكتب الأكثر مبيعًا والعملاء وطرق الدفع خلال الفترة المختارة."
+              defaultPeriod={reportDefaultPeriod}
+              build={({ period: reportPeriod, generatedAt }) =>
+                buildAnalyticsReport({
+                  period: reportPeriod,
+                  generatedAt,
+                  country: selectedCountry,
+                  currencySymbol: selectedCurrencySymbol || 'ج.م',
+                })
+              }
+            />
           </div>
         </div>
 

@@ -556,7 +556,7 @@ function AddAdminModal({ onClose, existingUserIds }: AddAdminModalProps) {
   const [selectedCountryIds, setSelectedCountryIds] = useState<string[]>([]);
   const [primaryCountryId, setPrimaryCountryId] = useState<string | null>(null);
 
-  const available = profiles.filter((p: any) => !existingUserIds.includes(p.id));
+  const available = profiles.filter((p) => !existingUserIds.includes(p.id));
 
   const handleAdd = async () => {
     if (!selectedUserId) {
@@ -601,7 +601,7 @@ function AddAdminModal({ onClose, existingUserIds }: AddAdminModalProps) {
     });
   };
 
-  const selectedProfile = available.find((p: any) => p.id === selectedUserId);
+  const selectedProfile = available.find((p) => p.id === selectedUserId);
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 overflow-y-auto" dir="rtl">
@@ -630,7 +630,7 @@ function AddAdminModal({ onClose, existingUserIds }: AddAdminModalProps) {
                 className="input-field text-sm py-3 pr-4"
               >
                 <option value="">— اختر مستخدماً —</option>
-                {available.map((p: any) => (
+                {available.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.full_name || 'بدون اسم'} {p.email ? `(${p.email})` : ''}
                   </option>

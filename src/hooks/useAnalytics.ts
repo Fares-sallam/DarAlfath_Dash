@@ -229,7 +229,7 @@ async function fetchOrdersInRange(from: string, to: string): Promise<OrderRow[]>
 
   if (error) throw error;
 
-  const orders = (data ?? []) as Omit<OrderRow, 'order_items'>[];
+  const orders = (data ?? []) as unknown as Omit<OrderRow, 'order_items'>[];
   if (orders.length === 0) return [];
 
   const orderIds = orders.map((o) => o.id);
@@ -251,7 +251,7 @@ async function fetchOrdersInRange(from: string, to: string): Promise<OrderRow[]>
 
   const itemsByOrder: Record<string, OrderRow['order_items']> = {};
 
-  for (const item of (items ?? []) as (OrderRow['order_items'][number] & { order_id: string })[]) {
+  for (const item of (items ?? []) as unknown as (OrderRow['order_items'][number] & { order_id: string })[]) {
     const oid = item.order_id;
     if (!itemsByOrder[oid]) itemsByOrder[oid] = [];
     itemsByOrder[oid].push(item);
@@ -964,7 +964,7 @@ export function useInventoryRotation(limit = 8) {
               .in('order_id', soldOrderIds)
               .limit(5000)
           : selectedCountry?.id
-          ? Promise.resolve({ data: [], error: null } as any)
+          ? Promise.resolve({ data: [] as { quantity: number; products: { id: string; title: string } | null }[], error: null })
           : supabase
               .from('order_items')
               .select('quantity, products(id, title)')

@@ -167,7 +167,7 @@ function TopBooksChart() {
                 boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
                 fontSize: '13px',
               }}
-              formatter={(value: number, name: string, props: any) => {
+              formatter={(value: number, name: string, props: { dataKey?: unknown }) => {
                 if (props?.dataKey === 'value') return [`${value.toLocaleString('ar-SA')} نسخة`, 'المبيعات'];
                 if (props?.dataKey === 'revenue') return [`${value.toLocaleString('ar-SA')} ${currencySymbol}`, 'الإيراد'];
                 return [value, name];

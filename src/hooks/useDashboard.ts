@@ -221,7 +221,7 @@ export function useTopSellingBooks(limit = 5) {
 
       const map: Record<string, TopSellingBook> = {};
 
-      for (const item of (data ?? []) as {
+      for (const item of (data ?? []) as unknown as {
         quantity: number;
         price_per_item: number;
         order_id: string;

@@ -171,7 +171,7 @@ export function useAdminSettings() {
 
       const accessByUser: Record<string, CountryAccessItem[]> = {};
 
-      for (const row of (countryAccessData ?? []) as (CountryAccessItem & { user_id: string })[]) {
+      for (const row of (countryAccessData ?? []) as unknown as (CountryAccessItem & { user_id: string })[]) {
         if (!accessByUser[row.user_id]) accessByUser[row.user_id] = [];
         accessByUser[row.user_id].push({
           id: row.id,
@@ -181,7 +181,7 @@ export function useAdminSettings() {
         });
       }
 
-      return ((settingsData ?? []) as AdminSetting[]).map((row) => {
+      return ((settingsData ?? []) as unknown as AdminSetting[]).map((row) => {
         const accessible = accessByUser[row.user_id] ?? [];
         const primaryAccess =
           accessible.find((c) => c.is_primary) ??
@@ -528,7 +528,7 @@ export function useCreateNewAdminUser() {
       if (error) {
         if (error instanceof FunctionsHttpError) {
           const response = error.context;
-          let body: any = null;
+          let body: { error?: string; message?: string } | null = null;
 
           try {
             body = await response.json();

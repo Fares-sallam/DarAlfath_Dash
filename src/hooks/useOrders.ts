@@ -192,7 +192,7 @@ export function useOrders(filters: OrderFilters = {}) {
       const { data, error } = await query;
       if (error) throw error;
 
-      return (data ?? []) as OrderListRow[];
+      return (data ?? []) as unknown as OrderListRow[];
     },
   });
 }
@@ -270,16 +270,15 @@ export function useOrderDetail(orderId: string | null) {
             order_item_components(quantity, title, variant_name)
           )
         `)
-        .eq('id', orderId!)
-        .maybeSingle();
+        .eq('id', orderId!);
 
       if (selectedCountry?.id) {
         query = query.eq('country_id', selectedCountry.id);
       }
 
-      const { data, error } = await query;
+      const { data, error } = await query.maybeSingle();
       if (error) throw error;
-      return (data ?? null) as Order | null;
+      return (data ?? null) as unknown as Order | null;
     },
   });
 }

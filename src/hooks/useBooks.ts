@@ -380,7 +380,7 @@ export function useProducts() {
 
       if (error) throw error;
 
-      const products = (data ?? []) as Product[];
+      const products = (data ?? []) as unknown as Product[];
       if (products.length === 0) return [];
 
       const productIds = products.map((p) => p.id);
@@ -711,8 +711,7 @@ export function useUpsertProduct() {
             .delete()
             .eq('variant_id', savedVariant.id)
             .eq('country_id', countryId)
-            .then(() => {})
-            .catch(() => {});
+            .then(() => {}, () => {});
         }
       }
 
@@ -741,8 +740,8 @@ export function useUpsertProduct() {
 
       const removedVariantIds = oldVariantIds.filter((id) => !keptVariantIds.includes(id));
       if (removedVariantIds.length > 0) {
-        await supabase.from('product_inventory').delete().in('variant_id', removedVariantIds).then(() => {}).catch(() => {});
-        await supabase.from('product_variant_country_prices').delete().in('variant_id', removedVariantIds).then(() => {}).catch(() => {});
+        await supabase.from('product_inventory').delete().in('variant_id', removedVariantIds).then(() => {}, () => {});
+        await supabase.from('product_variant_country_prices').delete().in('variant_id', removedVariantIds).then(() => {}, () => {});
         await supabase.from('product_variants').delete().in('id', removedVariantIds);
       }
 
@@ -752,8 +751,7 @@ export function useUpsertProduct() {
         .delete()
         .eq('product_id', productId)
         .is('variant_id', null)
-        .then(() => {})
-        .catch(() => {});
+        .then(() => {}, () => {});
 
       // Electronic book entry
       const hasDigital = normalizedVariants.some((v) => v.variant_type === 'رقمي');
@@ -863,14 +861,14 @@ export function useDeleteProduct() {
         throw new Error('هذا الكتاب مرتبط بطلبات سابقة، فلا يمكن حذفه نهائيًا حفاظًا على سجل الطلبات — استخدم "إخفاء" بدلًا من الحذف لإزالته من المتجر.');
       }
 
-      await supabase.from('product_country_prices').delete().eq('product_id', id).then(() => {}).catch(() => {});
-      await supabase.from('product_inventory').delete().eq('product_id', id).then(() => {}).catch(() => {});
+      await supabase.from('product_country_prices').delete().eq('product_id', id).then(() => {}, () => {});
+      await supabase.from('product_inventory').delete().eq('product_id', id).then(() => {}, () => {});
       await supabase.from('product_variants').select('id').eq('product_id', id).then(async ({ data }) => {
-        const variantIds = (data ?? []).map((v: any) => v.id);
+        const variantIds = ((data ?? []) as { id: string }[]).map((v) => v.id);
         if (variantIds.length > 0) {
-          await supabase.from('product_variant_country_prices').delete().in('variant_id', variantIds).then(() => {}).catch(() => {});
+          await supabase.from('product_variant_country_prices').delete().in('variant_id', variantIds).then(() => {}, () => {});
         }
-      }).catch(() => {});
+      }, () => {});
 
       const { error } = await supabase.from('products').delete().eq('id', id);
       if (error) {

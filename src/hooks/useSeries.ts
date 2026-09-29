@@ -179,7 +179,7 @@ export function useSeriesBooks(seriesId: string | null) {
       const { data, error } = await query;
       if (error) throw error;
 
-      const rows = (data ?? []) as SeriesBook[];
+      const rows = (data ?? []) as unknown as SeriesBook[];
       const productIds = rows.map((r) => r.product_id).filter(Boolean);
       const priceMap = await fetchCountryPriceMap(productIds, selectedCountry?.id);
 

@@ -161,7 +161,7 @@ export function useShippingOrders(filters: ShippingFilters = {}) {
       const { data, error } = await query;
       if (error) throw error;
 
-      let rows = ((data ?? []) as Order[]).map((order) =>
+      let rows = ((data ?? []) as unknown as Order[]).map((order) =>
         mapOrderToShipment(order, currencySymbol)
       );
 
@@ -308,18 +308,17 @@ export function useShipmentDetail(orderId: string | null) {
             product_variants(id, variant_name)
           )
         `)
-        .eq('id', orderId!)
-        .maybeSingle();
+        .eq('id', orderId!);
 
       if (selectedCountry?.id) {
         query = query.eq('country_id', selectedCountry.id);
       }
 
-      const { data, error } = await query;
+      const { data, error } = await query.maybeSingle();
       if (error) throw error;
       if (!data) return null;
 
-      return mapOrderToShipment(data as Order, currencySymbol);
+      return mapOrderToShipment(data as unknown as Order, currencySymbol);
     },
   });
 }

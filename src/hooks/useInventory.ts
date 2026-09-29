@@ -223,10 +223,10 @@ export function useInventory() {
       // Bundles have no stock of their own — it's derived from their books
       // (see bundle_available_stock). Listing them here would offer a
       // stock field that does nothing, and flag every bundle as out of stock.
-      const inventoryRows = ((inventoryResult.data ?? []) as InventoryRow[]).filter(
+      const inventoryRows = ((inventoryResult.data ?? []) as unknown as InventoryRow[]).filter(
         (row) => row.products?.is_bundle !== true
       );
-      const variants = ((variantsResult.data ?? []) as VariantRow[]).filter(
+      const variants = ((variantsResult.data ?? []) as unknown as VariantRow[]).filter(
         (v) => v.products?.is_active !== false && v.products?.is_bundle !== true
       );
       const variantIds = variants.map((v) => v.id);

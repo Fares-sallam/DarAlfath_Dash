@@ -54,6 +54,9 @@ export interface ProductImage {
 /** One book inside a bundle (مجموعة). Keyed by the book's physical copy
  *  (variant), since that's where price, stock and weight live. */
 export interface BundleItem {
+  /** Which copy of the bundle this book belongs to — each copy (e.g. ورق
+   *  عادي / مقاس 24*17) has its own books. */
+  bundle_variant_id: string;
   component_variant_id: string;
   component_product_id: string;
   quantity: number;
@@ -123,6 +126,8 @@ export interface ProductVariantInput {
   reserved_stock?: number | null;
   min_stock?: number | null;
   weight_kg?: number | null;
+  /** Bundles only: this copy's books, in display order. */
+  bundleItems?: { component_variant_id: string; quantity: number }[];
 }
 
 export interface UpsertProductInput {
@@ -151,8 +156,6 @@ export interface UpsertProductInput {
   additionalImages?: { url: string; alt_text?: string; is_primary?: boolean }[];
   /** Only honored on create — a product's kind never changes afterwards. */
   is_bundle?: boolean;
-  /** The bundle's books, in display order. Required when is_bundle. */
-  bundleItems?: { component_variant_id: string; quantity: number }[];
 }
 
 type CountryPriceRow = {
@@ -370,7 +373,7 @@ export function useProducts() {
           electronic_books(id, product_id, file_path, file_format, is_sold_once, file_size_mb, protected, watermark, original_filename),
           product_series(series_id, book_series(id, name, author)),
           product_categories(category_id, categories(id, name, slug)),
-          bundle_items!bundle_items_bundle_product_id_fkey(component_variant_id, component_product_id, quantity, sort_order)
+          bundle_items!bundle_items_bundle_product_id_fkey(bundle_variant_id, component_variant_id, component_product_id, quantity, sort_order)
         `)
         .order('created_at', { ascending: false })
         .limit(300);
@@ -510,14 +513,18 @@ export function useUpsertProduct() {
       }
 
       if (isBundle) {
-        const items = input.bundleItems ?? [];
-        const distinct = new Set(items.map((i) => i.component_variant_id));
-        if (normalizedVariants.length !== 1 || normalizedVariants[0].variant_type !== 'مادي') {
-          throw new Error('المجموعة ليها نسخة ورقية واحدة بس');
-        }
-        if (distinct.size < 2) throw new Error('المجموعة لازم فيها كتابين مختلفين على الأقل');
-        if (distinct.size !== items.length) {
-          throw new Error('فيه كتاب متكرر في المجموعة. زوّد عدد نسخه بدل ما تضيفه مرتين');
+        const names = new Set<string>();
+        for (const variant of normalizedVariants) {
+          const label = `نسخة المجموعة «${variant.variant_name}»`;
+          if (variant.variant_type !== 'مادي') throw new Error(`${label}: المجموعة بتتكون من نسخ ورقية بس`);
+          if (names.has(variant.variant_name)) throw new Error(`فيه نسختين بنفس الاسم «${variant.variant_name}». غيّر اسم واحدة منهم`);
+          names.add(variant.variant_name);
+          const items = variant.bundleItems ?? [];
+          const distinct = new Set(items.map((i) => i.component_variant_id));
+          if (distinct.size < 2) throw new Error(`${label}: لازم فيها كتابين مختلفين على الأقل`);
+          if (distinct.size !== items.length) {
+            throw new Error(`${label}: فيه كتاب متكرر. زوّد عدد نسخه بدل ما تضيفه مرتين`);
+          }
         }
       }
 
@@ -710,17 +717,26 @@ export function useUpsertProduct() {
       }
 
       if (isBundle) {
-        // One atomic call rather than delete-then-insert from here: a half-
-        // applied replace would leave the bundle with no books at all.
-        const { error: itemsErr } = await supabase.rpc('set_bundle_items', {
-          p_bundle_variant_id: keptVariantIds[0],
-          p_items: (input.bundleItems ?? []).map((item, idx) => ({
-            component_variant_id: item.component_variant_id,
-            quantity: Math.max(1, Math.trunc(item.quantity)),
-            sort_order: idx,
-          })),
-        });
-        if (itemsErr) throw itemsErr;
+        // One atomic call per copy rather than delete-then-insert from here:
+        // a half-applied replace would leave that copy with no books at all.
+        for (const [i, variant] of normalizedVariants.entries()) {
+          const { error: itemsErr } = await supabase.rpc('set_bundle_items', {
+            p_bundle_variant_id: keptVariantIds[i],
+            p_items: (variant.bundleItems ?? []).map((item, idx) => ({
+              component_variant_id: item.component_variant_id,
+              quantity: Math.max(1, Math.trunc(item.quantity)),
+              sort_order: idx,
+            })),
+          });
+          if (itemsErr) throw itemsErr;
+        }
+
+        // set_bundle_items' trigger writes the last copy's cost/price onto
+        // the product row; restore the across-copies summary books use.
+        await supabase
+          .from('products')
+          .update({ cost_price: summary.cost_price, base_price: summary.base_price, sale_price: summary.sale_price ?? null })
+          .eq('id', productId);
       }
 
       const removedVariantIds = oldVariantIds.filter((id) => !keptVariantIds.includes(id));

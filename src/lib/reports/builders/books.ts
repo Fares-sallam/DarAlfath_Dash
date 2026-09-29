@@ -5,7 +5,7 @@ import { countryRef, filterMeta, money, scopeMeta, type ReportScope } from './co
 
 const num = (v: unknown) => (Number.isFinite(Number(v)) ? Number(v) : 0);
 const salePrice = (v: ProductVariant) => num(v.sale_price ?? v.price);
-const available = (v: ProductVariant) =>
+const ownStock = (v: ProductVariant) =>
   v.variant_type === 'رقمي' || v.stock == null ? null : Math.max(0, num(v.stock) - num(v.reserved_stock));
 
 export async function buildBooksReport(
@@ -16,8 +16,8 @@ export async function buildBooksReport(
     filtersLabel?: string;
     /** The books list hit its 300-row query limit. */
     capped?: boolean;
-    /** Whole bundles the current book stock can make (same figure as the books list). */
-    bundleAvailable: (p: Product) => number;
+    /** Whole copies of a bundle the current book stock can make (same figure as the books list). */
+    bundleAvailable: (p: Product, variantId: string) => number;
   }
 ): Promise<ReportDocument> {
   const orders = await fetchReportOrders(scope.period, countryRef(scope));
@@ -30,9 +30,10 @@ export async function buildBooksReport(
   const kind = (p: Product) => (p.is_bundle ? 'مجموعة' : p.type);
   const series = (p: Product) => (p.product_series ?? []).map((s) => s.book_series?.name).filter(Boolean).join('، ');
   const prices = (p: Product) => (p.product_variants ?? []).map(salePrice).filter((x) => x > 0);
+  // A bundle copy has no stock row: it's whatever its books can make.
+  const available = (p: Product, v: ProductVariant) => (p.is_bundle ? opts.bundleAvailable(p, v.id) : ownStock(v));
   const stockOf = (p: Product) => {
-    if (p.is_bundle) return opts.bundleAvailable(p);
-    const counts = (p.product_variants ?? []).map(available).filter((x): x is number => x !== null);
+    const counts = (p.product_variants ?? []).map((v) => available(p, v)).filter((x): x is number => x !== null);
     return counts.length ? counts.reduce((s, x) => s + x, 0) : null;
   };
 
@@ -102,7 +103,7 @@ export async function buildBooksReport(
           tone: ({ v }) => (salePrice(v) && salePrice(v) - num(v.cost_price) < 0 ? 'bad' : undefined),
         },
         { header: 'الوزن (كجم)', type: 'number', value: ({ v }) => (v.variant_type === 'رقمي' ? null : num(v.weight_kg) || null) },
-        { header: 'المتاح', type: 'number', total: 'sum', value: ({ v }) => available(v) },
+        { header: 'المتاح', type: 'number', total: 'sum', value: ({ p, v }) => available(p, v) },
         { header: 'المبيع خلال الفترة', type: 'number', total: 'sum', value: ({ v }) => byVariant.get(v.id)?.units ?? 0 },
         { header: money('مبيعات الفترة', scope), type: 'money', total: 'sum', value: ({ v }) => byVariant.get(v.id)?.revenue ?? 0 },
       ], variants, { emptyText: 'لا توجد نسخ' }),

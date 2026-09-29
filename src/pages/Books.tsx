@@ -83,7 +83,7 @@ const emptyVariant = (): VariantForm => ({
   weight_kg: '0.3',
 });
 
-const VARIANT_NAMES = ['ورق عادي', 'ورق فاخر', 'A4', 'كوشيه', 'إلكتروني'];
+const VARIANT_NAMES = ['ورق عادي', 'مقاس 24*17', 'A4', 'كوشيه', 'إلكتروني'];
 const CUSTOM_VARIANT_NAME = '__custom__';
 
 const typeConfig: Record<string, string> = {

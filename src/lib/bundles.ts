@@ -76,23 +76,6 @@ export function buildComponentOptions(products: Product[]): BundleComponentOptio
   return options;
 }
 
-/**
- * Warning shown before hiding a book that is still inside bundles on sale:
- * hiding removes it from the store as a product of its own, but the bundles
- * keep selling it (and deducting its stock).
- */
-export function hideBookInBundlesWarning(bookTitle: string, bundleTitles: string[]): string {
-  const many = bundleTitles.length > 1;
-  const label = many ? 'المجموعات' : 'المجموعة';
-  return [
-    `«${bookTitle}» جزء من ${label}: «${bundleTitles.join('»، «')}».`,
-    `هيتشال من المتجر كمنتج لوحده، لكن ${label} هتفضل تتباع وبتخصم من مخزونه.`,
-    `لو عاوز ${many ? 'المجموعات' : 'المجموعة'} تقف كمان، اخفيها هي كمان.`,
-    '',
-    'تكمل إخفاء الكتاب؟',
-  ].join('\n');
-}
-
 /** A bundle's books grouped by the copy (bundle variant) they belong to, in display order. */
 export function bundleItemsByVariant(p: Pick<Product, 'bundle_items'>): Map<string, BundleItemDraft[]> {
   const byVariant = new Map<string, BundleItemDraft[]>();

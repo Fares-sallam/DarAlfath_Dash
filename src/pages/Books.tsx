@@ -4,6 +4,7 @@ import Layout from '@/components/layout/Layout';
 import ReportDownloadButton from '@/components/reports/ReportDownloadButton';
 import { buildBooksReport } from '@/lib/reports/builders/books';
 import BundleComposer from '@/components/features/BundleComposer';
+import HideBookDialog from '@/components/features/HideBookDialog';
 import {
   BOOK_STAT_CARDS,
   applyStatCard,
@@ -18,7 +19,6 @@ import {
   bundleItemsByVariant,
   computeBundleSummary,
   copyItemsToVariantName,
-  hideBookInBundlesWarning,
   type BundleItemDraft,
 } from '@/lib/bundles';
 import {
@@ -441,12 +441,18 @@ export default function Books() {
   const toggleMutation = useToggleProductStatus();
 
   // Hiding a book that's inside bundles on sale doesn't stop those bundles
-  // selling it, so ask before doing it. If the lookup itself fails the hide
-  // goes ahead — the warning is advice, not a gate.
+  // selling it, so the admin chooses: just the book, or the bundles too. If
+  // the lookup itself fails the hide goes ahead — the prompt is advice, not
+  // a gate.
+  const [hidePrompt, setHidePrompt] = useState<{ product: Product; bundles: { id: string; title: string }[] } | null>(null);
+
   const handleToggleStatus = async (product: Product) => {
     if (product.is_active && !product.is_bundle) {
-      const bundles = await findActiveBundlesContaining(product.id).catch(() => [] as string[]);
-      if (bundles.length > 0 && !confirm(hideBookInBundlesWarning(product.title, bundles))) return;
+      const bundles = await findActiveBundlesContaining(product.id).catch(() => []);
+      if (bundles.length > 0) {
+        setHidePrompt({ product, bundles });
+        return;
+      }
     }
     toggleMutation.mutate({ id: product.id, is_active: !product.is_active });
   };
@@ -2243,6 +2249,21 @@ export default function Books() {
         accept=".pdf,.epub,.mobi"
         className="hidden"
         onChange={handleEbookSelect}
+      />
+      <HideBookDialog
+        bookTitle={hidePrompt?.product.title ?? ''}
+        bundles={hidePrompt?.bundles ?? []}
+        onCancel={() => setHidePrompt(null)}
+        onHideBookOnly={() => {
+          if (hidePrompt) toggleMutation.mutate({ id: hidePrompt.product.id, is_active: false });
+          setHidePrompt(null);
+        }}
+        onHideBookAndBundles={() => {
+          if (hidePrompt) {
+            toggleMutation.mutate({ id: hidePrompt.product.id, is_active: false, alsoHideIds: hidePrompt.bundles.map((b) => b.id) });
+          }
+          setHidePrompt(null);
+        }}
       />
     </Layout>
   );

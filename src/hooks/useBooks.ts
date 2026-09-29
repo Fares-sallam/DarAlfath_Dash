@@ -334,34 +334,36 @@ async function fetchVariantInventoryMap(
  *  copies). bundle_items blocks deleting a book that's inside a bundle
  *  (ON DELETE RESTRICT) — checking first lets us refuse with a clear
  *  message *before* touching anything, instead of half-deleting. */
-async function findContainingBundles(
+async function findBundlesContaining(
   filter: { productId?: string; variantIds?: string[] },
   opts: { onlyActive?: boolean } = {}
-): Promise<string[]> {
+): Promise<{ id: string; title: string }[]> {
   let query = supabase
     .from('bundle_items')
-    .select('bundle:products!bundle_items_bundle_product_id_fkey(title, is_active)');
+    .select('bundle:products!bundle_items_bundle_product_id_fkey(id, title, is_active)');
   if (filter.productId) query = query.eq('component_product_id', filter.productId);
   if (filter.variantIds) query = query.in('component_variant_id', filter.variantIds);
 
   const { data, error } = await query;
   if (error) throw error;
 
-  const rows = (data ?? []) as unknown as { bundle: { title: string; is_active: boolean } | null }[];
-  return [
-    ...new Set(
-      rows
-        .filter((r) => !opts.onlyActive || r.bundle?.is_active)
-        .map((r) => r.bundle?.title)
-        .filter((t): t is string => !!t)
-    ),
-  ];
+  const rows = (data ?? []) as unknown as { bundle: { id: string; title: string; is_active: boolean } | null }[];
+  const byId = new Map<string, { id: string; title: string }>();
+  for (const r of rows) {
+    if (!r.bundle || (opts.onlyActive && !r.bundle.is_active)) continue;
+    byId.set(r.bundle.id, { id: r.bundle.id, title: r.bundle.title });
+  }
+  return [...byId.values()];
 }
 
-/** Titles of the bundles still on sale that contain this book. Hiding the
- *  book doesn't stop them selling it, so the admin is warned first. */
+async function findContainingBundles(filter: { productId?: string; variantIds?: string[] }): Promise<string[]> {
+  return (await findBundlesContaining(filter)).map((b) => b.title);
+}
+
+/** The bundles still on sale that contain this book. Hiding the book doesn't
+ *  stop them selling it, so the admin is asked what to do with them first. */
 export const findActiveBundlesContaining = (productId: string) =>
-  findContainingBundles({ productId }, { onlyActive: true });
+  findBundlesContaining({ productId }, { onlyActive: true });
 
 function bundleMembershipMessage(subject: string, bundles: string[]) {
   const label = bundles.length > 1 ? 'المجموعات' : 'المجموعة';
@@ -918,18 +920,26 @@ export function useToggleProductStatus() {
   const qc = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ id, is_active }: { id: string; is_active: boolean }) => {
-      const { error } = await supabase
-        .from('products')
-        .update({ is_active })
-        .eq('id', id);
+    // `alsoHideIds`: bundles hidden together with the book. One UPDATE for
+    // all of them, so it's everything or nothing — never a hidden book with
+    // its bundles half done.
+    mutationFn: async ({ id, is_active, alsoHideIds = [] }: { id: string; is_active: boolean; alsoHideIds?: string[] }) => {
+      const ids = is_active ? [id] : [id, ...alsoHideIds];
+      const { error } = await supabase.from('products').update({ is_active }).in('id', ids);
 
       if (error) throw error;
+      return { hiddenBundles: is_active ? 0 : alsoHideIds.length };
     },
-    onSuccess: () => {
+    onSuccess: ({ hiddenBundles }) => {
       qc.invalidateQueries({ queryKey: ['products'] });
       qc.invalidateQueries({ queryKey: ['inventory'] });
-      toast.success('تم تحديث حالة الكتاب');
+      toast.success(
+        hiddenBundles === 0
+          ? 'تم تحديث حالة الكتاب'
+          : hiddenBundles === 1
+            ? 'تم إخفاء الكتاب والمجموعة'
+            : `تم إخفاء الكتاب و${hiddenBundles.toLocaleString('ar-EG')} مجموعات`
+      );
     },
     onError: (e: Error) => toast.error(e.message),
   });

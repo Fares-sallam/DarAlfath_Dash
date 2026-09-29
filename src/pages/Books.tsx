@@ -5,6 +5,15 @@ import ReportDownloadButton from '@/components/reports/ReportDownloadButton';
 import { buildBooksReport } from '@/lib/reports/builders/books';
 import BundleComposer from '@/components/features/BundleComposer';
 import {
+  BOOK_STAT_CARDS,
+  applyStatCard,
+  bookMatchesStatus,
+  bookMatchesType,
+  countForCard,
+  typeFilterLabel,
+  type BookStatCard,
+} from '@/lib/bookFilters';
+import {
   buildComponentOptions,
   bundleItemsByVariant,
   computeBundleSummary,
@@ -94,6 +103,13 @@ const VARIANT_NAMES = ['ورق عادي', 'مقاس 24*17', 'A4', 'كوشيه', 
 // A bundle is made of paper copies only.
 const BUNDLE_VARIANT_NAMES = VARIANT_NAMES.filter((n) => n !== 'إلكتروني');
 const CUSTOM_VARIANT_NAME = '__custom__';
+
+const STAT_CARD_STYLE: Record<BookStatCard['key'], { color: string; bg: string }> = {
+  all: { color: 'text-blue-700', bg: 'bg-blue-50' },
+  active: { color: 'text-green-700', bg: 'bg-green-50' },
+  hidden: { color: 'text-red-600', bg: 'bg-red-50' },
+  digital: { color: 'text-purple-700', bg: 'bg-purple-50' },
+};
 
 interface BundleVariantForm {
   _key: string;
@@ -545,9 +561,8 @@ export default function Books() {
         p.title.toLowerCase().includes(s) ||
         p.author.toLowerCase().includes(s) ||
         (p.isbn ?? '').includes(s);
-      const mt =
-        filterType === 'الكل' || (filterType === 'مجموعة' ? !!p.is_bundle : p.type === filterType);
-      const ma = filterActive === 'الكل' || (filterActive === 'نشط' ? p.is_active : !p.is_active);
+      const mt = bookMatchesType(p, filterType);
+      const ma = bookMatchesStatus(p, filterActive);
       const mc = filterCategory === 'الكل' || p.category_id === filterCategory;
       return ms && mt && ma && mc;
     })
@@ -968,7 +983,7 @@ export default function Books() {
     search;
   const booksFiltersLabel = [
     search && `بحث: ${search}`,
-    filterType !== 'الكل' && `النوع: ${filterType}`,
+    filterType !== 'الكل' && `النوع: ${typeFilterLabel(filterType)}`,
     filterActive !== 'الكل' && `الحالة: ${filterActive}`,
     filterCategory !== 'الكل' && `التصنيف: ${categories.find((c) => c.id === filterCategory)?.name ?? ''}`,
   ].filter(Boolean).join(' · ');
@@ -1038,20 +1053,31 @@ export default function Books() {
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-          {[
-            { label: 'إجمالي الكتب', value: products.length, color: 'text-blue-700', bg: 'bg-blue-50' },
-            { label: 'نشط', value: products.filter((b) => b.is_active).length, color: 'text-green-700', bg: 'bg-green-50' },
-            { label: 'غير نشط', value: products.filter((b) => !b.is_active).length, color: 'text-red-600', bg: 'bg-red-50' },
-            { label: 'كتب رقمية', value: products.filter((b) => b.type !== 'ورقي').length, color: 'text-purple-700', bg: 'bg-purple-50' },
-          ].map((s, i) => (
-            <div key={i} className="bg-white rounded-2xl p-4 shadow-sm text-center">
-              <div className={`w-10 h-10 ${s.bg} rounded-xl mx-auto flex items-center justify-center mb-2`}>
-                <BookOpen size={18} className={s.color} />
-              </div>
-              <p className={`text-xl font-bold ${s.color}`}>{isLoading ? '—' : s.value}</p>
-              <p className="text-xs text-gray-500 mt-0.5">{s.label}</p>
-            </div>
-          ))}
+          {BOOK_STAT_CARDS.map((card) => {
+            const style = STAT_CARD_STYLE[card.key];
+            const on = filterType === card.type && filterActive === card.status;
+            return (
+              <button
+                key={card.key}
+                type="button"
+                aria-pressed={on}
+                onClick={() => {
+                  const next = applyStatCard(card, { type: filterType, status: filterActive });
+                  setFilterType(next.type);
+                  setFilterActive(next.status);
+                }}
+                className={`bg-white rounded-2xl p-4 shadow-sm text-center transition-all hover:shadow-md ${
+                  on ? 'ring-2 ring-blue-400' : ''
+                }`}
+              >
+                <div className={`w-10 h-10 ${style.bg} rounded-xl mx-auto flex items-center justify-center mb-2`}>
+                  <BookOpen size={18} className={style.color} />
+                </div>
+                <p className={`text-xl font-bold ${style.color}`}>{isLoading ? '—' : countForCard(products, card)}</p>
+                <p className="text-xs text-gray-500 mt-0.5">{card.label}</p>
+              </button>
+            );
+          })}
         </div>
 
         <div className="bg-white rounded-2xl p-4 shadow-sm mb-4">
@@ -1073,6 +1099,7 @@ export default function Books() {
                 <option>ورقي</option>
                 <option>رقمي</option>
                 <option>ورقي ورقمي</option>
+                <option value="رقمية">أي نسخة رقمية</option>
                 <option value="مجموعة">مجموعات</option>
               </select>
 

@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { useCountry } from '@/contexts/CountryContext';
+import { bundlesLabel, planHideBookFromBundles, type BundleItemRow, type HideBookPlan } from '@/lib/bundles';
 // Category (the type) and useCategories (the fetch hook) live in
 // useSettings.ts, not here — categories are a shared taxonomy concern,
 // not book-specific, and Settings' "تصنيفات الكتب" tab owns their CRUD.
@@ -334,36 +335,47 @@ async function fetchVariantInventoryMap(
  *  copies). bundle_items blocks deleting a book that's inside a bundle
  *  (ON DELETE RESTRICT) — checking first lets us refuse with a clear
  *  message *before* touching anything, instead of half-deleting. */
-async function findBundlesContaining(
-  filter: { productId?: string; variantIds?: string[] },
-  opts: { onlyActive?: boolean } = {}
-): Promise<{ id: string; title: string }[]> {
+async function findContainingBundles(filter: { productId?: string; variantIds?: string[] }): Promise<string[]> {
   let query = supabase
     .from('bundle_items')
-    .select('bundle:products!bundle_items_bundle_product_id_fkey(id, title, is_active)');
+    .select('bundle:products!bundle_items_bundle_product_id_fkey(title)');
   if (filter.productId) query = query.eq('component_product_id', filter.productId);
   if (filter.variantIds) query = query.in('component_variant_id', filter.variantIds);
 
   const { data, error } = await query;
   if (error) throw error;
 
-  const rows = (data ?? []) as unknown as { bundle: { id: string; title: string; is_active: boolean } | null }[];
-  const byId = new Map<string, { id: string; title: string }>();
-  for (const r of rows) {
-    if (!r.bundle || (opts.onlyActive && !r.bundle.is_active)) continue;
-    byId.set(r.bundle.id, { id: r.bundle.id, title: r.bundle.title });
+  const rows = (data ?? []) as unknown as { bundle: { title: string } | null }[];
+  return [...new Set(rows.map((r) => r.bundle?.title).filter((t): t is string => !!t))];
+}
+
+/**
+ * What hiding this book "from its bundles too" would do to the bundles still
+ * on sale that hold it (empty when there are none). Read from the database
+ * at click time rather than from the list on screen, so it's current and
+ * doesn't depend on the 300-book page limit.
+ */
+export async function loadHideBookPlan(productId: string): Promise<HideBookPlan> {
+  const { data: holding, error } = await supabase
+    .from('bundle_items')
+    .select('bundle:products!bundle_items_bundle_product_id_fkey(id, title, is_active)')
+    .eq('component_product_id', productId);
+  if (error) throw error;
+
+  const onSale = new Map<string, string>();
+  for (const r of (holding ?? []) as unknown as { bundle: { id: string; title: string; is_active: boolean } | null }[]) {
+    if (r.bundle?.is_active) onSale.set(r.bundle.id, r.bundle.title);
   }
-  return [...byId.values()];
-}
+  if (onSale.size === 0) return { bundles: [] };
 
-async function findContainingBundles(filter: { productId?: string; variantIds?: string[] }): Promise<string[]> {
-  return (await findBundlesContaining(filter)).map((b) => b.title);
-}
+  const { data: rows, error: rowsErr } = await supabase
+    .from('bundle_items')
+    .select('bundle_product_id, bundle_variant_id, component_variant_id, component_product_id, quantity, sort_order')
+    .in('bundle_product_id', [...onSale.keys()]);
+  if (rowsErr) throw rowsErr;
 
-/** The bundles still on sale that contain this book. Hiding the book doesn't
- *  stop them selling it, so the admin is asked what to do with them first. */
-export const findActiveBundlesContaining = (productId: string) =>
-  findBundlesContaining({ productId }, { onlyActive: true });
+  return planHideBookFromBundles(productId, (rows ?? []) as unknown as BundleItemRow[], onSale);
+}
 
 function bundleMembershipMessage(subject: string, bundles: string[]) {
   const label = bundles.length > 1 ? 'المجموعات' : 'المجموعة';
@@ -920,26 +932,43 @@ export function useToggleProductStatus() {
   const qc = useQueryClient();
 
   return useMutation({
-    // `alsoHideIds`: bundles hidden together with the book. One UPDATE for
-    // all of them, so it's everything or nothing — never a hidden book with
-    // its bundles half done.
-    mutationFn: async ({ id, is_active, alsoHideIds = [] }: { id: string; is_active: boolean; alsoHideIds?: string[] }) => {
-      const ids = is_active ? [id] : [id, ...alsoHideIds];
-      const { error } = await supabase.from('products').update({ is_active }).in('id', ids);
+    // `plan`: hide the book from its bundles too. Each bundle copy is
+    // rewritten by one atomic set_bundle_items call, then the book (and any
+    // bundle that would be left with fewer than two books) is hidden in a
+    // single UPDATE. Books leave the bundles first, so if something fails
+    // the book is still on sale and nothing is half-hidden — hiding it again
+    // just finishes the job.
+    mutationFn: async ({ id, is_active, plan }: { id: string; is_active: boolean; plan?: HideBookPlan }) => {
+      const bundles = !is_active && plan ? plan.bundles : [];
 
+      for (const bundle of bundles) {
+        for (const copy of bundle.copies) {
+          const { error } = await supabase.rpc('set_bundle_items', {
+            p_bundle_variant_id: copy.bundle_variant_id,
+            p_items: copy.remaining.map((item, idx) => ({
+              component_variant_id: item.component_variant_id,
+              quantity: Math.max(1, Math.trunc(item.quantity)),
+              sort_order: idx,
+            })),
+          });
+          if (error) throw new Error(`تعذّر شيل الكتاب من «${bundle.title}»، والكتاب لسه ظاهر: ${error.message}`);
+        }
+      }
+
+      const hiddenBundleIds = bundles.filter((b) => b.action === 'hide').map((b) => b.id);
+      const { error } = await supabase.from('products').update({ is_active }).in('id', is_active ? [id] : [id, ...hiddenBundleIds]);
       if (error) throw error;
-      return { hiddenBundles: is_active ? 0 : alsoHideIds.length };
+
+      return { trimmed: bundles.filter((b) => b.action === 'trim').length, hidden: hiddenBundleIds.length };
     },
-    onSuccess: ({ hiddenBundles }) => {
+    onSuccess: ({ trimmed, hidden }) => {
       qc.invalidateQueries({ queryKey: ['products'] });
       qc.invalidateQueries({ queryKey: ['inventory'] });
-      toast.success(
-        hiddenBundles === 0
-          ? 'تم تحديث حالة الكتاب'
-          : hiddenBundles === 1
-            ? 'تم إخفاء الكتاب والمجموعة'
-            : `تم إخفاء الكتاب و${hiddenBundles.toLocaleString('ar-EG')} مجموعات`
-      );
+      const parts = [
+        trimmed > 0 && `وشيله من ${bundlesLabel(trimmed)}`,
+        hidden > 0 && `وإخفاء ${bundlesLabel(hidden)} لأنها كانت هتبقى ناقصة`,
+      ].filter(Boolean);
+      toast.success(parts.length ? `تم إخفاء الكتاب ${parts.join(' ')}` : 'تم تحديث حالة الكتاب');
     },
     onError: (e: Error) => toast.error(e.message),
   });

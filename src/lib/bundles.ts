@@ -76,6 +76,96 @@ export function buildComponentOptions(products: Product[]): BundleComponentOptio
   return options;
 }
 
+/**
+ * A count with its noun in correct Arabic: 1 → the bare noun, 2 → the dual,
+ * 3–10 → number + plural, 11+ → number + singular
+ * (مجموعة، مجموعتين، ٦ مجموعات، ١٢ مجموعة).
+ */
+export function arabicCount(n: number, forms: { one: string; two: string; few: string; many: string }): string {
+  if (n === 1) return forms.one;
+  if (n === 2) return forms.two;
+  return `${n.toLocaleString('ar-EG')} ${n >= 3 && n <= 10 ? forms.few : forms.many}`;
+}
+
+export const booksLabel = (n: number) => arabicCount(n, { one: 'كتاب واحد', two: 'كتابين', few: 'كتب', many: 'كتاب' });
+export const bundlesLabel = (n: number) => arabicCount(n, { one: 'مجموعة', two: 'مجموعتين', few: 'مجموعات', many: 'مجموعة' });
+
+/** One row of bundle_items: a book copy inside one copy of a bundle. */
+export interface BundleItemRow {
+  bundle_product_id: string;
+  bundle_variant_id: string;
+  component_variant_id: string;
+  component_product_id: string;
+  quantity: number;
+  sort_order: number;
+}
+
+export interface HidePlanBundle {
+  id: string;
+  title: string;
+  /**
+   * `trim`: the book leaves the bundle and it carries on with the rest.
+   * `hide`: taking the book out would leave a copy with fewer than two
+   * books — not a bundle any more — so the bundle is hidden instead.
+   */
+  action: 'trim' | 'hide';
+  /** Books left in the thinnest affected copy once the book is out. */
+  booksLeft: number;
+  /** For `trim`: each copy that held the book, with what it keeps. Empty for `hide`. */
+  copies: { bundle_variant_id: string; remaining: BundleItemDraft[] }[];
+}
+
+export interface HideBookPlan {
+  bundles: HidePlanBundle[];
+}
+
+/** A bundle needs at least two different books (enforced by set_bundle_items). */
+export const MIN_BUNDLE_BOOKS = 2;
+
+/**
+ * What hiding a book "from its bundles too" would do to each bundle that
+ * holds it. Pure: `rows` are all the bundle_items of those bundles and
+ * `bundleTitles` maps each bundle's product id to its title.
+ */
+export function planHideBookFromBundles(
+  bookProductId: string,
+  rows: BundleItemRow[],
+  bundleTitles: Map<string, string>
+): HideBookPlan {
+  const copiesByBundle = new Map<string, Map<string, BundleItemRow[]>>();
+  for (const row of [...rows].sort((a, b) => a.sort_order - b.sort_order)) {
+    const copies = copiesByBundle.get(row.bundle_product_id) ?? new Map<string, BundleItemRow[]>();
+    const list = copies.get(row.bundle_variant_id) ?? [];
+    list.push(row);
+    copies.set(row.bundle_variant_id, list);
+    copiesByBundle.set(row.bundle_product_id, copies);
+  }
+
+  const bundles: HidePlanBundle[] = [];
+  for (const [bundleId, copies] of copiesByBundle) {
+    const affected = [...copies].filter(([, items]) => items.some((i) => i.component_product_id === bookProductId));
+    if (affected.length === 0) continue;
+
+    const remaining = affected.map(([bundle_variant_id, items]) => ({
+      bundle_variant_id,
+      remaining: items
+        .filter((i) => i.component_product_id !== bookProductId)
+        .map((i) => ({ component_variant_id: i.component_variant_id, quantity: i.quantity })),
+    }));
+    const booksLeft = Math.min(...remaining.map((c) => new Set(c.remaining.map((r) => r.component_variant_id)).size));
+    const hide = booksLeft < MIN_BUNDLE_BOOKS;
+
+    bundles.push({
+      id: bundleId,
+      title: bundleTitles.get(bundleId) ?? '',
+      action: hide ? 'hide' : 'trim',
+      booksLeft,
+      copies: hide ? [] : remaining,
+    });
+  }
+  return { bundles: bundles.sort((a, b) => a.title.localeCompare(b.title, 'ar')) };
+}
+
 /** A bundle's books grouped by the copy (bundle variant) they belong to, in display order. */
 export function bundleItemsByVariant(p: Pick<Product, 'bundle_items'>): Map<string, BundleItemDraft[]> {
   const byVariant = new Map<string, BundleItemDraft[]>();

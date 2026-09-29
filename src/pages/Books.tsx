@@ -20,6 +20,7 @@ import {
   computeBundleSummary,
   copyItemsToVariantName,
   type BundleItemDraft,
+  type HideBookPlan,
 } from '@/lib/bundles';
 import {
   Search, Plus, Edit, Trash2, BookOpen, Copy, ToggleLeft,
@@ -30,7 +31,7 @@ import {
 import { toast } from 'sonner';
 import {
   useProducts, useBookSeries,
-  useUpsertProduct, useDeleteProduct, useToggleProductStatus, findActiveBundlesContaining,
+  useUpsertProduct, useDeleteProduct, useToggleProductStatus, loadHideBookPlan,
   useProductImages, useDeleteProductImage, useSetPrimaryImage,
   uploadCoverImage, uploadEbookFileWithProgress, uploadProductImage,
   getEbookSignedUrl,
@@ -440,17 +441,17 @@ export default function Books() {
   const deleteMutation = useDeleteProduct();
   const toggleMutation = useToggleProductStatus();
 
-  // Hiding a book that's inside bundles on sale doesn't stop those bundles
-  // selling it, so the admin chooses: just the book, or the bundles too. If
-  // the lookup itself fails the hide goes ahead — the prompt is advice, not
+  // A book inside bundles on sale can be hidden as a product of its own only
+  // (they keep selling it) or from the bundles too — so the admin chooses.
+  // If the lookup itself fails the hide goes ahead: the prompt is advice, not
   // a gate.
-  const [hidePrompt, setHidePrompt] = useState<{ product: Product; bundles: { id: string; title: string }[] } | null>(null);
+  const [hidePrompt, setHidePrompt] = useState<{ product: Product; plan: HideBookPlan } | null>(null);
 
   const handleToggleStatus = async (product: Product) => {
     if (product.is_active && !product.is_bundle) {
-      const bundles = await findActiveBundlesContaining(product.id).catch(() => []);
-      if (bundles.length > 0) {
-        setHidePrompt({ product, bundles });
+      const plan = await loadHideBookPlan(product.id).catch(() => ({ bundles: [] }) as HideBookPlan);
+      if (plan.bundles.length > 0) {
+        setHidePrompt({ product, plan });
         return;
       }
     }
@@ -2252,16 +2253,14 @@ export default function Books() {
       />
       <HideBookDialog
         bookTitle={hidePrompt?.product.title ?? ''}
-        bundles={hidePrompt?.bundles ?? []}
+        plan={hidePrompt?.plan ?? { bundles: [] }}
         onCancel={() => setHidePrompt(null)}
         onHideBookOnly={() => {
           if (hidePrompt) toggleMutation.mutate({ id: hidePrompt.product.id, is_active: false });
           setHidePrompt(null);
         }}
-        onHideBookAndBundles={() => {
-          if (hidePrompt) {
-            toggleMutation.mutate({ id: hidePrompt.product.id, is_active: false, alsoHideIds: hidePrompt.bundles.map((b) => b.id) });
-          }
+        onHideFromBundlesToo={() => {
+          if (hidePrompt) toggleMutation.mutate({ id: hidePrompt.product.id, is_active: false, plan: hidePrompt.plan });
           setHidePrompt(null);
         }}
       />

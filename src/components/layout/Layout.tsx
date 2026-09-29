@@ -34,8 +34,10 @@ export default function Layout({ children }: LayoutProps) {
     <div className="min-h-screen bg-background flex" dir="rtl">
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       
-      {/* Main content area - offset for sidebar */}
-      <div className="flex-1 flex flex-col min-h-screen lg:mr-72">
+      {/* Main content area - offset for sidebar. min-w-0 lets it shrink to
+          the space left of the sidebar, so a wide table scrolls inside its
+          own overflow-x-auto box instead of widening the whole page. */}
+      <div className="flex-1 min-w-0 flex flex-col min-h-screen lg:mr-72">
         <Header
           onMenuToggle={() => setSidebarOpen(true)}
           title={pageInfo.title}

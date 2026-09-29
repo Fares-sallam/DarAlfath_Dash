@@ -161,7 +161,7 @@ export default function ReportDownloadButton({ title, periodHint, build, default
         sideOffset={8}
         dir="rtl"
         collisionPadding={12}
-        className="w-[380px] max-w-[calc(100vw-24px)] p-0 rounded-2xl border-gray-100 shadow-xl"
+        className="w-[380px] max-w-[calc(100vw-24px)] max-h-[var(--radix-popover-content-available-height)] overflow-y-auto p-0 rounded-2xl border-gray-100 shadow-xl"
       >
         <div className="px-5 pt-4 pb-3 border-b border-gray-100">
           <p className="text-sm font-bold text-gray-800">{title}</p>

@@ -24,19 +24,20 @@ export function bookMatchesStatus(p: FilterableBook, filterActive: string): bool
 }
 
 export interface BookStatCard {
-  key: 'all' | 'active' | 'hidden' | 'digital';
+  key: 'all' | 'active' | 'hidden' | 'digital' | 'bundles';
   label: string;
   /** The filter values this card applies when clicked. */
   type: string;
   status: string;
 }
 
-/** The four counters above the books list — each is also a shortcut to its filter. */
+/** The counters above the books list — each is also a shortcut to its filter. */
 export const BOOK_STAT_CARDS: BookStatCard[] = [
   { key: 'all', label: 'إجمالي الكتب', type: ALL, status: ALL },
   { key: 'active', label: 'نشط', type: ALL, status: 'نشط' },
   { key: 'hidden', label: 'غير نشط', type: ALL, status: HIDDEN },
   { key: 'digital', label: 'كتب رقمية', type: ANY_DIGITAL, status: ALL },
+  { key: 'bundles', label: 'المجموعات', type: BUNDLES, status: ALL },
 ];
 
 /** Counted with the very same matchers the list uses, so a card's number is exactly the rows its click shows. */

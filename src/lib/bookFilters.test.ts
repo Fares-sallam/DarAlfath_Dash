@@ -42,13 +42,14 @@ describe('stat cards', () => {
       const shown = books.filter((b) => bookMatchesType(b, c.type) && bookMatchesStatus(b, c.status));
       expect(countForCard(books, c)).toBe(shown.length);
     }
-    expect(BOOK_STAT_CARDS.map((c) => countForCard(books, c))).toEqual([5, 3, 2, 2]);
+    expect(BOOK_STAT_CARDS.map((c) => countForCard(books, c))).toEqual([5, 3, 2, 2, 1]);
   });
 
   it('a click sets the card’s own filters and drops the other card’s', () => {
     expect(applyStatCard(card('active'), { type: 'رقمية', status: ALL })).toEqual({ type: ALL, status: 'نشط' });
     expect(applyStatCard(card('digital'), { type: ALL, status: 'نشط' })).toEqual({ type: 'رقمية', status: ALL });
     expect(applyStatCard(card('hidden'), { type: ALL, status: ALL })).toEqual({ type: ALL, status: 'مخفي' });
+    expect(applyStatCard(card('bundles'), { type: ALL, status: 'نشط' })).toEqual({ type: 'مجموعة', status: ALL });
   });
 
   it('clicking the selected card again clears it, and «إجمالي» always means everything', () => {

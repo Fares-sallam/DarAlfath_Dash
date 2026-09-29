@@ -110,6 +110,7 @@ const STAT_CARD_STYLE: Record<BookStatCard['key'], { color: string; bg: string }
   active: { color: 'text-green-700', bg: 'bg-green-50' },
   hidden: { color: 'text-red-600', bg: 'bg-red-50' },
   digital: { color: 'text-purple-700', bg: 'bg-purple-50' },
+  bundles: { color: 'text-amber-700', bg: 'bg-amber-50' },
 };
 
 interface BundleVariantForm {
@@ -1059,7 +1060,7 @@ export default function Books() {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
           {BOOK_STAT_CARDS.map((card) => {
             const style = STAT_CARD_STYLE[card.key];
             const on = filterType === card.type && filterActive === card.status;
@@ -1075,10 +1076,10 @@ export default function Books() {
                 }}
                 className={`bg-white rounded-2xl p-4 shadow-sm text-center transition-all hover:shadow-md ${
                   on ? 'ring-2 ring-blue-400' : ''
-                }`}
+                } ${card.key === 'bundles' ? 'col-span-2 md:col-span-1' : ''}`}
               >
                 <div className={`w-10 h-10 ${style.bg} rounded-xl mx-auto flex items-center justify-center mb-2`}>
-                  <BookOpen size={18} className={style.color} />
+                  {card.key === 'bundles' ? <Layers size={18} className={style.color} /> : <BookOpen size={18} className={style.color} />}
                 </div>
                 <p className={`text-xl font-bold ${style.color}`}>{isLoading ? '—' : countForCard(products, card)}</p>
                 <p className="text-xs text-gray-500 mt-0.5">{card.label}</p>

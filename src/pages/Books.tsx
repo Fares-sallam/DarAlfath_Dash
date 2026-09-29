@@ -4,7 +4,13 @@ import Layout from '@/components/layout/Layout';
 import ReportDownloadButton from '@/components/reports/ReportDownloadButton';
 import { buildBooksReport } from '@/lib/reports/builders/books';
 import BundleComposer from '@/components/features/BundleComposer';
-import { buildComponentOptions, computeBundleSummary, type BundleItemDraft } from '@/lib/bundles';
+import {
+  buildComponentOptions,
+  bundleItemsByVariant,
+  computeBundleSummary,
+  copyItemsToVariantName,
+  type BundleItemDraft,
+} from '@/lib/bundles';
 import {
   Search, Plus, Edit, Trash2, BookOpen, Copy, ToggleLeft,
   ToggleRight, BarChart2, X, Upload, Tag, DollarSign, Package,
@@ -106,17 +112,6 @@ const emptyBundleVariant = (name = BUNDLE_VARIANT_NAMES[0]): BundleVariantForm =
   price: '',
   priceTouched: false,
 });
-
-/** A bundle's books grouped by the copy they belong to, in display order. */
-function bundleItemsByVariant(p: Product): Map<string, BundleItemDraft[]> {
-  const byVariant = new Map<string, BundleItemDraft[]>();
-  for (const bi of [...(p.bundle_items ?? [])].sort((a, b) => a.sort_order - b.sort_order)) {
-    const list = byVariant.get(bi.bundle_variant_id) ?? [];
-    list.push({ component_variant_id: bi.component_variant_id, quantity: bi.quantity });
-    byVariant.set(bi.bundle_variant_id, list);
-  }
-  return byVariant;
-}
 
 /** Preset copy names plus «مخصص», which opens a box for any other name. */
 function VariantNameField({
@@ -496,15 +491,7 @@ export default function Books() {
     // the new name when the book has one — the usual case is the same
     // series in another size.
     const source = activeBundle?.items ?? [];
-    let unmatched = 0;
-    const items = source.map((item) => {
-      const current = componentById.get(item.component_variant_id);
-      const twin = name && current
-        ? componentOptions.find((o) => o.product_id === current.product_id && o.variant_name === name)
-        : undefined;
-      if (!twin) unmatched += 1;
-      return twin ? { ...item, component_variant_id: twin.variant_id } : item;
-    });
+    const { items, unmatched } = copyItemsToVariantName(source, name, componentOptions);
     const next = { ...emptyBundleVariant(name), items };
     setBundleVariants((prev) => [...prev, next]);
     setActiveBundleKey(next._key);

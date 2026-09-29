@@ -76,6 +76,40 @@ export function buildComponentOptions(products: Product[]): BundleComponentOptio
   return options;
 }
 
+/** A bundle's books grouped by the copy (bundle variant) they belong to, in display order. */
+export function bundleItemsByVariant(p: Pick<Product, 'bundle_items'>): Map<string, BundleItemDraft[]> {
+  const byVariant = new Map<string, BundleItemDraft[]>();
+  for (const bi of [...(p.bundle_items ?? [])].sort((a, b) => a.sort_order - b.sort_order)) {
+    const list = byVariant.get(bi.bundle_variant_id) ?? [];
+    list.push({ component_variant_id: bi.component_variant_id, quantity: bi.quantity });
+    byVariant.set(bi.bundle_variant_id, list);
+  }
+  return byVariant;
+}
+
+/**
+ * The same books for a new bundle copy: each book swapped for its own copy
+ * named `name` (e.g. its مقاس 24*17 copy) when it has one, else kept as is.
+ * `unmatched` counts the books that had no such copy.
+ */
+export function copyItemsToVariantName(
+  items: BundleItemDraft[],
+  name: string,
+  options: BundleComponentOption[]
+): { items: BundleItemDraft[]; unmatched: number } {
+  const byId = new Map(options.map((o) => [o.variant_id, o]));
+  let unmatched = 0;
+  const copied = items.map((item) => {
+    const current = byId.get(item.component_variant_id);
+    const twin = name && current
+      ? options.find((o) => o.product_id === current.product_id && o.variant_name === name)
+      : undefined;
+    if (!twin) unmatched += 1;
+    return twin ? { ...item, component_variant_id: twin.variant_id } : { ...item };
+  });
+  return { items: copied, unmatched };
+}
+
 export function computeBundleSummary(
   items: BundleItemDraft[],
   byVariantId: Map<string, BundleComponentOption>

@@ -1,6 +1,7 @@
 import type { Product } from '@/hooks/useBooks';
+import { ALL } from './listFilters';
 
-export const ALL = 'الكل';
+export { ALL };
 /** Any book with a digital copy — «رقمي» plus «ورقي ورقمي». */
 export const ANY_DIGITAL = 'رقمية';
 export const BUNDLES = 'مجموعة';

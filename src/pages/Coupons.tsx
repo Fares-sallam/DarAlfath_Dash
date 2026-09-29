@@ -2,6 +2,7 @@ import { useState } from 'react';
 import Layout from '@/components/layout/Layout';
 import ReportDownloadButton from '@/components/reports/ReportDownloadButton';
 import { buildCouponsReport } from '@/lib/reports/builders/coupons';
+import { COUPON_STATUSES, couponMatchesStatus, countByStatus, toggleFilter } from '@/lib/listFilters';
 import {
   Plus, Edit, Trash2, Copy, X, ToggleLeft, ToggleRight,
   Tag, Percent, DollarSign, Truck, Package, Calendar,
@@ -90,6 +91,13 @@ const emptyForm: CouponForm = {
   is_active: true,
 };
 
+const COUPON_CARDS: { status: (typeof COUPON_STATUSES)[number]; cls: string; bg: string }[] = [
+  { status: 'نشط', cls: 'text-green-600', bg: 'bg-green-50' },
+  { status: 'منتهي', cls: 'text-red-500', bg: 'bg-red-50' },
+  { status: 'معطل', cls: 'text-gray-500', bg: 'bg-gray-50' },
+  { status: 'لم يبدأ', cls: 'text-amber-600', bg: 'bg-amber-50' },
+];
+
 export default function Coupons() {
   const qc = useQueryClient();
   const { selectedCountry, currencySymbol } = useCountry();
@@ -113,7 +121,7 @@ export default function Coupons() {
   const couponsWithStatus = coupons.map((c) => ({ ...c, _status: getCouponStatus(c) }));
 
   const filtered = couponsWithStatus.filter((c) => {
-    const ms = filterStatus === 'الكل' || c._status === filterStatus;
+    const ms = couponMatchesStatus(c, filterStatus);
     const mt = filterType === 'الكل' || c.type === filterType;
     const mq =
       !search ||
@@ -123,10 +131,6 @@ export default function Coupons() {
     return ms && mt && mq;
   });
 
-  const active = couponsWithStatus.filter((c) => c._status === 'نشط').length;
-  const expired = couponsWithStatus.filter((c) => c._status === 'منتهي').length;
-  const disabled = couponsWithStatus.filter((c) => c._status === 'معطل').length;
-  const notStarted = couponsWithStatus.filter((c) => c._status === 'لم يبدأ').length;
   const totalUsages = coupons.reduce((a, c) => a + c.used_count, 0);
   const couponFiltersActive = filterStatus !== 'الكل' || filterType !== 'الكل' || !!search;
   const couponFiltersLabel = [
@@ -261,22 +265,39 @@ export default function Coupons() {
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
-          {[
-            { label: 'نشط', value: active, cls: 'text-green-600', bg: 'bg-green-50' },
-            { label: 'منتهي', value: expired, cls: 'text-red-500', bg: 'bg-red-50' },
-            { label: 'معطل', value: disabled, cls: 'text-gray-500', bg: 'bg-gray-50' },
-            { label: 'لم يبدأ', value: notStarted, cls: 'text-amber-600', bg: 'bg-amber-50' },
-            { label: 'إجمالي الاستخدامات', value: totalUsages, cls: 'text-blue-700', bg: 'bg-blue-50' },
-          ].map((s, i) => (
-            <div key={i} className={`${s.bg} rounded-2xl p-4 text-center`}>
-              {isLoading ? (
-                <div className="h-8 bg-white/60 rounded-lg animate-pulse mx-auto w-12 mb-1" />
-              ) : (
-                <p className={`text-2xl font-bold ${s.cls}`}>{s.value.toLocaleString()}</p>
-              )}
-              <p className="text-xs text-gray-500 mt-1">{s.label}</p>
-            </div>
-          ))}
+          {COUPON_CARDS.map((card) => {
+            const on = filterStatus === card.status;
+            return (
+              <button
+                key={card.status}
+                type="button"
+                aria-pressed={on}
+                onClick={() => setFilterStatus(toggleFilter(filterStatus, card.status))}
+                className={`${card.bg} rounded-2xl p-4 text-center transition-all hover:shadow-md ${
+                  on ? 'ring-2 ring-blue-400' : ''
+                }`}
+              >
+                {isLoading ? (
+                  <div className="h-8 bg-white/60 rounded-lg animate-pulse mx-auto w-12 mb-1" />
+                ) : (
+                  <p className={`text-2xl font-bold ${card.cls}`}>
+                    {countByStatus(couponsWithStatus, couponMatchesStatus, card.status).toLocaleString()}
+                  </p>
+                )}
+                <p className="text-xs text-gray-500 mt-1">{card.status}</p>
+              </button>
+            );
+          })}
+
+          {/* A total across all coupons, not a status — nothing to filter by. */}
+          <div className="bg-blue-50 rounded-2xl p-4 text-center">
+            {isLoading ? (
+              <div className="h-8 bg-white/60 rounded-lg animate-pulse mx-auto w-12 mb-1" />
+            ) : (
+              <p className="text-2xl font-bold text-blue-700">{totalUsages.toLocaleString()}</p>
+            )}
+            <p className="text-xs text-gray-500 mt-1">إجمالي الاستخدامات</p>
+          </div>
         </div>
 
         <div className="bg-white rounded-2xl p-4 shadow-sm mb-5 flex flex-col md:flex-row gap-3">
@@ -293,10 +314,9 @@ export default function Coupons() {
 
           <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="input-field md:w-36">
             <option>الكل</option>
-            <option>نشط</option>
-            <option>منتهي</option>
-            <option>معطل</option>
-            <option>لم يبدأ</option>
+            {COUPON_STATUSES.map((st) => (
+              <option key={st}>{st}</option>
+            ))}
           </select>
 
           <select value={filterType} onChange={(e) => setFilterType(e.target.value)} className="input-field md:w-40">

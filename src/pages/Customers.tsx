@@ -3,6 +3,13 @@ import Layout from '@/components/layout/Layout';
 import ReportDownloadButton from '@/components/reports/ReportDownloadButton';
 import { buildCustomersReport } from '@/lib/reports/builders/customers';
 import {
+  CUSTOMER_STAT_CARDS,
+  countByStatus,
+  customerMatchesStatus,
+  toggleFilter,
+  type CustomerStatCard,
+} from '@/lib/listFilters';
+import {
   Search, Ban, Eye, X, ShoppingBag, MessageCircle, Tag, Phone,
   Mail, MapPin, Calendar, DollarSign, Users, UserCheck, UserX,
   TrendingUp, Loader2, AlertCircle, RefreshCw, Edit, Check,
@@ -333,6 +340,12 @@ function CustomerProfileModal({ customer, onClose }: ProfileModalProps) {
 /* ════════════════════════════════════════════════════════════ */
 /* Main Page */
 /* ════════════════════════════════════════════════════════════ */
+const CUSTOMER_CARD_STYLE: Record<CustomerStatCard['key'], { color: string; bg: string; icon: React.ReactNode }> = {
+  all: { color: 'text-blue-700', bg: 'bg-blue-50', icon: <Users size={18} className="text-blue-600" /> },
+  active: { color: 'text-green-600', bg: 'bg-green-50', icon: <UserCheck size={18} className="text-green-600" /> },
+  banned: { color: 'text-red-600', bg: 'bg-red-50', icon: <UserX size={18} className="text-red-500" /> },
+};
+
 export default function Customers() {
   const qc = useQueryClient();
   const { selectedCountry, currencySymbol } = useCountry();
@@ -356,12 +369,7 @@ export default function Customers() {
         // البحث برقم الطلب يصل للعميل صاحبه مباشرة
         (c.orderIds ?? []).some((id) => id.toLowerCase().includes(q));
 
-      const matchStatus =
-        filterStatus === 'الكل' ||
-        (filterStatus === 'نشط' && c.is_active) ||
-        (filterStatus === 'محظور' && !c.is_active);
-
-      return matchSearch && matchStatus;
+      return matchSearch && customerMatchesStatus(c, filterStatus);
     })
     .sort((a, b) => {
       if (sortBy === 'spent') return b.totalSpent - a.totalSpent;
@@ -369,8 +377,6 @@ export default function Customers() {
       return (b.created_at ?? '').localeCompare(a.created_at ?? '');
     });
 
-  const totalActive = customers.filter((c) => c.is_active).length;
-  const totalBanned = customers.filter((c) => !c.is_active).length;
   const totalRevenue = customers.reduce((s, c) => s + c.totalSpent, 0);
   const customerFiltersActive = filterStatus !== 'الكل' || !!search.trim();
   const customerFiltersLabel = [
@@ -422,50 +428,48 @@ export default function Customers() {
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-          {[
-            {
-              label: 'إجمالي العملاء',
-              value: isLoading ? '—' : customers.length.toLocaleString(),
-              color: 'text-blue-700',
-              bg: 'bg-blue-50',
-              icon: <Users size={18} className="text-blue-600" />,
-            },
-            {
-              label: 'العملاء النشطين',
-              value: isLoading ? '—' : totalActive.toLocaleString(),
-              color: 'text-green-600',
-              bg: 'bg-green-50',
-              icon: <UserCheck size={18} className="text-green-600" />,
-            },
-            {
-              label: 'المحظورون',
-              value: isLoading ? '—' : totalBanned.toLocaleString(),
-              color: 'text-red-600',
-              bg: 'bg-red-50',
-              icon: <UserX size={18} className="text-red-500" />,
-            },
-            {
-              label: 'إجمالي المشتريات',
-              value: isLoading ? '—' : `${totalRevenue.toLocaleString()} ${currencySymbol}`,
-              color: 'text-amber-600',
-              bg: 'bg-amber-50',
-              icon: <TrendingUp size={18} className="text-amber-600" />,
-            },
-          ].map((s, i) => (
-            <div key={i} className="bg-white rounded-2xl p-5 shadow-sm">
-              <div className="flex items-center justify-between mb-2">
-                <div className={`w-9 h-9 ${s.bg} rounded-xl flex items-center justify-center`}>
-                  {s.icon}
+          {CUSTOMER_STAT_CARDS.map((card) => {
+            const style = CUSTOMER_CARD_STYLE[card.key];
+            const on = filterStatus === card.status;
+            return (
+              <button
+                key={card.key}
+                type="button"
+                aria-pressed={on}
+                onClick={() => setFilterStatus(toggleFilter(filterStatus, card.status))}
+                className={`w-full text-right bg-white rounded-2xl p-5 shadow-sm transition-all hover:shadow-md ${
+                  on ? 'ring-2 ring-blue-400' : ''
+                }`}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <div className={`w-9 h-9 ${style.bg} rounded-xl flex items-center justify-center`}>{style.icon}</div>
                 </div>
+                {isLoading ? (
+                  <div className="h-7 bg-gray-100 rounded-lg animate-pulse w-20 mb-1" />
+                ) : (
+                  <p className={`text-xl font-bold ${style.color}`}>
+                    {countByStatus(customers, customerMatchesStatus, card.status).toLocaleString()}
+                  </p>
+                )}
+                <p className="text-xs text-gray-500 mt-0.5">{card.label}</p>
+              </button>
+            );
+          })}
+
+          {/* A money total, not a group of customers — nothing to filter by. */}
+          <div className="bg-white rounded-2xl p-5 shadow-sm">
+            <div className="flex items-center justify-between mb-2">
+              <div className="w-9 h-9 bg-amber-50 rounded-xl flex items-center justify-center">
+                <TrendingUp size={18} className="text-amber-600" />
               </div>
-              {isLoading ? (
-                <div className="h-7 bg-gray-100 rounded-lg animate-pulse w-20 mb-1" />
-              ) : (
-                <p className={`text-xl font-bold ${s.color}`}>{s.value}</p>
-              )}
-              <p className="text-xs text-gray-500 mt-0.5">{s.label}</p>
             </div>
-          ))}
+            {isLoading ? (
+              <div className="h-7 bg-gray-100 rounded-lg animate-pulse w-20 mb-1" />
+            ) : (
+              <p className="text-xl font-bold text-amber-600">{`${totalRevenue.toLocaleString()} ${currencySymbol}`}</p>
+            )}
+            <p className="text-xs text-gray-500 mt-0.5">إجمالي المشتريات</p>
+          </div>
         </div>
 
         <div className="bg-white rounded-2xl p-4 shadow-sm mb-4 flex flex-col md:flex-row gap-3">

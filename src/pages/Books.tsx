@@ -274,9 +274,12 @@ function getProductVariantSummary(product: Product) {
 
 function ImageGallery({
   productId,
+  coverUrl,
   onNewCoverUrl,
 }: {
   productId: string;
+  /** The book's main image as the form has it right now (empty when it has none). */
+  coverUrl: string;
   onNewCoverUrl: (url: string) => void;
 }) {
   const { data: images = [], isLoading } = useProductImages(productId);
@@ -300,18 +303,28 @@ function ImageGallery({
 
     setUploading(true);
     try {
+      // Extra photos never take over the cover: it stays the main image. Only
+      // a book with no cover at all gets its first upload as the cover, so it
+      // isn't left without one.
+      let needsCover = !coverUrl;
+      let order = images.length;
       for (const file of files) {
         const url = await uploadProductImage(file, productId);
         const { supabase } = await import('@/lib/supabase');
 
-        await supabase.from('product_images').insert({
+        const { error } = await supabase.from('product_images').insert({
           product_id: productId,
           url,
-          sort_order: images.length,
-          is_primary: images.length === 0,
+          sort_order: order,
+          is_primary: needsCover,
         });
+        if (error) throw error;
+        order += 1;
 
-        if (images.length === 0) onNewCoverUrl(url);
+        if (needsCover) {
+          needsCover = false;
+          onNewCoverUrl(url);
+        }
       }
 
       toast.success(`تم رفع ${files.length} صورة بنجاح`);
@@ -381,7 +394,7 @@ function ImageGallery({
           {images.map((img) => (
             <div key={img.id} className="relative group aspect-[3/4] rounded-xl overflow-hidden bg-gray-100 border border-gray-200">
               <img src={img.url} alt={img.alt_text ?? ''} className="w-full h-full object-cover" />
-              {img.is_primary && (
+              {img.url === coverUrl && (
                 <div className="absolute top-1.5 right-1.5 bg-amber-400 text-white text-xs px-1.5 py-0.5 rounded-lg flex items-center gap-1">
                   <Star size={9} fill="white" />
                   رئيسية
@@ -389,7 +402,7 @@ function ImageGallery({
               )}
 
               <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                {!img.is_primary && (
+                {img.url !== coverUrl && (
                   <button
                     onClick={() => {
                       setPrimaryMutation.mutate({ imageId: img.id, productId, imageUrl: img.url });
@@ -2165,7 +2178,13 @@ export default function Books() {
 
                       <ImageGallery
                         productId={editProduct.id}
-                        onNewCoverUrl={(url) => setForm((f) => ({ ...f, cover_url: url }))}
+                        coverUrl={coverPreview || form.cover_url}
+                        onNewCoverUrl={(url) => {
+                          // Choosing a photo as the main image replaces a cover picked but not saved yet.
+                          setForm((f) => ({ ...f, cover_url: url }));
+                          setCoverFile(null);
+                          setCoverPreview('');
+                        }}
                       />
                     </div>
                   ) : (

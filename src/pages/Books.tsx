@@ -28,6 +28,7 @@ import {
   FileText, Loader2, AlertCircle, ImageIcon, Star,
   Filter, Globe2, Eye, Layers
 } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
   useProducts, useBookSeries,
@@ -283,6 +284,7 @@ function ImageGallery({
   onNewCoverUrl: (url: string) => void;
 }) {
   const { data: images = [], isLoading } = useProductImages(productId);
+  const qc = useQueryClient();
   const deleteMutation = useDeleteProductImage();
   const setPrimaryMutation = useSetPrimaryImage();
   const [uploading, setUploading] = useState(false);
@@ -321,6 +323,12 @@ function ImageGallery({
         if (error) throw error;
         order += 1;
 
+        // The gallery reads its own query, which doesn't know about a write
+        // made here: refresh it so each photo shows up as soon as it's saved
+        // (without this the new photos only appeared after saving the book
+        // and opening it again).
+        void qc.invalidateQueries({ queryKey: ['product-images', productId] });
+
         if (needsCover) {
           needsCover = false;
           onNewCoverUrl(url);
@@ -331,6 +339,9 @@ function ImageGallery({
     } catch (err: unknown) {
       toast.error('فشل رفع الصورة: ' + (err instanceof Error ? err.message : String(err)));
     } finally {
+      // Also after a failure part-way: the photos that did get saved are listed.
+      void qc.invalidateQueries({ queryKey: ['product-images', productId] });
+      void qc.invalidateQueries({ queryKey: ['products'] });
       setUploading(false);
     }
   };

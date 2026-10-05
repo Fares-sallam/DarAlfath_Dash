@@ -1257,9 +1257,10 @@ export function useSetPrimaryImage() {
 }
 
 /* ── Upload additional product image ── */
-export async function uploadProductImage(file: File, productId: string): Promise<string> {
+export async function uploadProductImage(file: File, productId: string, suffix = ''): Promise<string> {
   const ext = file.name.split('.').pop();
-  const path = `${productId}/${Date.now()}.${ext}`;
+  // `suffix` keeps several photos uploaded in the same millisecond apart.
+  const path = `${productId}/${Date.now()}${suffix}.${ext}`;
 
   const { error } = await supabase.storage
     .from('product-images')

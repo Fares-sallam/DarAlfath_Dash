@@ -444,6 +444,141 @@ function ImageGallery({
   );
 }
 
+/** A photo picked for a book that isn't saved yet: held in the browser until the book is. */
+interface PendingImage {
+  id: string;
+  file: File;
+  preview: string;
+}
+
+/**
+ * The gallery for a NEW book. ImageGallery needs an existing book to upload
+ * against, so here the photos are only picked (several at once, by click or
+ * drag-and-drop) and previewed; they're uploaded when the book is saved. The
+ * cover has its own box above, so these are the book's other photos.
+ */
+function PendingImagesPicker({
+  images,
+  onChange,
+}: {
+  images: PendingImage[];
+  onChange: (next: PendingImage[]) => void;
+}) {
+  const [dragOver, setDragOver] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const addFiles = (all: File[]) => {
+    const added: PendingImage[] = [];
+    for (const file of all) {
+      const err = validateImageFile(file);
+      if (err) {
+        toast.error(`${file.name}: ${err}`);
+        continue;
+      }
+      added.push({ id: `${Date.now()}-${added.length}-${file.name}`, file, preview: URL.createObjectURL(file) });
+    }
+    if (added.length > 0) onChange([...images, ...added]);
+  };
+
+  const remove = (id: string) => {
+    const gone = images.find((img) => img.id === id);
+    if (gone) URL.revokeObjectURL(gone.preview);
+    onChange(images.filter((img) => img.id !== id));
+  };
+
+  const dropZoneHandlers = {
+    onDragOver: (e: React.DragEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      setDragOver(true);
+    },
+    onDragLeave: () => setDragOver(false),
+    onDrop: (e: React.DragEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      setDragOver(false);
+      addFiles(Array.from(e.dataTransfer.files ?? []));
+    },
+  };
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-3">
+        <p className="text-sm font-semibold text-gray-700">
+          {images.length === 0 ? 'لسه مفيش صور' : `${images.length} صورة هتتضاف مع الكتاب`}
+        </p>
+        <button
+          type="button"
+          onClick={() => inputRef.current?.click()}
+          className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-700 hover:bg-blue-100 transition-colors"
+        >
+          <Upload size={12} />
+          رفع صور
+        </button>
+        <input
+          ref={inputRef}
+          type="file"
+          accept="image/*"
+          multiple
+          className="hidden"
+          data-testid="pending-images-input"
+          onChange={(e) => {
+            addFiles(Array.from(e.target.files ?? []));
+            e.target.value = '';
+          }}
+        />
+      </div>
+
+      {images.length === 0 ? (
+        <div
+          className={`border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-colors ${
+            dragOver ? 'border-blue-400 bg-blue-50/50' : 'border-gray-200 hover:border-blue-300'
+          }`}
+          onClick={() => inputRef.current?.click()}
+          {...dropZoneHandlers}
+        >
+          <ImageIcon size={32} className="text-gray-300 mx-auto mb-2" />
+          <p className="text-sm text-gray-400">اضغط لرفع صور المنتج، أو اسحبها هنا</p>
+          <p className="text-xs text-gray-300 mt-1">اختار كل الصور مرة واحدة. الغلاف ليه خانته فوق</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+          {images.map((img) => (
+            <div
+              key={img.id}
+              data-testid="pending-image"
+              className="relative group aspect-[3/4] rounded-xl overflow-hidden bg-gray-100 border border-gray-200"
+            >
+              <img src={img.preview} alt="" className="w-full h-full object-cover" />
+              <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity flex items-center justify-center">
+                <button
+                  type="button"
+                  onClick={() => remove(img.id)}
+                  title="حذف"
+                  className="p-1.5 bg-red-500 rounded-lg text-white hover:bg-red-600"
+                >
+                  <Trash2 size={13} />
+                </button>
+              </div>
+            </div>
+          ))}
+
+          <div
+            className={`aspect-[3/4] rounded-xl border-2 border-dashed flex items-center justify-center cursor-pointer transition-colors ${
+              dragOver ? 'border-blue-400 bg-blue-50/50' : 'border-gray-200 hover:border-blue-300'
+            }`}
+            onClick={() => inputRef.current?.click()}
+            {...dropZoneHandlers}
+          >
+            <div className="text-center">
+              <Plus size={20} className="text-gray-300 mx-auto mb-1" />
+              <p className="text-xs text-gray-400">إضافة</p>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Books() {
   const { selectedCountry, currencySymbol } = useCountry();
 
@@ -561,6 +696,28 @@ export default function Books() {
 
   const [coverFile, setCoverFile] = useState<File | null>(null);
   const [coverPreview, setCoverPreview] = useState<string>('');
+  // Photos picked for a book that isn't saved yet (see PendingImagesPicker).
+  const [pendingImages, setPendingImages] = useState<PendingImage[]>([]);
+  const clearPendingImages = () => {
+    setPendingImages((prev) => {
+      prev.forEach((img) => URL.revokeObjectURL(img.preview));
+      return [];
+    });
+  };
+
+  // Uploads the pending photos for a new book, one by one; a photo that fails
+  // is reported and skipped, like the cover.
+  const uploadPendingImages = async (folderId: string): Promise<{ url: string }[]> => {
+    const uploaded: { url: string }[] = [];
+    for (const [i, image] of pendingImages.entries()) {
+      try {
+        uploaded.push({ url: await uploadProductImage(image.file, folderId, `-${i}`) });
+      } catch (err) {
+        toast.error(`فشل رفع الصورة ${image.file.name}: ` + (err instanceof Error ? err.message : String(err)));
+      }
+    }
+    return uploaded;
+  };
   const [ebookFile, setEbookFile] = useState<File | null>(null);
   const [ebookPath, setEbookPath] = useState<string>('');
   const [uploading, setUploading] = useState(false);
@@ -594,6 +751,7 @@ export default function Books() {
     });
 
   const openAdd = () => {
+    clearPendingImages();
     setEditProduct(null);
     setForm(emptyForm);
     setVariants([]);
@@ -614,6 +772,7 @@ export default function Books() {
   };
 
   const openEdit = (p: Product) => {
+    clearPendingImages();
     setEditProduct(p);
     setProductKind(p.is_bundle ? 'bundle' : 'single');
     if (p.is_bundle) {
@@ -776,12 +935,17 @@ export default function Books() {
 
     setUploading(true);
     let finalCoverUrl = form.cover_url;
+    const tempId = editProduct?.id || `temp-${Date.now()}`;
     if (coverFile) {
-      finalCoverUrl = await uploadCoverImage(coverFile, editProduct?.id || `temp-${Date.now()}`).catch((err) => {
+      finalCoverUrl = await uploadCoverImage(coverFile, tempId).catch((err) => {
         toast.error('فشل رفع صورة الغلاف: ' + err.message);
         return finalCoverUrl;
       });
     }
+    const extraImages = editProduct ? [] : await uploadPendingImages(tempId);
+    // A book with no cover at all takes its first extra photo as the cover.
+    const photoIsCover = !finalCoverUrl && extraImages.length > 0;
+    if (photoIsCover) finalCoverUrl = extraImages[0].url;
     setUploading(false);
 
     // سعر البناء becomes each copy's base_price, so the store shows it
@@ -827,7 +991,9 @@ export default function Books() {
       variants: copies,
       seriesIds: form.seriesIds,
       additionalCategoryIds: form.additionalCategoryIds,
+      additionalImages: extraImages.map((img, idx) => ({ url: img.url, is_primary: photoIsCover && idx === 0 })),
     });
+    clearPendingImages();
     setShowModal(false);
   };
 
@@ -904,6 +1070,11 @@ export default function Books() {
       setEbookUploadProgress(null);
     }
 
+    const extraImages = editProduct ? [] : await uploadPendingImages(tempId);
+    // A book with no cover at all takes its first extra photo as the cover.
+    const photoIsCover = !finalCoverUrl && extraImages.length > 0;
+    if (photoIsCover) finalCoverUrl = extraImages[0].url;
+
     setUploading(false);
 
     const input: UpsertProductInput = {
@@ -949,9 +1120,11 @@ export default function Books() {
       ebookOriginalFilename: uploadedEbook && ebookFile ? ebookFile.name : undefined,
       seriesIds: form.seriesIds,
       additionalCategoryIds: form.additionalCategoryIds,
+      additionalImages: extraImages.map((img, idx) => ({ url: img.url, is_primary: photoIsCover && idx === 0 })),
     };
 
     await upsertMutation.mutateAsync(input);
+    clearPendingImages();
     setShowModal(false);
   };
 
@@ -2188,11 +2361,14 @@ export default function Books() {
                       />
                     </div>
                   ) : (
-                    <div className="bg-amber-50 rounded-2xl p-4 border border-amber-100">
-                      <p className="text-sm font-semibold text-amber-800">معرض الصور المتعددة</p>
-                      <p className="text-xs text-amber-600 mt-1">
-                        بعد حفظ الكتاب، يمكنك العودة لتعديله ورفع صور إضافية للمنتج من هذا التبويب.
-                      </p>
+                    <div>
+                      <div className="flex items-center gap-2 mb-3">
+                        <ImageIcon size={15} className="text-gray-600" />
+                        <label className="text-sm font-semibold text-gray-700">معرض صور المنتج</label>
+                        <span className="text-xs text-gray-400">(يمكن رفع أكثر من صورة)</span>
+                      </div>
+
+                      <PendingImagesPicker images={pendingImages} onChange={setPendingImages} />
                     </div>
                   )}
 

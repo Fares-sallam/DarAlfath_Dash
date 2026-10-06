@@ -4,7 +4,9 @@ import Layout from '@/components/layout/Layout';
 import ReportDownloadButton from '@/components/reports/ReportDownloadButton';
 import { buildBooksReport } from '@/lib/reports/builders/books';
 import BundleComposer from '@/components/features/BundleComposer';
-import HideBookDialog from '@/components/features/HideBookDialog';
+import HideBookDialog from '@/components/features/HideBookDialog';import RemoveVariantDialog, { type RemoveVariantPrompt } from '@/components/features/RemoveVariantDialog';
+import { iapProductIdError } from '@/lib/iap';
+
 import {
   BOOK_STAT_CARDS,
   applyStatCard,
@@ -48,6 +50,8 @@ interface VariantForm {
   variant_name: string;
   variant_type: 'مادي' | 'رقمي';
   sku: string;
+  /** Store product id (digital copies only). */
+  iap_product_id: string;
   cost_price: string;
   base_price: string;
   sale_price: string;
@@ -93,6 +97,7 @@ const emptyVariant = (): VariantForm => ({
   variant_name: 'ورق عادي',
   variant_type: 'مادي',
   sku: '',
+  iap_product_id: '',
   cost_price: '',
   base_price: '',
   sale_price: '',
@@ -652,6 +657,29 @@ export default function Books() {
   const [editProduct, setEditProduct] = useState<Product | null>(null);
   const [form, setForm] = useState<BookForm>(emptyForm);
   const [variants, setVariants] = useState<VariantForm[]>([]);
+  // Removing a saved copy that has orders asks first (see RemoveVariantDialog).
+  const [removeVariantPrompt, setRemoveVariantPrompt] = useState<RemoveVariantPrompt | null>(null);
+  const removeVariantByKey = (key: string) => setVariants((prev) => prev.filter((v) => v._key !== key));
+  const requestRemoveVariant = async (variant: VariantForm) => {
+    const wasSaved = editProduct?.product_variants?.some((pv) => pv.id === variant._key);
+    if (!wasSaved) {
+      removeVariantByKey(variant._key); // never saved: nothing can refer to it
+      return;
+    }
+    let orders = -1;
+    try {
+      const { supabase } = await import('@/lib/supabase');
+      const { count, error } = await supabase
+        .from('order_items')
+        .select('id', { count: 'exact', head: true })
+        .eq('variant_id', variant._key);
+      if (!error) orders = count ?? 0;
+    } catch {
+      // can't tell: ask anyway
+    }
+    if (orders === 0) removeVariantByKey(variant._key);
+    else setRemoveVariantPrompt({ key: variant._key, name: variant.variant_name, orders });
+  };
   const [activeTab, setActiveTab] = useState<'info' | 'variants' | 'media'>('info');
 
   // Book vs bundle (مجموعة) — picked when adding, fixed afterwards.
@@ -824,6 +852,7 @@ export default function Books() {
         variant_name: v.variant_name,
         variant_type: v.variant_type,
         sku: v.sku ?? '',
+        iap_product_id: v.iap_product_id ?? '',
         cost_price: String(v.cost_price ?? 0),
         base_price: String(v.base_price ?? v.price ?? 0),
         sale_price: String(v.sale_price ?? v.price ?? v.base_price ?? 0),
@@ -1052,6 +1081,13 @@ export default function Books() {
         setActiveTab('variants');
         return;
       }
+
+      const iapError = variant.variant_type === 'رقمي' ? iapProductIdError(variant.iap_product_id) : null;
+      if (iapError) {
+        toast.error(`نسخة «${variant.variant_name}»: ${iapError}`);
+        setActiveTab('variants');
+        return;
+      }
     }
 
     setUploading(true);
@@ -1115,6 +1151,7 @@ export default function Books() {
           variant_name: v.variant_name,
           variant_type: v.variant_type,
           sku: v.sku || undefined,
+          iap_product_id: v.variant_type === 'رقمي' ? v.iap_product_id.trim() || null : null,
           cost_price: toNumber(v.cost_price),
           base_price: basePrice,
           sale_price: salePrice,
@@ -1156,6 +1193,9 @@ export default function Books() {
         ...v,
         id: undefined,
         sku: undefined,
+        // A store product id belongs to one copy of one book (unique), so a
+        // duplicated book starts without one.
+        iap_product_id: null,
         cost_price: v.cost_price ?? 0,
         base_price: v.base_price ?? v.price,
         sale_price: v.sale_price ?? v.price,
@@ -2018,7 +2058,7 @@ export default function Books() {
                               </div>
 
                               <button
-                                onClick={() => setVariants((prev) => prev.filter((_, i) => i !== idx))}
+                                onClick={() => void requestRemoveVariant(v)}
                                 className="p-1.5 rounded-lg hover:bg-red-100 text-red-500"
                                 title="حذف النسخة"
                               >
@@ -2281,6 +2321,56 @@ export default function Books() {
                                 </div>
                               </div>
                             )}
+
+                            {v.variant_type === 'رقمي' && (() => {
+                              const iapError = iapProductIdError(v.iap_product_id);
+                              return (
+                                <div className="mt-3 p-3 bg-purple-50 rounded-xl border border-purple-100">
+                                  <label
+                                    htmlFor={`iap-${v._key}`}
+                                    className="text-xs font-semibold text-purple-700 mb-2 flex items-center gap-1.5"
+                                  >
+                                    <Tag size={13} />
+                                    معرّف المنتج في App Store وGoogle Play
+                                  </label>
+                                  <input
+                                    id={`iap-${v._key}`}
+                                    value={v.iap_product_id}
+                                    onChange={(e) =>
+                                      setVariants((prev) =>
+                                        prev.map((x, i) => (i === idx ? { ...x, iap_product_id: e.target.value } : x))
+                                      )
+                                    }
+                                    onBlur={(e) => {
+                                      const trimmed = e.target.value.trim();
+                                      if (trimmed !== e.target.value) {
+                                        setVariants((prev) =>
+                                          prev.map((x, i) => (i === idx ? { ...x, iap_product_id: trimmed } : x))
+                                        );
+                                      }
+                                    }}
+                                    dir="ltr"
+                                    autoCapitalize="none"
+                                    autoCorrect="off"
+                                    spellCheck={false}
+                                    className={`input-field text-sm py-1.5 h-auto text-left font-mono ${
+                                      iapError ? 'border-red-300 focus:border-red-400' : ''
+                                    }`}
+                                    placeholder="com.daralfath.store.book_name"
+                                    aria-invalid={iapError ? true : undefined}
+                                  />
+                                  {iapError ? (
+                                    <p className="text-xs text-red-600 mt-1.5" role="alert">{iapError}</p>
+                                  ) : null}
+                                  <p className="text-xs text-purple-600 mt-1.5">
+                                    اتركه فارغًا لإخفاء زر الشراء داخل التطبيق. لازم يكون مطابقًا تمامًا للمعرّف في Play Console / App Store Connect.
+                                  </p>
+                                  <p className="text-[11px] text-purple-500 mt-1">
+                                    السعر اللي العميل بيدفعه داخل التطبيق هو سعر المتجر (Google/Apple) ولازم يساوي سعر البيع هنا.
+                                  </p>
+                                </div>
+                              );
+                            })()}
                           </div>
                         );
                       })}
@@ -2457,6 +2547,14 @@ export default function Books() {
         accept=".pdf,.epub,.mobi"
         className="hidden"
         onChange={handleEbookSelect}
+      />
+      <RemoveVariantDialog
+        prompt={removeVariantPrompt}
+        onConfirm={(key) => {
+          removeVariantByKey(key);
+          setRemoveVariantPrompt(null);
+        }}
+        onCancel={() => setRemoveVariantPrompt(null)}
       />
       <HideBookDialog
         bookTitle={hidePrompt?.product.title ?? ''}

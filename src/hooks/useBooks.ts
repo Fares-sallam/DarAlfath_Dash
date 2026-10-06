@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { useCountry } from '@/contexts/CountryContext';
+import { IAP_DUPLICATE_MESSAGE, iapProductIdError, isIapDuplicateError, normalizeIapProductId } from '@/lib/iap';
 import {
   bundlesLabel,
   hiddenFromBundles,
@@ -34,6 +35,8 @@ export interface ProductVariant {
   variant_name: string;
   variant_type: 'مادي' | 'رقمي';
   sku?: string | null;
+  /** Store product id (Google Play / App Store) of a digital copy; null = no in-app purchase. */
+  iap_product_id?: string | null;
   /** Final/current selling price. Kept for compatibility with old code. */
   price: number;
   cost_price?: number;
@@ -127,6 +130,8 @@ export interface ProductVariantInput {
   variant_name: string;
   variant_type: 'مادي' | 'رقمي';
   sku?: string | null;
+  /** Digital copies only; ignored (stored as null) for a physical one. */
+  iap_product_id?: string | null;
   price?: number;
   cost_price?: number;
   base_price?: number;
@@ -210,7 +215,7 @@ function normalizeSale(basePrice: number, salePrice?: number | null) {
   return sale > 0 ? sale : basePrice;
 }
 
-function normalizeVariant(v: ProductVariantInput): ProductVariantInput & { price: number; cost_price: number; base_price: number; sale_price: number; min_stock: number; stock: number; reserved_stock: number; weight_kg: number } {
+function normalizeVariant(v: ProductVariantInput): ProductVariantInput & { iap_product_id: string | null; price: number; cost_price: number; base_price: number; sale_price: number; min_stock: number; stock: number; reserved_stock: number; weight_kg: number } {
   const base_price = Math.max(0, num(v.base_price ?? v.price, 0));
   const sale_price = normalizeSale(base_price, v.sale_price ?? v.price ?? base_price);
   const cost_price = Math.max(0, num(v.cost_price, 0));
@@ -223,6 +228,7 @@ function normalizeVariant(v: ProductVariantInput): ProductVariantInput & { price
     ...v,
     variant_name: v.variant_name?.trim() || 'نسخة',
     sku: v.sku?.trim() || null,
+    iap_product_id: normalizeIapProductId(v.iap_product_id, v.variant_type === 'رقمي'),
     cost_price,
     base_price,
     sale_price,
@@ -508,7 +514,7 @@ export function useProducts() {
           id, title, author, description, cover_url, category_id, isbn, keywords,
           type, cost_price, base_price, sale_price, profit, is_active, is_bundle, created_at, updated_at,
           categories!products_category_id_fkey(id, name, slug),
-          product_variants(id, product_id, variant_name, variant_type, sku, price, cost_price, base_price, sale_price, weight_kg),
+          product_variants(id, product_id, variant_name, variant_type, sku, iap_product_id, price, cost_price, base_price, sale_price, weight_kg),
           electronic_books(id, product_id, file_path, file_format, is_sold_once, file_size_mb, protected, watermark, original_filename),
           product_series(series_id, book_series(id, name, author)),
           product_categories(category_id, categories(id, name, slug)),
@@ -625,6 +631,40 @@ export function useBookSeries() {
   });
 }
 
+/**
+ * Deletes copies the admin removed. The copy goes first: if something that
+ * must keep it (a store purchase recorded in iap_purchases, a bundle) points
+ * at it, the delete is refused and nothing else has been touched, so the copy
+ * keeps its stock and prices. Stock and price rows that merely reference it
+ * (no cascade) are cleared and the delete retried. Past orders keep their
+ * lines but lose the link to the copy (order_items.variant_id is SET NULL),
+ * which is why the form asks before removing a copy that has orders.
+ */
+async function deleteRemovedVariants(ids: string[]) {
+  const attempt = () => supabase.from('product_variants').delete().in('id', ids);
+  let { error } = await attempt();
+
+  // The message names two tables: `update or delete on table "product_variants" violates
+  // foreign key constraint "<fk>" on table "<the table that still points at it>"`.
+  const blockedBy = (e: { message?: string } | null) => /constraint "[^"]+" on table "([^"]+)"/.exec(e?.message ?? '')?.[1];
+  if (error?.code === '23503' && ['product_inventory', 'product_variant_country_prices'].includes(blockedBy(error) ?? '')) {
+    await supabase.from('product_inventory').delete().in('variant_id', ids).then(() => {}, () => {});
+    await supabase.from('product_variant_country_prices').delete().in('variant_id', ids).then(() => {}, () => {});
+    ({ error } = await attempt());
+  }
+  if (!error) return;
+
+  if (error.code === '23503') {
+    const table = blockedBy(error);
+    throw new Error(
+      table === 'iap_purchases'
+        ? 'نسخة اتباعت منها داخل التطبيق (Google/Apple) ومينفعش تتحذف. باقي التعديلات اتحفظت والنسخة لسه موجودة بمخزونها وأسعارها. لو مش عايز تبيعها، اخفي الكتاب.'
+        : `النسخة اللي بتحذفها مرتبطة ببيانات تانية${table ? ` (${table})` : ''} ومينفعش تتحذف. باقي التعديلات اتحفظت والنسخة لسه موجودة بمخزونها وأسعارها.`
+    );
+  }
+  throw error;
+}
+
 /* ── Upsert (add/edit) product with variants as the source of truth ── */
 export function useUpsertProduct() {
   const qc = useQueryClient();
@@ -664,6 +704,29 @@ export function useUpsertProduct() {
           if (distinct.size !== items.length) {
             throw new Error(`${label}: فيه كتاب متكرر. زوّد عدد نسخه بدل ما تضيفه مرتين`);
           }
+        }
+      }
+
+      // Store product ids: checked before anything is written, so a bad or
+      // taken id never leaves a book half-saved. The database's unique index
+      // is the final word (see isIapDuplicateError below); this just gives
+      // the message first, and catches two copies of this same book sharing one.
+      const iapIds = new Map<string, string>();
+      for (const variant of normalizedVariants) {
+        if (!variant.iap_product_id) continue;
+        const invalid = iapProductIdError(variant.iap_product_id);
+        if (invalid) throw new Error(`نسخة «${variant.variant_name}»: ${invalid}`);
+        if (iapIds.has(variant.iap_product_id)) throw new Error(`${IAP_DUPLICATE_MESSAGE}: نسختين من نفس الكتاب بنفس المعرّف`);
+        iapIds.set(variant.iap_product_id, variant.id ?? '');
+      }
+      if (iapIds.size > 0) {
+        const { data: taken, error: takenErr } = await supabase
+          .from('product_variants')
+          .select('id, iap_product_id')
+          .in('iap_product_id', [...iapIds.keys()]);
+        if (takenErr) throw takenErr;
+        for (const row of (taken ?? []) as { id: string; iap_product_id: string }[]) {
+          if (row.id !== iapIds.get(row.iap_product_id)) throw new Error(IAP_DUPLICATE_MESSAGE);
         }
       }
 
@@ -771,6 +834,7 @@ export function useUpsertProduct() {
           variant_name: variant.variant_name,
           variant_type: variant.variant_type,
           sku: variant.sku || null,
+          iap_product_id: variant.iap_product_id,
           cost_price: variant.cost_price,
           base_price: variant.base_price,
           sale_price: variant.sale_price,
@@ -787,7 +851,7 @@ export function useUpsertProduct() {
             .select()
             .single();
 
-          if (updateVariantErr) throw updateVariantErr;
+          if (updateVariantErr) throw isIapDuplicateError(updateVariantErr) ? new Error(IAP_DUPLICATE_MESSAGE) : updateVariantErr;
           savedVariant = updatedVariant as ProductVariant;
         } else {
           const { data: insertedVariant, error: insertVariantErr } = await supabase
@@ -796,7 +860,7 @@ export function useUpsertProduct() {
             .select()
             .single();
 
-          if (insertVariantErr) throw insertVariantErr;
+          if (insertVariantErr) throw isIapDuplicateError(insertVariantErr) ? new Error(IAP_DUPLICATE_MESSAGE) : insertVariantErr;
           savedVariant = insertedVariant as ProductVariant;
         }
 
@@ -878,11 +942,7 @@ export function useUpsertProduct() {
       }
 
       const removedVariantIds = oldVariantIds.filter((id) => !keptVariantIds.includes(id));
-      if (removedVariantIds.length > 0) {
-        await supabase.from('product_inventory').delete().in('variant_id', removedVariantIds).then(() => {}, () => {});
-        await supabase.from('product_variant_country_prices').delete().in('variant_id', removedVariantIds).then(() => {}, () => {});
-        await supabase.from('product_variants').delete().in('id', removedVariantIds);
-      }
+      if (removedVariantIds.length > 0) await deleteRemovedVariants(removedVariantIds);
 
       // A product that has variants must not keep a base inventory row; it causes duplicate inventory display.
       await supabase

@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { useCountry } from '@/contexts/CountryContext';
+import { compressImage } from '@/lib/imageCompression';
 import { IAP_DUPLICATE_MESSAGE, iapProductIdError, isIapDuplicateError, normalizeIapProductId } from '@/lib/iap';
 import {
   bundlesLabel,
@@ -1174,12 +1175,14 @@ export function useToggleProductStatus() {
 }
 
 /* ── Upload cover image ── */
-export async function uploadCoverImage(file: File, productId: string): Promise<string> {
+export async function uploadCoverImage(original: File, productId: string): Promise<string> {
+  // Resized and re-encoded first (see lib/imageCompression): the store serves this file to every visitor.
+  const file = await compressImage(original);
   const ext = file.name.split('.').pop();
   const path = `covers/${productId}.${ext}`;
   const { error } = await supabase.storage
     .from('book-covers')
-    .upload(path, file, { upsert: true });
+    .upload(path, file, { upsert: true, contentType: file.type });
 
   if (error) throw error;
 
@@ -1317,14 +1320,16 @@ export function useSetPrimaryImage() {
 }
 
 /* ── Upload additional product image ── */
-export async function uploadProductImage(file: File, productId: string, suffix = ''): Promise<string> {
+export async function uploadProductImage(original: File, productId: string, suffix = ''): Promise<string> {
+  // Resized and re-encoded first (see lib/imageCompression): the store serves this file to every visitor.
+  const file = await compressImage(original);
   const ext = file.name.split('.').pop();
   // `suffix` keeps several photos uploaded in the same millisecond apart.
   const path = `${productId}/${Date.now()}${suffix}.${ext}`;
 
   const { error } = await supabase.storage
     .from('product-images')
-    .upload(path, file, { upsert: false });
+    .upload(path, file, { upsert: false, contentType: file.type });
 
   if (error) throw error;
 

@@ -6,6 +6,13 @@ import { buildBooksReport } from '@/lib/reports/builders/books';
 import BundleComposer from '@/components/features/BundleComposer';
 import HideBookDialog from '@/components/features/HideBookDialog';import RemoveVariantDialog, { type RemoveVariantPrompt } from '@/components/features/RemoveVariantDialog';
 import { iapProductIdError } from '@/lib/iap';
+import { EBOOK_MESSAGES, checkEbookFile, megabytes } from '@/lib/ebookFile';
+import {
+  PdfCompressionError,
+  compressPdf,
+  describeProgress,
+  type CompressionProgress,
+} from '@/lib/pdfCompression';
 
 import {
   BOOK_STAT_CARDS,
@@ -765,9 +772,19 @@ export default function Books() {
   const [ebookFormat, setEbookFormat] = useState<string>('');
   const [ebookSizeMb, setEbookSizeMb] = useState<number | null>(null);
   const [ebookOriginalFilename, setEbookOriginalFilename] = useState<string>('');
+  // A PDF over the 50 MB limit is shrunk in the browser as soon as it is picked.
+  const [ebookPreparing, setEbookPreparing] = useState<CompressionProgress | null>(null);
+  const [ebookShrunkFrom, setEbookShrunkFrom] = useState<number | null>(null);
+  const ebookAbortRef = useRef<AbortController | null>(null);
 
   const coverInputRef = useRef<HTMLInputElement>(null);
   const ebookInputRef = useRef<HTMLInputElement>(null);
+
+  // Closing the form (or leaving the page) drops a compression that is still running.
+  useEffect(() => {
+    if (!showModal) ebookAbortRef.current?.abort();
+  }, [showModal]);
+  useEffect(() => () => ebookAbortRef.current?.abort(), []);
 
   const variantSummary = getVariantSummary(variants);
 
@@ -797,6 +814,7 @@ export default function Books() {
     setCoverFile(null);
     setCoverPreview('');
     setEbookFile(null);
+    setEbookShrunkFrom(null);
     setEbookPath('');
     setEbookUploadProgress(null);
     setEbookFormat('');
@@ -872,6 +890,7 @@ export default function Books() {
     setCoverFile(null);
     setCoverPreview('');
     setEbookFile(null);
+    setEbookShrunkFrom(null);
     setEbookUploadProgress(null);
     setActiveTab('info');
     setShowModal(true);
@@ -903,11 +922,46 @@ export default function Books() {
     if (file) setCoverFromFile(file);
   };
 
-  const handleEbookSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  const handleEbookSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const input = e.target;
+    const file = input.files?.[0];
     if (!file) return;
-    setEbookFile(file);
-    toast.success(`تم اختيار الملف: ${file.name}`);
+    // Cleared so the same file can be picked again after a refusal or a cancel.
+    input.value = '';
+
+    const check = checkEbookFile(file);
+    if (check.kind === 'too-big') {
+      toast.error(EBOOK_MESSAGES.tooBigFormat(megabytes(file.size)));
+      return;
+    }
+    if (check.kind === 'ok') {
+      setEbookFile(file);
+      setEbookShrunkFrom(null);
+      toast.success(`تم اختيار الملف: ${file.name}`);
+      return;
+    }
+
+    // A PDF over the limit: shrink it first, keeping the look of the pages.
+    const controller = new AbortController();
+    ebookAbortRef.current?.abort();
+    ebookAbortRef.current = controller;
+    setEbookPreparing({ stage: 'engine' });
+    try {
+      const result = await compressPdf(file, setEbookPreparing, controller.signal);
+      setEbookFile(result.file);
+      setEbookShrunkFrom(result.originalBytes);
+      toast.success(
+        `الملف كان ${megabytes(result.originalBytes)} م.ب واتضغط لـ ${megabytes(result.file.size)} م.ب من غير فقدان ملحوظ في الجودة`,
+      );
+    } catch (err) {
+      if (err instanceof PdfCompressionError && err.code === 'cancelled') toast.info(err.message);
+      else toast.error(err instanceof Error ? err.message : EBOOK_MESSAGES.engine);
+    } finally {
+      if (ebookAbortRef.current === controller) {
+        ebookAbortRef.current = null;
+        setEbookPreparing(null);
+      }
+    }
   };
 
   // Local file, not uploaded yet — a plain blob: URL opened in a new tab
@@ -1220,7 +1274,7 @@ export default function Books() {
     </button>
   );
 
-  const isBusy = upsertMutation.isPending || uploading;
+  const isBusy = upsertMutation.isPending || uploading || ebookPreparing !== null;
   const hasFilters =
     filterType !== 'الكل' ||
     filterActive !== 'الكل' ||
@@ -2242,14 +2296,14 @@ export default function Books() {
                                     it? The upload button below used to be the only indicator, and
                                     for an already-uploaded file it just said generic "رفع ملف" with
                                     no name, size, or format shown anywhere. */}
-                                {ebookUploadProgress === null && (
+                                {ebookUploadProgress === null && ebookPreparing === null && (
                                   <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs mb-2.5 ${
                                     ebookFile || ebookPath ? 'bg-white border border-purple-200 text-purple-800' : 'bg-gray-100 text-gray-500'
                                   }`}>
                                     {ebookFile || ebookPath ? <FileText size={14} className="text-purple-500 flex-shrink-0" /> : <AlertCircle size={14} className="flex-shrink-0" />}
                                     {ebookFile ? (
                                       <span className="truncate font-mono">
-                                        {ebookFile.name} <span className="text-purple-400">— {(ebookFile.size / (1024 * 1024)).toFixed(2)} م.ب — لسه مش متحفظ، دوس "حفظ التعديلات"</span>
+                                        {ebookFile.name} <span className="text-purple-400">— {(ebookFile.size / (1024 * 1024)).toFixed(2)} م.ب{ebookShrunkFrom !== null && ` (اتضغط من ${megabytes(ebookShrunkFrom)} م.ب)`} — لسه مش متحفظ، دوس "حفظ التعديلات"</span>
                                       </span>
                                     ) : ebookPath ? (
                                       <span className="truncate font-mono">
@@ -2267,7 +2321,7 @@ export default function Books() {
                                   <button
                                     type="button"
                                     onClick={() => ebookInputRef.current?.click()}
-                                    disabled={ebookUploadProgress !== null}
+                                    disabled={ebookUploadProgress !== null || ebookPreparing !== null}
                                     className="flex items-center gap-2 px-4 py-2 bg-white border border-purple-200 rounded-xl text-sm text-purple-700 hover:bg-purple-50 transition-colors disabled:opacity-50"
                                   >
                                     <Upload size={14} />
@@ -2298,6 +2352,27 @@ export default function Books() {
                                     </button>
                                   )}
                                 </div>
+
+                                {ebookPreparing !== null && (
+                                  <div className="mt-2.5 rounded-lg border border-purple-200 bg-white p-3" role="status" data-testid="ebook-shrinking">
+                                    <div className="flex items-center justify-between gap-3 text-xs text-purple-700">
+                                      <span className="flex items-center gap-2">
+                                        <Loader2 size={13} className="animate-spin flex-shrink-0" />
+                                        {describeProgress(ebookPreparing)}
+                                      </span>
+                                      <button
+                                        type="button"
+                                        onClick={() => ebookAbortRef.current?.abort()}
+                                        className="text-purple-500 hover:text-purple-800 underline"
+                                      >
+                                        إلغاء
+                                      </button>
+                                    </div>
+                                    <p className="mt-1.5 text-[11px] text-gray-500">
+                                      الملف أكبر من 50 م.ب، فبيتضغط تلقائيًا من غير ما شكل الصفحات يتأثر. ممكن ياخد دقيقة أو أكتر.
+                                    </p>
+                                  </div>
+                                )}
 
                                 {ebookUploadProgress !== null && (
                                   <div className="mt-2.5">
@@ -2520,6 +2595,8 @@ export default function Books() {
                   )}
                   {ebookUploadProgress !== null
                     ? `جارٍ رفع الملف... ${ebookUploadProgress}٪`
+                    : ebookPreparing !== null
+                    ? 'جارٍ ضغط الملف...'
                     : isBusy
                     ? 'جارٍ الحفظ...'
                     : editProduct

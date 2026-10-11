@@ -11,6 +11,8 @@ export default defineConfig({
   plugins: [
     react(),
   ],
+  // The PDF shrinker runs in a module worker (src/lib/pdfCompression.worker.ts).
+  worker: { format: "es" },
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),

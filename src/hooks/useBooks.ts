@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { useCountry } from '@/contexts/CountryContext';
 import { compressImage } from '@/lib/imageCompression';
+import { EBOOK_MAX_BYTES, EBOOK_MESSAGES, megabytes } from '@/lib/ebookFile';
 import { IAP_DUPLICATE_MESSAGE, iapProductIdError, isIapDuplicateError, normalizeIapProductId } from '@/lib/iap';
 import {
   bundlesLabel,
@@ -1215,6 +1216,10 @@ export async function uploadEbookFileWithProgress(
   productId: string,
   onProgress: (percent: number) => void
 ): Promise<string> {
+  // The form shrinks big PDFs when they are picked; this is the last line of defence, so the
+  // admin gets a plain message instead of the storage server's bare 413.
+  if (file.size > EBOOK_MAX_BYTES) throw new Error(EBOOK_MESSAGES.uploadTooBig(megabytes(file.size)));
+
   const ext = file.name.split('.').pop();
   const path = `ebooks/${productId}.${ext}`;
 

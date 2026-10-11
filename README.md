@@ -59,3 +59,12 @@ This project is built with:
 ## How can I deploy this project?
 
 Simply open [OnSpace]() and click on Share -> Publish.
+
+## Third-party software
+
+Ebook PDFs over the 50 MB upload limit are shrunk in the browser (`src/lib/pdfCompression.worker.ts`)
+with **Ghostscript** compiled to WebAssembly, via [`@bentopdf/gs-wasm`](https://github.com/alam00000/bentopdf-gs-wasm).
+Ghostscript is © Artifex Software, Inc. and is licensed under the **GNU Affero General Public License v3**
+(AGPL-3.0). That licence asks that anyone who uses the program over a network can get its complete corresponding
+source; the engine's source and build scripts are in the package's repository linked above, and this
+dashboard's own source is in this repository.

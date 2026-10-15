@@ -6,7 +6,7 @@ import { STOREFRONT_URL } from '@/lib/storefront';
 import {
   LayoutDashboard, Settings, BookOpen, ShoppingCart, Users, BookMarked,
   Tag, Package, BarChart3, Truck, ShieldCheck, ActivitySquare, LogOut, X, CreditCard,
-  Image as ImageIcon, Youtube, Star,
+  Image as ImageIcon, Youtube, Star, Megaphone,
   BookOpen as BookIcon
 } from 'lucide-react';
 
@@ -19,6 +19,7 @@ const navItems = [
   { id: 'home', label: 'الرئيسية', icon: LayoutDashboard, path: '/', requiresAdmin: false },
   { id: 'hero-slides', label: 'صور الصفحة الرئيسية', icon: ImageIcon, path: '/hero-slides', requiresAdmin: true },
   { id: 'intro-videos', label: 'فيديوهات "من الدار"', icon: Youtube, path: '/intro-videos', requiresAdmin: true },
+  { id: 'ads-strips', label: 'إدارة الإعلانات والأشرطة', icon: Megaphone, path: '/ads-strips', requiresAdmin: true },
   { id: 'settings', label: 'الإعدادات', icon: Settings, path: '/settings', requiresAdmin: false },
   { id: 'books', label: 'إدارة الكتب', icon: BookOpen, path: '/books', requiresAdmin: true },
   { id: 'orders', label: 'إدارة الطلبات', icon: ShoppingCart, path: '/orders', requiresAdmin: true },

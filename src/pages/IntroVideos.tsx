@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Layout from '@/components/layout/Layout';
 import {
   Youtube, Plus, Trash2, ArrowUp, ArrowDown, Eye, EyeOff,
@@ -8,6 +8,7 @@ import {
   useIntroVideos, useCreateIntroVideo, useUpdateIntroVideo,
   useReorderIntroVideo, useDeleteIntroVideo, type IntroVideo,
 } from '@/hooks/useIntroVideos';
+import { useSiteContentSettings, useUpdateSiteContentSettings } from '@/hooks/useAdsStrips';
 
 function toEmbedThumb(url: string): string | null {
   try {
@@ -75,6 +76,8 @@ export default function IntroVideos() {
             التغيير يظهر في الموقع فورًا.
           </p>
         </div>
+
+        <SectionTitleCard />
 
         {/* ── نموذج الإضافة ── */}
         <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-4">
@@ -167,6 +170,42 @@ export default function IntroVideos() {
         </div>
       </div>
     </Layout>
+  );
+}
+
+/* ── عنوان القسم في الصفحة الرئيسية ── */
+function SectionTitleCard() {
+  const { data: content } = useSiteContentSettings();
+  const update = useUpdateSiteContentSettings();
+  const saved = content?.intro_videos_title ?? 'فيديوهات تعريفية';
+  const [title, setTitle] = useState(saved);
+  useEffect(() => setTitle(saved), [saved]);
+  const dirty = title.trim() !== saved && title.trim().length > 0;
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-3">
+      <div>
+        <h2 className="text-sm font-bold text-gray-700">عنوان القسم</h2>
+        <p className="text-xs text-gray-400">العنوان اللي فوق الفيديوهات في الصفحة الرئيسية.</p>
+      </div>
+      <div className="flex flex-wrap items-center gap-3">
+        <input
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          maxLength={60}
+          aria-label="عنوان قسم الفيديوهات"
+          className="flex-1 min-w-[14rem] px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-300"
+        />
+        <button
+          onClick={() => update.mutate({ intro_videos_title: title.trim() })}
+          disabled={!dirty || update.isPending}
+          className="btn-primary flex items-center gap-2 disabled:opacity-40"
+        >
+          {update.isPending ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
+          حفظ العنوان
+        </button>
+      </div>
+    </div>
   );
 }
 

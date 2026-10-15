@@ -19,6 +19,7 @@ import Coupons from "./pages/Coupons";
 import PendingPayments from "./pages/PendingPayments";
 import HeroSlides from "./pages/HeroSlides";
 import IntroVideos from "./pages/IntroVideos";
+import AdsAndStrips from "./pages/AdsAndStrips";
 import Series from "./pages/Series";
 import Reviews from "./pages/Reviews";
 import Inventory from "./pages/Inventory";
@@ -118,6 +119,15 @@ const App = () => {
                     element={
                       <ProtectedRoute permission="can_manage_products">
                         <IntroVideos />
+                      </ProtectedRoute>
+                    }
+                  />
+
+                  <Route
+                    path="/ads-strips"
+                    element={
+                      <ProtectedRoute permission="can_manage_products">
+                        <AdsAndStrips />
                       </ProtectedRoute>
                     }
                   />

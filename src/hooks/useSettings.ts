@@ -287,6 +287,8 @@ export interface StoreSettingsInput {
   whatsapp_url?: string;
   youtube_url?: string;
   website_url?: string;
+  /** The storefront footer's line under the logo; empty shows the store's default line. */
+  footer_tagline?: string;
   seo_title?: string;
   seo_description?: string;
   seo_keywords?: string;
@@ -322,6 +324,7 @@ const DEFAULT_STORE_SETTINGS: StoreSettings = {
   whatsapp_url: '',
   youtube_url: '',
   website_url: '',
+  footer_tagline: '',
   seo_title: 'دار الفتح — أفضل الكتب الورقية والرقمية',
   seo_description: 'اكتشف مجموعة واسعة من الكتب الورقية والرقمية بأفضل الأسعار مع توصيل سريع.',
   seo_keywords: 'كتب، مكتبة، روايات، تنمية بشرية، كتب رقمية، دار الفتح',

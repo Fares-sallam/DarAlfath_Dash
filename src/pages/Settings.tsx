@@ -603,6 +603,7 @@ function StoreSection() {
     whatsapp_url: '',
     youtube_url: '',
     website_url: '',
+    footer_tagline: '',
     seo_title: '',
     seo_description: '',
     seo_keywords: '',
@@ -629,6 +630,7 @@ function StoreSection() {
       whatsapp_url: settings.whatsapp_url ?? '',
       youtube_url: settings.youtube_url ?? '',
       website_url: settings.website_url ?? '',
+      footer_tagline: settings.footer_tagline ?? '',
       seo_title: settings.seo_title ?? '',
       seo_description: settings.seo_description ?? '',
       seo_keywords: settings.seo_keywords ?? '',
@@ -751,6 +753,20 @@ function StoreSection() {
       <div>
         <label className="block text-sm font-semibold text-gray-700 mb-2">وصف المتجر</label>
         <textarea value={form.store_description} onChange={e => setForm(f => ({ ...f, store_description: e.target.value }))} rows={3} className="input-field h-auto py-3 resize-none" />
+      </div>
+
+      <div>
+        <label htmlFor="footer-tagline" className="block text-sm font-semibold text-gray-700 mb-2">نص الفوتر</label>
+        <textarea
+          id="footer-tagline"
+          value={form.footer_tagline}
+          onChange={e => setForm(f => ({ ...f, footer_tagline: e.target.value }))}
+          rows={2}
+          maxLength={220}
+          placeholder="ننشر المعرفة الهادفة ونبني جسرًا واسعًا من الكتب الأصيلة بين القارئ والعلم والثقافة والقيم."
+          className="input-field h-auto py-3 resize-none"
+        />
+        <p className="text-xs text-gray-400 mt-1">السطر اللي تحت اللوجو في آخر كل صفحة في الموقع. لو سبته فاضي يظهر النص اللي في الخانة.</p>
       </div>
 
       <div className="border-t border-gray-100 pt-5">

@@ -3,6 +3,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useLogo } from '@/contexts/LogoContext';
 import { toast } from 'sonner';
 import { STOREFRONT_URL } from '@/lib/storefront';
+import { usePendingReviewsCount } from '@/hooks/useReviews';
 import {
   LayoutDashboard, Settings, BookOpen, ShoppingCart, Users, BookMarked,
   Tag, Package, BarChart3, Truck, ShieldCheck, ActivitySquare, LogOut, X, CreditCard,
@@ -39,6 +40,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const { logout } = useAuth();
+  const { data: pendingReviews = 0 } = usePendingReviewsCount();
   const { logoUrl } = useLogo();
 
   const handleLogout = async () => {
@@ -106,6 +108,11 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                   >
                     <Icon size={18} className={isActive ? 'text-white' : 'text-blue-200/70'} />
                     <span className="flex-1 text-sm">{item.label}</span>
+                    {item.id === 'reviews' && pendingReviews > 0 && (
+                      <span className="min-w-[20px] h-5 px-1.5 rounded-full bg-amber-400 text-[11px] font-bold text-gray-900 flex items-center justify-center" title={`${pendingReviews} تعليق بانتظار المراجعة`} data-testid="pending-reviews-badge">
+                        {pendingReviews}
+                      </span>
+                    )}
                     {item.requiresAdmin && (
                       <span className="badge-admin text-[10px] px-1.5 py-0.5">مشرف</span>
                     )}

@@ -586,6 +586,9 @@ function SecuritySection() {
    Store Settings Section (with real logo upload)
 ════════════════════════════════════════════════════════════ */
 
+/** The footer's paragraph: room for a few sentences about the house, not just a tagline. */
+const FOOTER_TAGLINE_MAX = 600;
+
 function StoreSection() {
   const { logoUrl, uploading, uploadLogo, clearLogo } = useLogo();
   const { data: settings, isLoading, isError } = useStoreSettings();
@@ -761,12 +764,15 @@ function StoreSection() {
           id="footer-tagline"
           value={form.footer_tagline}
           onChange={e => setForm(f => ({ ...f, footer_tagline: e.target.value }))}
-          rows={2}
-          maxLength={220}
+          rows={6}
+          maxLength={FOOTER_TAGLINE_MAX}
           placeholder="ننشر المعرفة الهادفة ونبني جسرًا واسعًا من الكتب الأصيلة بين القارئ والعلم والثقافة والقيم."
-          className="input-field h-auto py-3 resize-none"
+          className="input-field h-auto py-3 resize-y leading-relaxed"
         />
-        <p className="text-xs text-gray-400 mt-1">السطر اللي تحت اللوجو في آخر كل صفحة في الموقع. لو سبته فاضي يظهر النص اللي في الخانة.</p>
+        <p className="text-xs text-gray-400 mt-1 flex items-start justify-between gap-3">
+          <span>الفقرة اللي تحت اللوجو في آخر كل صفحة في الموقع، وتقدر تكتبها على أكتر من سطر. لو سبتها فاضية يظهر النص اللي في الخانة.</span>
+          <span dir="ltr" className="shrink-0 tabular-nums" data-testid="footer-tagline-count">{form.footer_tagline.length} / {FOOTER_TAGLINE_MAX}</span>
+        </p>
       </div>
 
       <div className="border-t border-gray-100 pt-5">

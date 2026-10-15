@@ -33,12 +33,13 @@ import {
 } from '@/lib/bundles';
 import {
   Search, Plus, Edit, Trash2, BookOpen, Copy, ToggleLeft,
-  ToggleRight, BarChart2, X, Upload, Tag, DollarSign, Package,
+  ToggleRight, X, Upload, Tag, DollarSign, Package, ExternalLink,
   FileText, Loader2, AlertCircle, ImageIcon, Star,
   Filter, Globe2, Eye, Layers
 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { storefrontBookUrl } from '@/lib/storefront';
 import {
   useProducts, useBookSeries,
   useUpsertProduct, useDeleteProduct, useToggleProductStatus, loadHideBookPlan,
@@ -830,6 +831,7 @@ export default function Books() {
 
   const openEdit = (p: Product) => {
     clearPendingImages();
+    savedSnapshot.current = null;
     setEditProduct(p);
     setProductKind(p.is_bundle ? 'bundle' : 'single');
     if (p.is_bundle) {
@@ -894,6 +896,29 @@ export default function Books() {
     setEbookUploadProgress(null);
     setActiveTab('info');
     setShowModal(true);
+  };
+
+  // What the edit form held when it opened, to tell whether "معاينة الكتاب" would show the
+  // customer something other than what's on screen. Taken on the first render after the form
+  // is filled (state set in openEdit lands together), cleared each time it opens.
+  const savedSnapshot = useRef<string | null>(null);
+  const formSnapshot = () => JSON.stringify({ form, variants, bundleVariants });
+  useEffect(() => {
+    if (showModal && editProduct && savedSnapshot.current === null) savedSnapshot.current = formSnapshot();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showModal, editProduct, form, variants, bundleVariants]);
+  const hasUnsavedChanges = () =>
+    (savedSnapshot.current !== null && formSnapshot() !== savedSnapshot.current) ||
+    Boolean(coverFile) || pendingImages.length > 0 || Boolean(ebookFile);
+
+  /** Opens the book's page in the store, in a new tab: the version last saved, so it says so first when there are edits on screen. */
+  const previewInStore = (product: Product, unsaved = false) => {
+    if (!product.is_active) {
+      toast.info('الكتاب ده مخفي، فمش هيظهر في المتجر لحد ما تفعّله.');
+      return;
+    }
+    if (unsaved && !confirm('فيه تعديلات لسه ما اتحفظتش، والمتجر هيعرض آخر نسخة محفوظة. تفتح المعاينة برضه؟')) return;
+    window.open(storefrontBookUrl(product.id), '_blank', 'noopener,noreferrer');
   };
 
   // Shared by the click-to-pick input, below, and the cover box's
@@ -1572,11 +1597,12 @@ export default function Books() {
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-1">
                             <button
-                              onClick={() => toast.info(`عرض أداء ${product.title}`)}
-                              title="الأداء"
-                              className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500"
+                              onClick={() => previewInStore(product)}
+                              title={product.is_active ? 'معاينة في المتجر' : 'الكتاب مخفي، مش ظاهر في المتجر'}
+                              aria-label={`معاينة ${product.title} في المتجر`}
+                              className={`p-1.5 rounded-lg hover:bg-emerald-50 ${product.is_active ? 'text-emerald-600' : 'text-gray-300'}`}
                             >
-                              <BarChart2 size={14} />
+                              <Eye size={14} />
                             </button>
 
                             <button
@@ -1658,12 +1684,26 @@ export default function Books() {
                 </div>
               </div>
 
-              <button
-                onClick={() => setShowModal(false)}
-                className="p-2 rounded-xl hover:bg-gray-100 text-gray-400 hover:text-gray-600"
-              >
-                <X size={20} />
-              </button>
+              <div className="flex items-center gap-2">
+                {editProduct && (
+                  <button
+                    type="button"
+                    onClick={() => previewInStore(editProduct, hasUnsavedChanges())}
+                    title={editProduct.is_active ? 'يفتح صفحة الكتاب في المتجر بآخر نسخة محفوظة' : 'الكتاب مخفي، مش ظاهر في المتجر'}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-700 text-sm font-semibold hover:bg-emerald-100"
+                  >
+                    <ExternalLink size={15} />
+                    معاينة الكتاب
+                  </button>
+                )}
+                <button
+                  onClick={() => setShowModal(false)}
+                  aria-label="إغلاق"
+                  className="p-2 rounded-xl hover:bg-gray-100 text-gray-400 hover:text-gray-600"
+                >
+                  <X size={20} />
+                </button>
+              </div>
             </div>
 
             {!editProduct && (

@@ -2,6 +2,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLogo } from '@/contexts/LogoContext';
 import { toast } from 'sonner';
+import { STOREFRONT_URL } from '@/lib/storefront';
 import {
   LayoutDashboard, Settings, BookOpen, ShoppingCart, Users, BookMarked,
   Tag, Package, BarChart3, Truck, ShieldCheck, ActivitySquare, LogOut, X, CreditCard,
@@ -66,7 +67,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
             place in the dashboard. */}
         <div className="flex items-center justify-between px-5 py-5 border-b border-white/10">
           <a
-            href="https://dar-alfath-client.vercel.app"
+            href={STOREFRONT_URL}
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center gap-3 hover:opacity-80 transition-opacity"

@@ -61,6 +61,8 @@ type OrderAggRow = {
     city?: string;
     governorate?: string;
     email?: string;
+    /** What the storefront writes; older rows may have full_name instead. */
+    name?: string;
     full_name?: string;
     phone?: string;
   } | null;
@@ -140,8 +142,13 @@ export function useCustomers() {
 
       for (const o of orders) {
         const email = norm(o.shipping_address?.email);
-        const key = o.user_id ?? (email ? (profileIdByEmail.get(email) ?? `${GUEST_PREFIX}${email}`) : null);
-        if (!key) continue; // طلب بلا حساب وبلا بريد — لا سبيل لنسبته
+        // A guest who left no email (the checkout lets them) is known by their mobile number.
+        const phoneKey = (o.shipping_address?.phone ?? '').replace(/\D/g, '');
+        const key = o.user_id
+          ?? (email ? (profileIdByEmail.get(email) ?? `${GUEST_PREFIX}${email}`) : null)
+          ?? (phoneKey ? `${GUEST_PREFIX}tel:${phoneKey}` : null);
+        if (!key) continue; // طلب بلا حساب وبلا بريد ولا هاتف — لا سبيل لنسبته
+        const guestName = o.shipping_address?.name ?? o.shipping_address?.full_name;
 
         if (!aggByKey[key]) {
           aggByKey[key] = { count: 0, total: 0, lastAt: '', lastCity: '', orderIds: [] };
@@ -160,7 +167,7 @@ export function useCustomers() {
           if (!g || o.created_at < g.firstAt) {
             guestInfo[key] = {
               email,
-              name: o.shipping_address?.full_name,
+              name: guestName,
               phone: o.shipping_address?.phone,
               countryId: o.country_id ?? null,
               firstAt: g && o.created_at > g.firstAt ? g.firstAt : o.created_at,
@@ -168,7 +175,7 @@ export function useCustomers() {
           }
           // الاسم/الهاتف من أحدث طلب لو كان الأقدم بلا بيانات
           const gi = guestInfo[key];
-          if (!gi.name && o.shipping_address?.full_name) gi.name = o.shipping_address.full_name;
+          if (!gi.name && guestName) gi.name = guestName;
           if (!gi.phone && o.shipping_address?.phone) gi.phone = o.shipping_address.phone;
         }
       }
@@ -196,7 +203,7 @@ export function useCustomers() {
         const a = aggByKey[key];
         return {
           id: key,
-          full_name: g.name ?? g.email,
+          full_name: g.name ?? (g.email || g.phone || 'زائر'),
           email: g.email,
           phone: g.phone ?? null,
           role: 'guest',

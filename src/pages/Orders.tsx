@@ -138,7 +138,12 @@ function OrderDetailModal({ orderId, onClose }: DetailModalProps) {
               )}
 
               <div className="flex-1 min-w-0">
-                <p className="font-bold text-gray-800">{customerName}</p>
+                <p className="font-bold text-gray-800 flex items-center gap-2">
+                  {customerName}
+                  {order && !order.user_id && (
+                    <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-amber-50 text-amber-700">زائر (من غير حساب)</span>
+                  )}
+                </p>
                 {customerPhone && (
                   <p className="text-sm text-gray-500 flex items-center gap-1 mt-0.5" dir="ltr">
                     <Phone size={12} />
@@ -813,7 +818,12 @@ export default function Orders() {
                               )}
 
                               <div className="min-w-0">
-                                <p className="text-sm font-semibold text-gray-800 truncate">{customerName}</p>
+                                <p className="text-sm font-semibold text-gray-800 truncate flex items-center gap-1.5">
+                                  {customerName}
+                                  {!order.user_id && (
+                                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 flex-shrink-0" title="طلب من غير حساب">زائر</span>
+                                  )}
+                                </p>
                                 {customerPhone && (
                                   <p className="text-xs text-gray-400" dir="ltr">{customerPhone}</p>
                                 )}

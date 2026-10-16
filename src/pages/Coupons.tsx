@@ -6,7 +6,7 @@ import { COUPON_STATUSES, couponMatchesStatus, countByStatus, toggleFilter } fro
 import {
   Plus, Edit, Trash2, Copy, X, ToggleLeft, ToggleRight,
   Tag, Percent, DollarSign, Truck, Package, Calendar,
-  MapPin, Loader2, AlertCircle, RefreshCw, Search, Globe2,
+  MapPin, Loader2, AlertCircle, RefreshCw, Search, Globe2, Monitor, Smartphone,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -17,6 +17,10 @@ import {
 } from '@/hooks/useCoupons';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCountry } from '@/contexts/CountryContext';
+import {
+  COUPON_CHANNELS, COUPON_CHANNEL_LABELS, COUPON_CHANNEL_HINTS, couponChannel,
+  type CouponChannel,
+} from '@/lib/couponChannels';
 
 /* ── Configs ── */
 const statusConfig: Record<string, { cls: string; dot: string }> = {
@@ -47,6 +51,18 @@ const typeValueColors: Record<CouponType, string> = {
   'خصم منتج': 'text-purple-700',
 };
 
+const channelIcons: Record<CouponChannel, React.ReactNode> = {
+  all: <Globe2 size={12} />,
+  web: <Monitor size={12} />,
+  app: <Smartphone size={12} />,
+};
+
+const channelBadgeCls: Record<CouponChannel, string> = {
+  all: 'bg-gray-100 text-gray-600',
+  web: 'bg-blue-50 text-blue-700',
+  app: 'bg-purple-50 text-purple-700',
+};
+
 function generateCode(): string {
   return Math.random().toString(36).toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8).padEnd(8, 'X');
 }
@@ -73,6 +89,7 @@ interface CouponForm {
   max_uses: string;
   product_id: string;
   country_id: string;
+  channel: CouponChannel;
   valid_from: string;
   valid_to: string;
   is_active: boolean;
@@ -86,6 +103,7 @@ const emptyForm: CouponForm = {
   max_uses: '',
   product_id: '',
   country_id: '',
+  channel: 'all',
   valid_from: '',
   valid_to: '',
   is_active: true,
@@ -113,6 +131,7 @@ export default function Coupons() {
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('الكل');
   const [filterType, setFilterType] = useState('الكل');
+  const [filterChannel, setFilterChannel] = useState('الكل');
 
   const [showModal, setShowModal] = useState(false);
   const [editCoupon, setEditCoupon] = useState<Coupon | null>(null);
@@ -123,19 +142,21 @@ export default function Coupons() {
   const filtered = couponsWithStatus.filter((c) => {
     const ms = couponMatchesStatus(c, filterStatus);
     const mt = filterType === 'الكل' || c.type === filterType;
+    const mc = filterChannel === 'الكل' || couponChannel(c) === filterChannel;
     const mq =
       !search ||
       c.code.toLowerCase().includes(search.toLowerCase()) ||
       (c.products?.title ?? '').toLowerCase().includes(search.toLowerCase());
 
-    return ms && mt && mq;
+    return ms && mt && mc && mq;
   });
 
   const totalUsages = coupons.reduce((a, c) => a + c.used_count, 0);
-  const couponFiltersActive = filterStatus !== 'الكل' || filterType !== 'الكل' || !!search;
+  const couponFiltersActive = filterStatus !== 'الكل' || filterType !== 'الكل' || filterChannel !== 'الكل' || !!search;
   const couponFiltersLabel = [
     filterStatus !== 'الكل' && `الحالة: ${filterStatus}`,
     filterType !== 'الكل' && `النوع: ${filterType}`,
+    filterChannel !== 'الكل' && `يعمل في: ${COUPON_CHANNEL_LABELS[filterChannel as CouponChannel]}`,
     search && `بحث: ${search}`,
   ].filter(Boolean).join(' · ');
 
@@ -159,6 +180,7 @@ export default function Coupons() {
       max_uses: c.max_uses != null ? String(c.max_uses) : '',
       product_id: c.product_id ?? '',
       country_id: c.country_id ?? selectedCountry?.id ?? '',
+      channel: couponChannel(c),
       valid_from: toInputDate(c.valid_from),
       valid_to: toInputDate(c.valid_to),
       is_active: c.is_active,
@@ -201,6 +223,7 @@ export default function Coupons() {
       max_uses: form.max_uses ? parseInt(form.max_uses) : undefined,
       product_id: form.product_id || undefined,
       country_id: form.country_id || selectedCountry?.id || undefined,
+      channel: form.channel,
       valid_from: new Date(form.valid_from).toISOString(),
       valid_to: form.valid_to
         ? new Date(form.valid_to + 'T23:59:59').toISOString()
@@ -326,6 +349,18 @@ export default function Coupons() {
             <option>شحن مجاني</option>
             <option>خصم منتج</option>
           </select>
+
+          <select
+            value={filterChannel}
+            onChange={(e) => setFilterChannel(e.target.value)}
+            className="input-field md:w-44"
+            aria-label="تصفية حسب مكان الاستخدام"
+          >
+            <option value="الكل">كل الأماكن</option>
+            {COUPON_CHANNELS.map((ch) => (
+              <option key={ch} value={ch}>{COUPON_CHANNEL_LABELS[ch]}</option>
+            ))}
+          </select>
         </div>
 
         {isLoading && (
@@ -393,6 +428,13 @@ export default function Coupons() {
                               {status}
                             </span>
                             <span className="text-xs text-gray-400">{coupon.type}</span>
+                            <span
+                              data-testid="coupon-channel"
+                              className={`inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full ${channelBadgeCls[couponChannel(coupon)]}`}
+                            >
+                              {channelIcons[couponChannel(coupon)]}
+                              {COUPON_CHANNEL_LABELS[couponChannel(coupon)]}
+                            </span>
                           </div>
                         </div>
 
@@ -536,6 +578,31 @@ export default function Coupons() {
                     توليد
                   </button>
                 </div>
+              </div>
+
+              <div>
+                <p id="coupon-channel-label" className="block text-sm font-semibold text-gray-700 mb-1.5">يعمل في</p>
+                <div role="radiogroup" aria-labelledby="coupon-channel-label" className="grid grid-cols-3 gap-2">
+                  {COUPON_CHANNELS.map((ch) => {
+                    const on = form.channel === ch;
+                    return (
+                      <button
+                        key={ch}
+                        type="button"
+                        role="radio"
+                        aria-checked={on}
+                        onClick={() => setForm((f) => ({ ...f, channel: ch }))}
+                        className={`flex items-center justify-center gap-1.5 rounded-xl border px-2 py-2.5 text-xs font-semibold transition-colors ${
+                          on ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                        }`}
+                      >
+                        {channelIcons[ch]}
+                        {COUPON_CHANNEL_LABELS[ch]}
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="text-xs text-gray-400 mt-1.5">{COUPON_CHANNEL_HINTS[form.channel]}</p>
               </div>
 
               <div className="grid grid-cols-2 gap-4">

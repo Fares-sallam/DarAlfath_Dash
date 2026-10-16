@@ -2,6 +2,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { useCountry } from '@/contexts/CountryContext';
+import type { CouponChannel } from '@/lib/couponChannels';
+
+export type { CouponChannel } from '@/lib/couponChannels';
 
 /* ── Types ── */
 export type CouponType = 'نسبة' | 'مبلغ ثابت' | 'شحن مجاني' | 'خصم منتج';
@@ -17,6 +20,7 @@ export interface Coupon {
   product_id?: string;
   country_id?: string;
   user_id?: string;
+  channel?: CouponChannel;
   valid_from: string;
   valid_to?: string;
   is_active: boolean;
@@ -35,6 +39,7 @@ export interface UpsertCouponInput {
   max_uses?: number;
   product_id?: string;
   country_id?: string;
+  channel?: CouponChannel;
   valid_from: string;
   valid_to?: string;
   is_active: boolean;
@@ -186,6 +191,7 @@ export function useUpsertCoupon() {
         max_uses: input.max_uses ?? null,
         product_id: input.product_id || null,
         country_id: input.country_id || selectedCountry?.id || null,
+        channel: input.channel ?? 'all',
         valid_from: input.valid_from,
         valid_to: input.valid_to || null,
         is_active: input.is_active,

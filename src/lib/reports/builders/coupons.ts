@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import type { Coupon } from '@/hooks/useCoupons';
+import { COUPON_CHANNEL_LABELS, couponChannel } from '@/lib/couponChannels';
 import { makeSection, type ReportDocument, type Tone } from '../types';
 import { fetchAllPages } from '../download';
 import { isRealOrder } from '../data';
@@ -62,6 +63,7 @@ export async function buildCouponsReport(
       makeSection('الكوبونات', [
         { header: 'الكود', value: (c) => c.code, width: 16 },
         { header: 'النوع', value: (c) => c.type },
+        { header: 'يعمل في', value: (c) => COUPON_CHANNEL_LABELS[couponChannel(c)] },
         { header: 'القيمة', value: valueText },
         { header: money('الحد الأدنى للطلب', scope), type: 'money', value: (c) => c.min_order },
         { header: 'مخصص لكتاب', value: (c) => c.products?.title ?? 'كل الكتب' },

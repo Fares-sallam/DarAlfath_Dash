@@ -62,6 +62,8 @@ export interface ProductImage {
   alt_text?: string;
   sort_order: number;
   is_primary: boolean;
+  /** The edition (product_variants.id) the picture belongs to; empty = the book's own, for every edition. */
+  variant_id?: string | null;
   created_at: string;
 }
 
@@ -536,7 +538,7 @@ export function useProducts() {
       const [imagesResult, variantPriceMap, variantInventoryMap] = await Promise.all([
         supabase
           .from('product_images')
-          .select('id, product_id, url, alt_text, sort_order, is_primary, created_at')
+          .select('id, product_id, url, alt_text, sort_order, is_primary, variant_id, created_at')
           .in('product_id', productIds)
           .order('sort_order'),
         fetchVariantCountryPriceMap(allVariantIds, selectedCountryId),
@@ -1293,6 +1295,24 @@ export function useDeleteProductImage() {
       qc.invalidateQueries({ queryKey: ['product-images'] });
       qc.invalidateQueries({ queryKey: ['products'] });
       toast.success('تم حذف الصورة');
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+/** Which edition a gallery picture belongs to (null: every edition). The database refuses an edition of another book. */
+export function useSetImageEdition() {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ imageId, variantId }: { imageId: string; variantId: string | null }) => {
+      const { error } = await supabase.from('product_images').update({ variant_id: variantId }).eq('id', imageId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['product-images'] });
+      qc.invalidateQueries({ queryKey: ['products'] });
+      toast.success('تم تحديث النسخة اللي بتظهر معاها الصورة');
     },
     onError: (e: Error) => toast.error(e.message),
   });

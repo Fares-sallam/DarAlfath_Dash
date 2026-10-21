@@ -43,7 +43,7 @@ import { storefrontBookUrl } from '@/lib/storefront';
 import {
   useProducts, useBookSeries,
   useUpsertProduct, useDeleteProduct, useToggleProductStatus, loadHideBookPlan,
-  useProductImages, useDeleteProductImage, useSetPrimaryImage,
+  useProductImages, useDeleteProductImage, useSetPrimaryImage, useSetImageEdition,
   uploadCoverImage, uploadEbookFileWithProgress, uploadProductImage,
   getEbookSignedUrl,
   type Product, type UpsertProductInput,
@@ -289,17 +289,22 @@ function getProductVariantSummary(product: Product) {
 function ImageGallery({
   productId,
   coverUrl,
+  editions = [],
   onNewCoverUrl,
 }: {
   productId: string;
   /** The book's main image as the form has it right now (empty when it has none). */
   coverUrl: string;
+  /** The book's saved editions. With more than one, each picture can be tied to one of them. */
+  editions?: { id: string; name: string }[];
   onNewCoverUrl: (url: string) => void;
 }) {
   const { data: images = [], isLoading } = useProductImages(productId);
   const qc = useQueryClient();
   const deleteMutation = useDeleteProductImage();
   const setPrimaryMutation = useSetPrimaryImage();
+  const setEditionMutation = useSetImageEdition();
+  const byEdition = editions.length > 1;
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -414,9 +419,17 @@ function ImageGallery({
           <p className="text-xs text-gray-300 mt-1">يمكنك رفع أكثر من صورة في نفس الوقت</p>
         </div>
       ) : (
+        <>
+        {byEdition && (
+          <p className="text-xs text-gray-500 mb-3 leading-relaxed">
+            لكل صورة اختار النسخة اللي بتظهر معاها: لما العميل يختار النسخة دي في الموقع تتغير الصور ليها. النسخة اللي مالهاش
+            صور بتعرض صور الكتاب كلها، والصورة اللي مكتوب عليها «كل النسخ» بتظهر للكل.
+          </p>
+        )}
         <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
           {images.map((img) => (
-            <div key={img.id} className="relative group aspect-[3/4] rounded-xl overflow-hidden bg-gray-100 border border-gray-200">
+            <div key={img.id} className="flex flex-col gap-1.5">
+            <div className="relative group aspect-[3/4] rounded-xl overflow-hidden bg-gray-100 border border-gray-200">
               <img src={img.url} alt={img.alt_text ?? ''} className="w-full h-full object-cover" />
               {img.url === coverUrl && (
                 <div className="absolute top-1.5 right-1.5 bg-amber-400 text-white text-xs px-1.5 py-0.5 rounded-lg flex items-center gap-1">
@@ -448,6 +461,22 @@ function ImageGallery({
                 </button>
               </div>
             </div>
+            {byEdition && (
+              <select
+                value={img.variant_id ?? ''}
+                onChange={(e) => setEditionMutation.mutate({ imageId: img.id, variantId: e.target.value || null })}
+                disabled={setEditionMutation.isPending}
+                aria-label="النسخة اللي بتظهر معاها الصورة"
+                data-testid="image-edition"
+                className="w-full text-xs rounded-lg border border-gray-200 bg-white px-1.5 py-1.5 text-gray-700 focus:outline-none focus:border-blue-400"
+              >
+                <option value="">كل النسخ</option>
+                {editions.map((edition) => (
+                  <option key={edition.id} value={edition.id}>{edition.name}</option>
+                ))}
+              </select>
+            )}
+            </div>
           ))}
 
           <div
@@ -463,6 +492,7 @@ function ImageGallery({
             </div>
           </div>
         </div>
+        </>
       )}
     </div>
   );
@@ -2568,6 +2598,7 @@ export default function Books() {
                       <ImageGallery
                         productId={editProduct.id}
                         coverUrl={coverPreview || form.cover_url}
+                        editions={(editProduct.product_variants ?? []).map((v) => ({ id: v.id, name: v.variant_name || 'نسخة' }))}
                         onNewCoverUrl={(url) => {
                           // Choosing a photo as the main image replaces a cover picked but not saved yet.
                           setForm((f) => ({ ...f, cover_url: url }));

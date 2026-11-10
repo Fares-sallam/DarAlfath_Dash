@@ -316,6 +316,34 @@ export function useUpdateSeries() {
   });
 }
 
+/* ── Put the series in a new order ──
+   The order shown in the storefront's top menu and on its home page is the series' sort_order.
+   Moving one series renumbers all of them 0…n-1 in the new order (several rows start out with the
+   same number, so swapping two values alone would not move anything). Only rows whose number
+   changes are written. */
+export function useReorderSeries() {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (ordered: { id: string; sort_order: number }[]) => {
+      const changed = ordered.filter((row, index) => row.sort_order !== index);
+      const results = await Promise.all(
+        changed.map((row) => {
+          const index = ordered.findIndex((r) => r.id === row.id);
+          return supabase.from('book_series').update({ sort_order: index }).eq('id', row.id);
+        }),
+      );
+      const failed = results.find((r) => r.error);
+      if (failed?.error) throw failed.error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['book-series'] });
+      toast.success('تم تحديث ترتيب السلاسل');
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
 /* ── Delete series ── */
 export function useDeleteSeries() {
   const qc = useQueryClient();

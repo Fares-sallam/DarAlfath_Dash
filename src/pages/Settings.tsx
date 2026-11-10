@@ -7,7 +7,8 @@ import {
   Loader2, AlertCircle, Globe2, Tag, Wallet, CheckCircle,
   Eye, EyeOff, Camera, Phone, Mail, MapPin, CheckCircle2,
   Shield, KeyRound, RefreshCw, ImageIcon, Lock,
-  Facebook, Instagram, MessageCircle, Youtube
+  Facebook, Instagram, MessageCircle, Youtube,
+  AlignRight, AlignCenter, AlignJustify,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
@@ -589,6 +590,20 @@ function SecuritySection() {
 /** The footer's paragraph: room for a few sentences about the house, not just a tagline. */
 const FOOTER_TAGLINE_MAX = 600;
 
+/** The same line the storefront shows until one is written here. */
+const FOOTER_TAGLINE_DEFAULT = 'ننشر المعرفة الهادفة ونبني جسرًا واسعًا من الكتب الأصيلة بين القارئ والعلم والثقافة والقيم.';
+
+type FooterAlign = NonNullable<StoreSettingsInput['footer_tagline_align']>;
+
+const FOOTER_ALIGN_OPTIONS: { value: FooterAlign; label: string; hint: string; icon: typeof AlignRight }[] = [
+  { value: 'start', label: 'لليمين', hint: 'كل سطر يبدأ من الحافة اليمنى وينتهي حيث تنتهي كلماته', icon: AlignRight },
+  { value: 'center', label: 'توسيط', hint: 'الأسطر في منتصف العمود', icon: AlignCenter },
+  { value: 'justify', label: 'ضبط الأطراف', hint: 'كل سطر يبدأ من نفس النقطة وينتهي عند نفس النقطة مهما اختلف عدد كلماته', icon: AlignJustify },
+];
+
+/** Kashida (ـ), which some people type between letters to stretch a line by hand. */
+const TATWEEL = /\u0640/g;
+
 function StoreSection() {
   const { logoUrl, uploading, uploadLogo, clearLogo } = useLogo();
   const { data: settings, isLoading, isError } = useStoreSettings();
@@ -607,6 +622,7 @@ function StoreSection() {
     youtube_url: '',
     website_url: '',
     footer_tagline: '',
+    footer_tagline_align: 'start',
     seo_title: '',
     seo_description: '',
     seo_keywords: '',
@@ -634,6 +650,7 @@ function StoreSection() {
       youtube_url: settings.youtube_url ?? '',
       website_url: settings.website_url ?? '',
       footer_tagline: settings.footer_tagline ?? '',
+      footer_tagline_align: settings.footer_tagline_align ?? 'start',
       seo_title: settings.seo_title ?? '',
       seo_description: settings.seo_description ?? '',
       seo_keywords: settings.seo_keywords ?? '',
@@ -773,6 +790,63 @@ function StoreSection() {
           <span>الفقرة اللي تحت اللوجو في آخر كل صفحة في الموقع، وتقدر تكتبها على أكتر من سطر. لو سبتها فاضية يظهر النص اللي في الخانة.</span>
           <span dir="ltr" className="shrink-0 tabular-nums" data-testid="footer-tagline-count">{form.footer_tagline.length} / {FOOTER_TAGLINE_MAX}</span>
         </p>
+
+        <div className="mt-4" data-testid="footer-align">
+          <span className="block text-sm font-semibold text-gray-700 mb-2">تنسيق النص</span>
+          <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="محاذاة الفقرة">
+            {FOOTER_ALIGN_OPTIONS.map(({ value, label, icon: Icon }) => {
+              const on = form.footer_tagline_align === value;
+              return (
+                <button
+                  key={value}
+                  type="button"
+                  role="radio"
+                  aria-checked={on}
+                  data-testid={`footer-align-${value}`}
+                  onClick={() => setForm(f => ({ ...f, footer_tagline_align: value }))}
+                  className={`inline-flex items-center gap-2 rounded-lg border px-3.5 py-2 text-sm font-semibold transition-colors ${on ? 'border-blue-700 bg-blue-50 text-blue-800' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}
+                >
+                  <Icon size={16} />{label}
+                </button>
+              );
+            })}
+          </div>
+          <p className="text-xs text-gray-400 mt-1.5">{FOOTER_ALIGN_OPTIONS.find(o => o.value === form.footer_tagline_align)?.hint}</p>
+
+          {form.footer_tagline.includes('\u0640') && (
+            <div className="mt-2 flex flex-wrap items-center gap-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800" data-testid="footer-tatweel-note">
+              <span>في النص حروف تمطيط (ـ) مكتوبة بإيدك لتساوي الأسطر. مع «ضبط الأطراف» مش محتاجها، وبتخلي المسافات تظهر مزدوجة.</span>
+              <button
+                type="button"
+                data-testid="footer-tatweel-remove"
+                onClick={() => setForm(f => ({ ...f, footer_tagline: f.footer_tagline.replace(TATWEEL, '') }))}
+                className="shrink-0 rounded-md bg-amber-600 px-2.5 py-1 font-semibold text-white hover:bg-amber-700"
+              >
+                إزالة التمطيط
+              </button>
+            </div>
+          )}
+
+          <span className="block text-sm font-semibold text-gray-700 mt-4 mb-2">معاينة في الفوتر</span>
+          <div
+            className="rounded-xl p-5 max-w-xl"
+            style={{ background: 'linear-gradient(180deg, #054180, #033363)' }}
+            data-testid="footer-preview"
+          >
+            <p
+              data-testid="footer-preview-text"
+              dir="rtl"
+              className="m-0 text-white/80 leading-[1.95] break-words"
+              style={{
+                whiteSpace: 'pre-line',
+                textAlign: form.footer_tagline_align === 'justify' ? 'justify' : form.footer_tagline_align === 'center' ? 'center' : 'start',
+                textAlignLast: form.footer_tagline_align === 'center' ? 'center' : 'start',
+              }}
+            >
+              {form.footer_tagline.trim() || FOOTER_TAGLINE_DEFAULT}
+            </p>
+          </div>
+        </div>
       </div>
 
       <div className="border-t border-gray-100 pt-5">

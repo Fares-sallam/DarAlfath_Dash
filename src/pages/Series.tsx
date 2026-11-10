@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import Layout from '@/components/layout/Layout';
 import {
   Plus, Edit, Trash2, BookMarked, X, Search, Loader2,
-  AlertCircle, RefreshCw, ArrowUp, ArrowDown, BookOpen,
+  AlertCircle, RefreshCw, ArrowUp, ArrowDown, ArrowRight, ArrowLeft, BookOpen,
   Check, ChevronRight, GripVertical, Image, Power, Globe2, Upload
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -10,7 +10,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useCountry } from '@/contexts/CountryContext';
 import {
   useSeriesList, useSeriesBooks, useAvailableProducts,
-  useCreateSeries, useUpdateSeries, useDeleteSeries,
+  useCreateSeries, useUpdateSeries, useDeleteSeries, useReorderSeries,
   useAddBookToSeries, useRemoveBookFromSeries, useUpdateBookSortOrder,
   uploadSeriesCover,
   type BookSeries, type SeriesBook,
@@ -590,9 +590,15 @@ interface SeriesCardProps {
   series: BookSeries;
   onEdit: () => void;
   onManageBooks: () => void;
+  /** Place in the full list (1 = first in the storefront's menu), and what the move buttons do. */
+  position: number;
+  canMoveEarlier: boolean;
+  canMoveLater: boolean;
+  onMove: (direction: -1 | 1) => void;
+  moving: boolean;
 }
 
-function SeriesCard({ series, onEdit, onManageBooks }: SeriesCardProps) {
+function SeriesCard({ series, onEdit, onManageBooks, position, canMoveEarlier, canMoveLater, onMove, moving }: SeriesCardProps) {
   const deleteMutation = useDeleteSeries();
   const updateMutation = useUpdateSeries();
 
@@ -665,6 +671,34 @@ function SeriesCard({ series, onEdit, onManageBooks }: SeriesCardProps) {
           </div>
 
           <div className="flex gap-2 flex-wrap">
+            <span
+              className="flex items-center text-xs px-2.5 py-1.5 rounded-xl bg-gray-100 text-gray-600 font-bold tabular-nums"
+              data-testid="series-position"
+              title="ترتيب السلسلة في قائمة الموقع"
+            >
+              #{position}
+            </span>
+            <button
+              type="button"
+              onClick={() => onMove(-1)}
+              disabled={!canMoveEarlier || moving}
+              data-testid="series-move-earlier"
+              aria-label={`تقديم ${series.name}`}
+              className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors font-semibold disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <ArrowRight size={12} /> تقديم
+            </button>
+            <button
+              type="button"
+              onClick={() => onMove(1)}
+              disabled={!canMoveLater || moving}
+              data-testid="series-move-later"
+              aria-label={`تأخير ${series.name}`}
+              className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors font-semibold disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <ArrowLeft size={12} /> تأخير
+            </button>
+
             <button
               onClick={onManageBooks}
               className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-blue-50 text-blue-700 rounded-xl hover:bg-blue-100 transition-colors font-semibold"
@@ -711,6 +745,7 @@ export default function SeriesPage() {
   const qc = useQueryClient();
   const { selectedCountry, currencySymbol } = useCountry();
   const { data: seriesList = [], isLoading, isError } = useSeriesList();
+  const reorder = useReorderSeries();
 
   const [search, setSearch] = useState('');
   const [filterActive, setFilterActive] = useState<'all' | 'active' | 'inactive'>('all');
@@ -728,6 +763,17 @@ export default function SeriesPage() {
 
     return matchSearch && matchActive;
   });
+
+  // Moving only makes sense in the whole list: with a search or a filter on, a neighbour on screen
+  // is not a neighbour in the menu.
+  const canReorder = !search && filterActive === 'all';
+  const moveSeries = (index: number, direction: -1 | 1) => {
+    const target = index + direction;
+    if (!canReorder || target < 0 || target >= seriesList.length) return;
+    const next = [...seriesList];
+    [next[index], next[target]] = [next[target], next[index]];
+    reorder.mutate(next.map((row) => ({ id: row.id, sort_order: row.sort_order })));
+  };
 
   const totalBooks = seriesList.reduce((sum, s) => sum + (s.books_count ?? 0), 0);
   const totalSales = seriesList.reduce((sum, s) => sum + s.total_sales, 0);
@@ -858,19 +904,33 @@ export default function SeriesPage() {
                 )}
               </div>
             ) : (
+              <>
+              <p className="text-xs text-gray-500 mb-3" data-testid="series-order-hint">
+                ترتيب السلاسل هنا هو ترتيبها في القائمة العلوية للموقع وفي الصفحة الرئيسية (الأولى من اليمين).
+                {canReorder ? ' استخدم «تقديم» و«تأخير» لتغييره.' : ' للتحريك اعرض «الكل» وامسح البحث.'}
+              </p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {filtered.map((s) => (
+                {filtered.map((s) => {
+                  const index = seriesList.findIndex((row) => row.id === s.id);
+                  return (
                   <SeriesCard
                     key={s.id}
                     series={s}
+                    position={index + 1}
+                    canMoveEarlier={canReorder && index > 0}
+                    canMoveLater={canReorder && index < seriesList.length - 1}
+                    moving={reorder.isPending}
+                    onMove={(direction) => moveSeries(index, direction)}
                     onEdit={() => {
                       setEditingSeries(s);
                       setShowFormModal(true);
                     }}
                     onManageBooks={() => setManagingBooks(s)}
                   />
-                ))}
+                  );
+                })}
               </div>
+              </>
             )}
           </>
         )}

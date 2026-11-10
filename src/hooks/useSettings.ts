@@ -289,6 +289,8 @@ export interface StoreSettingsInput {
   website_url?: string;
   /** The storefront footer's line under the logo; empty shows the store's default line. */
   footer_tagline?: string;
+  /** How the footer paragraph sits: start (right edge), centred, or justified (both edges flush). */
+  footer_tagline_align?: 'start' | 'center' | 'justify';
   seo_title?: string;
   seo_description?: string;
   seo_keywords?: string;
@@ -325,6 +327,7 @@ const DEFAULT_STORE_SETTINGS: StoreSettings = {
   youtube_url: '',
   website_url: '',
   footer_tagline: '',
+  footer_tagline_align: 'start',
   seo_title: 'دار الفتح — أفضل الكتب الورقية والرقمية',
   seo_description: 'اكتشف مجموعة واسعة من الكتب الورقية والرقمية بأفضل الأسعار مع توصيل سريع.',
   seo_keywords: 'كتب، مكتبة، روايات، تنمية بشرية، كتب رقمية، دار الفتح',

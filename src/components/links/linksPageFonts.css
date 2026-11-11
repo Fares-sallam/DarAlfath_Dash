@@ -1,0 +1,8 @@
+/* The house fonts, for the live preview of the company links page (the store declares the same faces in its own styles). */
+@font-face { font-family: 'DIN Next LT Arabic'; src: url('/fonts/din-next-arabic-400.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: 'DIN Next LT Arabic'; src: url('/fonts/din-next-arabic-500.woff2') format('woff2'); font-weight: 500; font-style: normal; font-display: swap; }
+@font-face { font-family: 'DIN Next LT Arabic'; src: url('/fonts/din-next-arabic-700.woff2') format('woff2'); font-weight: 600 700; font-style: normal; font-display: swap; }
+@font-face { font-family: 'DIN Next LT Arabic'; src: url('/fonts/din-next-arabic-800.woff2') format('woff2'); font-weight: 800 900; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Bahij TheSansArabic'; src: url('/fonts/bahij-400.woff2') format('woff2'); font-weight: 300 500; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Bahij TheSansArabic'; src: url('/fonts/bahij-600.woff2') format('woff2'); font-weight: 600; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Bahij TheSansArabic'; src: url('/fonts/bahij-700.woff2') format('woff2'); font-weight: 700 900; font-style: normal; font-display: swap; }

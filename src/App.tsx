@@ -20,6 +20,7 @@ import PendingPayments from "./pages/PendingPayments";
 import HeroSlides from "./pages/HeroSlides";
 import IntroVideos from "./pages/IntroVideos";
 import AdsAndStrips from "./pages/AdsAndStrips";
+import LinksPageAdmin from "./pages/LinksPageAdmin";
 import Series from "./pages/Series";
 import Reviews from "./pages/Reviews";
 import Inventory from "./pages/Inventory";
@@ -128,6 +129,15 @@ const App = () => {
                     element={
                       <ProtectedRoute permission="can_manage_products">
                         <AdsAndStrips />
+                      </ProtectedRoute>
+                    }
+                  />
+
+                  <Route
+                    path="/links-page"
+                    element={
+                      <ProtectedRoute permission="can_manage_products">
+                        <LinksPageAdmin />
                       </ProtectedRoute>
                     }
                   />

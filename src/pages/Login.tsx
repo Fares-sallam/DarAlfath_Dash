@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useLogo } from '@/contexts/LogoContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
+import { AUTH_CAPTCHA_ERROR, getAuthCaptchaToken, isCaptchaError } from '@/lib/authCaptcha';
 import { toast } from 'sonner';
 import {
   Mail,
@@ -103,8 +104,9 @@ export default function Login() {
 
     try {
       // بوابة الدخول الآمنة: قفل البريد دقيقتين بعد 5 محاولات فاشلة (ضد التخمين).
+      const captchaToken = await getAuthCaptchaToken();
       const { data: fnData, error: fnError } = await supabase.functions.invoke('secure-login', {
-        body: { email: rawEmail, password: rawPassword },
+        body: { email: rawEmail, password: rawPassword, captchaToken },
       });
 
       let loginError: string | null = null;
@@ -203,17 +205,21 @@ export default function Login() {
       }
 
       if (mode === 'forgotPassword') {
+        const captchaToken = await getAuthCaptchaToken();
         const { error } = await supabase.auth.resetPasswordForEmail(
           normalizedEmail,
           {
             redirectTo: `${window.location.origin}/login`,
+            captchaToken,
           }
         );
 
         if (error) {
           const lowerMessage = error.message?.toLowerCase() || '';
 
-          if (lowerMessage.includes('rate') || lowerMessage.includes('limit')) {
+          if (isCaptchaError(lowerMessage)) {
+            toast.error(AUTH_CAPTCHA_ERROR);
+          } else if (lowerMessage.includes('rate') || lowerMessage.includes('limit')) {
             toast.error('انتظر دقيقة ثم حاول مجددًا');
           } else {
             toast.error('فشل إرسال كود الاستعادة: ' + error.message);
@@ -227,17 +233,21 @@ export default function Login() {
         return;
       }
 
+      const otpCaptchaToken = await getAuthCaptchaToken();
       const { error } = await supabase.auth.signInWithOtp({
         email: normalizedEmail,
         options: {
           shouldCreateUser: false,
+          captchaToken: otpCaptchaToken,
         },
       });
 
       if (error) {
         const lowerMessage = error.message?.toLowerCase() || '';
 
-        if (lowerMessage.includes('rate') || lowerMessage.includes('limit')) {
+        if (isCaptchaError(lowerMessage)) {
+          toast.error(AUTH_CAPTCHA_ERROR);
+        } else if (lowerMessage.includes('rate') || lowerMessage.includes('limit')) {
           toast.error('كثير من المحاولات، انتظر دقيقة ثم حاول مجددًا');
         } else {
           toast.error('فشل إرسال الكود: ' + error.message);

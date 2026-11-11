@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
+import { AUTH_CAPTCHA_ERROR, getAuthCaptchaToken, isCaptchaError } from '@/lib/authCaptcha';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLogo } from '@/contexts/LogoContext';
 import { useCountry } from '@/contexts/CountryContext';
@@ -349,12 +350,14 @@ function SecuritySection() {
     if (currentPw) {
       const { data: { user } } = await supabase.auth.getUser();
       if (user?.email) {
+        const captchaToken = await getAuthCaptchaToken();
         const { error: signInError } = await supabase.auth.signInWithPassword({
           email: user.email,
           password: currentPw,
+          options: { captchaToken },
         });
         if (signInError) {
-          toast.error('كلمة المرور الحالية غير صحيحة');
+          toast.error(isCaptchaError(signInError.message) ? AUTH_CAPTCHA_ERROR : 'كلمة المرور الحالية غير صحيحة');
           setSaving(false);
           return;
         }

@@ -1,12 +1,14 @@
 import { useSearchParams } from 'react-router-dom';
-import { LayoutGrid, Megaphone, Rows3, Trophy } from 'lucide-react';
+import { LayoutGrid, Megaphone, Menu, Rows3, Trophy } from 'lucide-react';
 import Layout from '@/components/layout/Layout';
 import AnnouncementsSection from '@/components/ads/AnnouncementsSection';
 import CategoryBarSection from '@/components/ads/CategoryBarSection';
 import FeatureBoxesSection from '@/components/ads/FeatureBoxesSection';
 import BestSellersSection from '@/components/ads/BestSellersSection';
+import HeaderNavSection from '@/components/ads/HeaderNavSection';
 
 const TABS = [
+  { key: 'menu', label: 'شريط القائمة الرئيسية', hint: 'الشريط اللي فيه الرئيسية والكتب والسلاسل وتواصل معنا: ترتيبه واللي بيظهر منه.', icon: Menu, Section: HeaderNavSection },
   { key: 'offers', label: 'شريط العروض والإعلانات', hint: 'الشريط اللي تحت الهيدر على طول، برسايل بتتبدل كل 5 ثواني.', icon: Megaphone, Section: AnnouncementsSection },
   { key: 'categories', label: 'شريط التصنيفات', hint: 'التصنيفات اللي بتظهر في الشريط تحت الهيدر، وترتيبها.', icon: Rows3, Section: CategoryBarSection },
   { key: 'boxes', label: 'مربعات أعلى الفوتر', hint: 'المربعات اللي في آخر الصفحة الرئيسية فوق الفوتر.', icon: LayoutGrid, Section: FeatureBoxesSection },

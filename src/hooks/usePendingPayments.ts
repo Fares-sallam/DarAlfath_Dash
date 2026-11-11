@@ -22,6 +22,8 @@ export interface PendingPayment {
   created_at: string;
   expires_at: string | null;
   completed_at: string | null;
+  /** When Paymob confirmed the money. Set on a row that is not `completed` = paid, no order. */
+  paid_at: string | null;
   shipping_address: {
     name?: string;
     email?: string;
@@ -50,9 +52,15 @@ const SAFE_COLUMNS = `
   created_at,
   expires_at,
   completed_at,
+  paid_at,
   shipping_address,
   countries(name, currency_symbol)
 `;
+
+/** دُفع المبلغ لكن لم يُنشأ الطلب (نفد المخزون بين البدء والدفع مثلًا): يحتاج استردادًا أو طلبًا يدويًا. */
+export function isPaidUnfulfilled(r: Pick<PendingPayment, 'status' | 'paid_at'>): boolean {
+  return r.status !== 'completed' && !!r.paid_at;
+}
 
 export interface PendingPaymentFilters {
   status?: string;
@@ -113,6 +121,8 @@ export interface PendingPaymentStats {
   failedToday: number;  // فشل/إلغاء خلال 24 ساعة
   completed: number;
   lostRevenue: number;  // قيمة ما لم يكتمل (بالجنيه)
+  paidUnfulfilled: number;   // مدفوعة بلا طلب — أهم صف في الشاشة
+  paidUnfulfilledAmount: number; // قيمتها بالجنيه (مبلغ عند العميل يجب ردّه أو خدمته)
 }
 
 export function summarizePendingPayments(rows: PendingPayment[]): PendingPaymentStats {
@@ -122,10 +132,18 @@ export function summarizePendingPayments(rows: PendingPayment[]): PendingPayment
   let failedToday = 0;
   let completed = 0;
   let lostRevenue = 0;
+  let paidUnfulfilled = 0;
+  let paidUnfulfilledAmount = 0;
 
   for (const r of rows) {
     if (r.status === 'completed') {
       completed += 1;
+      continue;
+    }
+    // المبلغ مخصوم فعلًا: ليست محاولة ضائعة بل دَين على الدار حتى يُردّ أو يُخدَم.
+    if (isPaidUnfulfilled(r)) {
+      paidUnfulfilled += 1;
+      paidUnfulfilledAmount += r.amount_cents / 100;
       continue;
     }
     if (r.status === 'pending') stuck += 1;
@@ -134,5 +152,5 @@ export function summarizePendingPayments(rows: PendingPayment[]): PendingPayment
     if (new Date(r.created_at).getTime() >= dayAgo) failedToday += 1;
   }
 
-  return { stuck, failedToday, completed, lostRevenue };
+  return { stuck, failedToday, completed, lostRevenue, paidUnfulfilled, paidUnfulfilledAmount };
 }

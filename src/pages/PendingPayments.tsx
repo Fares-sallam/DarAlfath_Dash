@@ -9,6 +9,7 @@ import { Link } from 'react-router-dom';
 import {
   usePendingPayments,
   summarizePendingPayments,
+  isPaidUnfulfilled,
   type PendingPayment,
 } from '@/hooks/usePendingPayments';
 import { useQueryClient } from '@tanstack/react-query';
@@ -101,6 +102,22 @@ export default function PendingPayments() {
             تحديث
           </button>
         </div>
+
+        {/* ── مدفوع بدون طلب: أهم تنبيه في الشاشة ── */}
+        {stats.paidUnfulfilled > 0 && (
+          <div role="alert" className="flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 p-4">
+            <AlertTriangle size={20} className="text-red-600 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-bold text-red-700">
+                {stats.paidUnfulfilled} عملية دفع تم خصمها بدون إنشاء طلب ({stats.paidUnfulfilledAmount.toLocaleString()} {currency})
+              </p>
+              <p className="text-xs text-red-600 mt-1 leading-relaxed">
+                العميل دفع ولم يصله طلب (غالبًا نفدت الكمية). استرد المبلغ من لوحة Paymob، أو تواصل مع العميل
+                لخدمته بطلب يدوي. الصفوف معلّمة «مدفوع بدون طلب» في الجدول.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* ── بطاقات الإحصاء ── */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -270,14 +287,21 @@ function PaymentRow({
   };
   const addr = row.shipping_address;
   const amount = (row.amount_cents / 100).toLocaleString();
+  const paidNoOrder = isPaidUnfulfilled(row);
 
   return (
-    <tr className="hover:bg-gray-50/60 transition-colors">
+    <tr className={paidNoOrder ? 'bg-red-50/60 hover:bg-red-50 transition-colors' : 'hover:bg-gray-50/60 transition-colors'}>
       <td className="px-4 py-3">
         <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold ${cfg.cls}`}>
           {cfg.icon}
           {cfg.label}
         </span>
+        {paidNoOrder && (
+          <span className="mt-1 inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold bg-red-600 text-white">
+            <AlertTriangle size={12} />
+            مدفوع بدون طلب
+          </span>
+        )}
       </td>
 
       <td className="px-4 py-3">

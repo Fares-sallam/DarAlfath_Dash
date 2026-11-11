@@ -5,6 +5,7 @@ import { compressImage } from '@/lib/imageCompression';
 import { fetchReportOrders } from '@/lib/reports/data';
 import type { ResolvedPeriod } from '@/lib/reports/period';
 import { salesRanking, type BookSales } from '@/lib/bestSellers';
+import type { HeaderNavEntry } from '@/lib/headerNav';
 
 /* What the "إدارة الإعلانات والأشرطة" page edits on the store: the offers strip, the category strip,
    the boxes above the footer, the "الأكثر مبيعًا" row, and the videos section's title. */
@@ -42,6 +43,38 @@ export function useUpdateSiteContentSettings() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['site-content-settings'] });
       toast.success('تم الحفظ');
+    },
+    onError: fail,
+  });
+}
+
+/* ── The top menu bar (الرئيسية، الكتب، السلاسل، تواصل معنا) ─────────── */
+// Read and written on its own column so a problem here never touches the other sections.
+export function useHeaderNavSetting() {
+  return useQuery({
+    queryKey: ['site-header-nav'],
+    queryFn: async (): Promise<unknown> => {
+      const { data, error } = await supabase
+        .from('site_content_settings')
+        .select('header_nav')
+        .eq('id', 1)
+        .maybeSingle();
+      if (error) throw error;
+      return (data as { header_nav: unknown } | null)?.header_nav ?? null;
+    },
+  });
+}
+
+export function useSaveHeaderNav() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (entries: HeaderNavEntry[] | null) => {
+      const { error } = await supabase.from('site_content_settings').update({ header_nav: entries }).eq('id', 1);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['site-header-nav'] });
+      toast.success('تم حفظ شريط القائمة');
     },
     onError: fail,
   });

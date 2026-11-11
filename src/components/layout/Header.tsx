@@ -47,6 +47,7 @@ function getNotifRoute(notif: NotificationItem): string {
   if (type === 'customer' || type === 'new_user') return '/customers';
   if (type === 'coupon') return '/coupons';
   if (type === 'return' || type === 'refund') return '/orders';
+  if (data['kind'] === 'paid_unfulfilled') return '/payments';
   if (data['order_id']) return '/orders';
 
   return '/';

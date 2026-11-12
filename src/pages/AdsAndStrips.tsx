@@ -1,11 +1,12 @@
 import { useSearchParams } from 'react-router-dom';
-import { LayoutGrid, Megaphone, Menu, Rows3, Trophy } from 'lucide-react';
+import { LayoutGrid, Megaphone, Menu, Rows3, Smartphone, Trophy } from 'lucide-react';
 import Layout from '@/components/layout/Layout';
 import AnnouncementsSection from '@/components/ads/AnnouncementsSection';
 import CategoryBarSection from '@/components/ads/CategoryBarSection';
 import FeatureBoxesSection from '@/components/ads/FeatureBoxesSection';
 import BestSellersSection from '@/components/ads/BestSellersSection';
 import HeaderNavSection from '@/components/ads/HeaderNavSection';
+import AppStripsSection from '@/components/ads/AppStripsSection';
 
 const TABS = [
   { key: 'menu', label: 'شريط القائمة الرئيسية', hint: 'الشريط اللي فيه الرئيسية والكتب والسلاسل وتواصل معنا: ترتيبه واللي بيظهر منه.', icon: Menu, Section: HeaderNavSection },
@@ -13,6 +14,7 @@ const TABS = [
   { key: 'categories', label: 'شريط التصنيفات', hint: 'التصنيفات اللي بتظهر في الشريط تحت الهيدر، وترتيبها.', icon: Rows3, Section: CategoryBarSection },
   { key: 'boxes', label: 'مربعات أعلى الفوتر', hint: 'المربعات اللي في آخر الصفحة الرئيسية فوق الفوتر.', icon: LayoutGrid, Section: FeatureBoxesSection },
   { key: 'best', label: 'الأكثر مبيعًا', hint: 'صف «الأكثر مبيعًا» في الرئيسية، ومبيعات كل كتاب عشان تختار.', icon: Trophy, Section: BestSellersSection },
+  { key: 'app', label: 'شرايط التطبيق', hint: 'شريط الشحن المجاني في سلة التطبيق، وأقسام الرئيسية في التطبيق اللي تقدر تقفلها أو تفتحها.', icon: Smartphone, Section: AppStripsSection },
 ] as const;
 
 /** One place for what the store shows around the books: the strips, the boxes above the footer, and the best sellers row. */
@@ -29,7 +31,7 @@ export default function AdsAndStrips() {
             <Megaphone className="text-amber-500" size={24} />
             إدارة الإعلانات والأشرطة
           </h1>
-          <p className="text-sm text-gray-500 mt-1">أي تغيير بيظهر في الموقع أول ما تحفظه.</p>
+          <p className="text-sm text-gray-500 mt-1">أي تغيير بيظهر في الموقع أول ما تحفظه. تغييرات تاب «شرايط التطبيق» بتظهر في التطبيق.</p>
         </div>
 
         <div className="flex gap-2 overflow-x-auto pb-1" role="tablist" aria-label="أقسام الإعلانات والأشرطة">

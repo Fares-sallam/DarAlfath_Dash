@@ -3,6 +3,7 @@ import type { Product } from '@/hooks/useBooks';
 import {
   buildComponentOptions,
   bundleItemsByVariant,
+  bundleKindOf,
   computeBundleSummary,
   arabicCount,
   booksLabel,
@@ -234,5 +235,44 @@ describe('planRestoreBookToBundles', () => {
     const rest = twice.filter((r) => r.component_product_id !== 'x');
     const plan = planRestoreBookToBundles(hiddenFromBundles(planHideBookFromBundles('x', twice, titles)), rest, new Set());
     expect(plan.copies[0].items.map((i) => i.component_variant_id)).toEqual(['a-v', 'x-v', 'x-v2', 'b-v', 'c-v']);
+  });
+});
+
+describe('e-book series (digital bundles)', () => {
+  const withDigital = [
+    ...products,
+    book('d', 'كتاب د', [{ id: 'd-pdf', variant_name: 'إلكتروني', variant_type: 'رقمي', sale_price: 25, cost_price: 5 }]),
+  ];
+  const digitalOptions = buildComponentOptions(withDigital, 'digital');
+  const digitalById = new Map<string, BundleComponentOption>(digitalOptions.map((o) => [o.variant_id, o]));
+
+  it('offers the digital copies of books only — no paper copies, no bundles', () => {
+    expect(digitalOptions.map((o) => o.variant_id)).toEqual(['a-pdf', 'd-pdf']);
+  });
+  it('a paper bundle still offers paper copies only, even when digital-only books exist', () => {
+    expect(buildComponentOptions(withDigital).map((o) => o.variant_id)).toEqual(['a-normal', 'a-24', 'b-normal', 'c-normal']);
+  });
+  it('an e-book weighs nothing and has no stock row to count', () => {
+    expect(digitalById.get('a-pdf')).toMatchObject({ weight_kg: 0, available: null });
+  });
+  it('adds up price and cost, but has no stock, bottleneck or weight, and is never short', () => {
+    const s = computeBundleSummary([{ component_variant_id: 'a-pdf', quantity: 1 }, { component_variant_id: 'd-pdf', quantity: 1 }], digitalById, 'digital');
+    expect(s.buildPrice).toBe(45);
+    expect(s.totalCost).toBe(5);
+    expect(s.weightKg).toBe(0);
+    expect(s.unlimited).toBe(true);
+    expect(s.bottleneck).toBeNull();
+    expect(s.available).toBe(0);
+  });
+  it('a paper bundle is not unlimited', () => {
+    expect(computeBundleSummary([{ component_variant_id: 'a-normal', quantity: 1 }], byId).unlimited).toBe(false);
+  });
+  it('still counts a deleted book in a series', () => {
+    expect(computeBundleSummary([{ component_variant_id: 'gone', quantity: 1 }], digitalById, 'digital')).toMatchObject({ unknownItems: 1 });
+  });
+  it('tells a saved series from a paper bundle by its copies', () => {
+    expect(bundleKindOf({ product_variants: [{ variant_type: 'رقمي' }] } as unknown as Product)).toBe('digital');
+    expect(bundleKindOf({ product_variants: [{ variant_type: 'مادي' }, { variant_type: 'مادي' }] } as unknown as Product)).toBe('paper');
+    expect(bundleKindOf({} as Product)).toBe('paper');
   });
 });

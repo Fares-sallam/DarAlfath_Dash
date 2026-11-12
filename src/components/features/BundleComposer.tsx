@@ -4,7 +4,9 @@ import {
   computeBundleSummary,
   type BundleComponentOption,
   type BundleItemDraft,
+  type BundleKind,
 } from '@/lib/bundles';
+import { iapProductIdError } from '@/lib/iap';
 
 interface BundleComposerProps {
   options: BundleComponentOption[];
@@ -15,6 +17,11 @@ interface BundleComposerProps {
   /** Hands the price back to "follow سعر البناء automatically". */
   onResetPrice: () => void;
   currencySymbol: string;
+  /** A paper bundle (the default) or an e-book series. */
+  kind?: BundleKind;
+  /** The series' product id in App Store Connect / Google Play (series only). */
+  iapProductId?: string;
+  onIapProductIdChange?: (value: string) => void;
 }
 
 function money(value: number, currencySymbol: string) {
@@ -60,11 +67,16 @@ export default function BundleComposer({
   onPriceChange,
   onResetPrice,
   currencySymbol,
+  kind = 'paper',
+  iapProductId = '',
+  onIapProductIdChange,
 }: BundleComposerProps) {
   const [query, setQuery] = useState('');
+  const digital = kind === 'digital';
+  const iapError = iapProductIdError(iapProductId);
 
   const byId = useMemo(() => new Map(options.map((o) => [o.variant_id, o])), [options]);
-  const summary = useMemo(() => computeBundleSummary(items, byId), [items, byId]);
+  const summary = useMemo(() => computeBundleSummary(items, byId, kind), [items, byId, kind]);
 
   const selectedIds = new Set(items.map((i) => i.component_variant_id));
   const q = query.trim().toLowerCase();
@@ -105,10 +117,12 @@ export default function BundleComposer({
     <div className="space-y-4">
       <div>
         <p className="text-sm font-bold text-gray-700">
-          كتب المجموعة <span className="text-red-500">*</span>
+          {digital ? 'كتب السلسلة' : 'كتب المجموعة'} <span className="text-red-500">*</span>
         </p>
         <p className="text-xs text-gray-400">
-          اختار كتابين أو أكتر من النسخ الورقية. التكلفة وسعر البناء والمخزون والوزن بيتحسبوا تلقائيًا من الكتب نفسها.
+          {digital
+            ? 'اختار كتابين أو أكتر من النسخ الإلكترونية. العميل بيشتري السلسلة مرة واحدة ويقرا كل كتبها. مفيش مخزون ولا شحن.'
+            : 'اختار كتابين أو أكتر من النسخ الورقية. التكلفة وسعر البناء والمخزون والوزن بيتحسبوا تلقائيًا من الكتب نفسها.'}
         </p>
       </div>
 
@@ -117,7 +131,7 @@ export default function BundleComposer({
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="ابحث باسم الكتاب لإضافته للمجموعة..."
+          placeholder={digital ? 'ابحث باسم الكتاب لإضافته للسلسلة...' : 'ابحث باسم الكتاب لإضافته للمجموعة...'}
           className="input-field pr-10"
         />
         <Search size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -135,7 +149,8 @@ export default function BundleComposer({
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-gray-800 truncate">{o.title}</p>
                   <p className="text-xs text-gray-400">
-                    {o.variant_name} · {o.price > 0 ? money(o.price, currencySymbol) : 'بدون سعر'} · متاح {o.available ?? 0}
+                    {o.variant_name} · {o.price > 0 ? money(o.price, currencySymbol) : 'بدون سعر'}
+                    {!digital && ` · متاح ${o.available ?? 0}`}
                     {!o.is_active && ' · مخفي من البيع منفردًا'}
                   </p>
                 </div>
@@ -146,14 +161,16 @@ export default function BundleComposer({
         )}
 
         {q && results.length === 0 && (
-          <p className="text-xs text-gray-400 mt-2">مفيش نسخة ورقية بالاسم ده (أو اتضافت خلاص)</p>
+          <p className="text-xs text-gray-400 mt-2">
+            {digital ? 'مفيش نسخة إلكترونية بالاسم ده (أو اتضافت خلاص). الكتاب لازم يكون له نسخة إلكترونية الأول.' : 'مفيش نسخة ورقية بالاسم ده (أو اتضافت خلاص)'}
+          </p>
         )}
       </div>
 
       {items.length === 0 ? (
         <div className="text-center py-8 bg-gray-50 border border-dashed border-gray-200 rounded-2xl">
           <Layers size={28} className="text-gray-300 mx-auto mb-2" />
-          <p className="text-sm text-gray-500 font-semibold">لسه مفيش كتب في المجموعة</p>
+          <p className="text-sm text-gray-500 font-semibold">{digital ? 'لسه مفيش كتب في السلسلة' : 'لسه مفيش كتب في المجموعة'}</p>
           <p className="text-xs text-gray-400 mt-1">ابحث فوق وضيف الكتب اللي هتتباع مع بعض</p>
         </div>
       ) : (
@@ -168,7 +185,7 @@ export default function BundleComposer({
                   className="flex items-center gap-3 bg-red-50 border border-red-100 rounded-xl px-3 py-2.5"
                 >
                   <AlertCircle size={16} className="text-red-400 flex-shrink-0" />
-                  <p className="flex-1 text-sm text-red-600">كتاب اتمسح أو مبقاش نسخة ورقية. شيله من المجموعة.</p>
+                  <p className="flex-1 text-sm text-red-600">كتاب اتمسح أو مبقاش نسخة {digital ? 'إلكترونية' : 'ورقية'}. شيله من {digital ? 'السلسلة' : 'المجموعة'}.</p>
                   <button
                     type="button"
                     onClick={() => removeItem(item.component_variant_id)}
@@ -181,7 +198,7 @@ export default function BundleComposer({
               );
             }
 
-            const shortage = (option.available ?? 0) < item.quantity;
+            const shortage = !digital && (option.available ?? 0) < item.quantity;
 
             return (
               <div
@@ -194,31 +211,39 @@ export default function BundleComposer({
                   <p className="text-sm font-semibold text-gray-800 truncate">{option.title}</p>
                   <p className="text-xs text-gray-400">
                     {option.variant_name} ·{' '}
-                    {option.price > 0 ? `${money(option.price, currencySymbol)} للنسخة` : 'بدون سعر'} ·{' '}
-                    <span className={shortage ? 'text-red-500 font-semibold' : ''}>متاح {option.available ?? 0}</span>
+                    {option.price > 0 ? `${money(option.price, currencySymbol)} للنسخة` : 'بدون سعر'}
+                    {!digital && (
+                      <>
+                        {' · '}
+                        <span className={shortage ? 'text-red-500 font-semibold' : ''}>متاح {option.available ?? 0}</span>
+                      </>
+                    )}
                   </p>
                 </div>
 
-                <div className="flex items-center gap-1 bg-white rounded-lg border border-gray-200 px-1">
-                  <button
-                    type="button"
-                    onClick={() => setQuantity(item.component_variant_id, item.quantity - 1)}
-                    disabled={item.quantity <= 1}
-                    className="p-1 text-gray-500 hover:text-blue-700 disabled:opacity-30"
-                    title="نسخة أقل"
-                  >
-                    <Minus size={13} />
-                  </button>
-                  <span className="w-6 text-center text-sm font-bold text-gray-800">{item.quantity}</span>
-                  <button
-                    type="button"
-                    onClick={() => setQuantity(item.component_variant_id, item.quantity + 1)}
-                    className="p-1 text-gray-500 hover:text-blue-700"
-                    title="نسخة أكتر"
-                  >
-                    <Plus size={13} />
-                  </button>
-                </div>
+                {/* An e-book is bought once, so a series has no quantity to set. */}
+                {!digital && (
+                  <div className="flex items-center gap-1 bg-white rounded-lg border border-gray-200 px-1">
+                    <button
+                      type="button"
+                      onClick={() => setQuantity(item.component_variant_id, item.quantity - 1)}
+                      disabled={item.quantity <= 1}
+                      className="p-1 text-gray-500 hover:text-blue-700 disabled:opacity-30"
+                      title="نسخة أقل"
+                    >
+                      <Minus size={13} />
+                    </button>
+                    <span className="w-6 text-center text-sm font-bold text-gray-800">{item.quantity}</span>
+                    <button
+                      type="button"
+                      onClick={() => setQuantity(item.component_variant_id, item.quantity + 1)}
+                      className="p-1 text-gray-500 hover:text-blue-700"
+                      title="نسخة أكتر"
+                    >
+                      <Plus size={13} />
+                    </button>
+                  </div>
+                )}
 
                 <button
                   type="button"
@@ -241,16 +266,20 @@ export default function BundleComposer({
             label="سعر الكتب منفردة (سعر البناء)"
             value={money(summary.buildPrice, currencySymbol)}
           />
-          <Stat
-            label="المخزون المتاح"
-            value={`${summary.available.toLocaleString('ar-EG')} مجموعة`}
-            hint={
-              summary.bottleneck && items.length > 0
-                ? `محدود بـ: ${summary.bottleneck.title}`
-                : 'بيتحسب تلقائيًا من مخزون الكتب'
-            }
-            tone={items.length > 0 && summary.available === 0 ? 'bad' : 'default'}
-          />
+          {digital ? (
+            <Stat label="التسليم" value="إلكتروني" hint="من غير مخزون ولا شحن: بيتسجل في مكتبة العميل" />
+          ) : (
+            <Stat
+              label="المخزون المتاح"
+              value={`${summary.available.toLocaleString('ar-EG')} مجموعة`}
+              hint={
+                summary.bottleneck && items.length > 0
+                  ? `محدود بـ: ${summary.bottleneck.title}`
+                  : 'بيتحسب تلقائيًا من مخزون الكتب'
+              }
+              tone={items.length > 0 && summary.available === 0 ? 'bad' : 'default'}
+            />
+          )}
           <Stat
             label="توفير العميل"
             value={savings > 0 && bundlePrice > 0 ? `${money(savings, currencySymbol)} (${savingsPct}٪)` : '—'}
@@ -260,15 +289,17 @@ export default function BundleComposer({
             value={bundlePrice > 0 ? money(profit, currencySymbol) : '—'}
             tone={bundlePrice > 0 ? (profit >= 0 ? 'good' : 'bad') : 'default'}
           />
-          <Stat
-            label="وزن الشحن"
-            value={`${summary.weightKg.toLocaleString('ar-EG', { maximumFractionDigits: 3 })} كجم`}
-          />
+          {!digital && (
+            <Stat
+              label="وزن الشحن"
+              value={`${summary.weightKg.toLocaleString('ar-EG', { maximumFractionDigits: 3 })} كجم`}
+            />
+          )}
         </div>
 
         <div>
           <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-            سعر المجموعة ({currencySymbol}) <span className="text-red-500">*</span>
+            {digital ? `سعر السلسلة على الموقع (${currencySymbol})` : `سعر المجموعة (${currencySymbol})`} <span className="text-red-500">*</span>
           </label>
           <div className="flex gap-2">
             <input
@@ -293,8 +324,29 @@ export default function BundleComposer({
           </div>
           <p className="text-xs text-gray-500 mt-1.5">
             السعر بيبدأ بسعر البناء. اكتب رقم أقل منه عشان يظهر للعميل كخصم وتوفير.
+            {digital && ' جوه التطبيق السعر بيتحدد من المتجر (App Store / Google Play) مش من هنا.'}
           </p>
         </div>
+
+        {digital && (
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1.5">معرّف منتج المتجر (App Store / Google Play)</label>
+            <input
+              type="text"
+              dir="ltr"
+              value={iapProductId}
+              onChange={(e) => onIapProductIdChange?.(e.target.value)}
+              className="input-field"
+              placeholder="com.daralfath.store.series_nahw_ebook"
+              aria-label="معرّف منتج المتجر"
+            />
+            {iapError && <p className="text-xs text-red-500 mt-1">{iapError}</p>}
+            <p className="text-xs text-gray-500 mt-1.5">
+              لازم يطابق بالظبط الـProduct ID اللي بتعمله للسلسلة في المتجرين (منتج من نوع Non-Consumable في App Store Connect، وone-time product في Google Play).
+              من غيره السلسلة بتتباع على الموقع بس، وفي التطبيق بيظهر «غير متاح للشراء».
+            </p>
+          </div>
+        )}
 
         {(() => {
           const warnings: string[] = [];
@@ -308,7 +360,10 @@ export default function BundleComposer({
           if (bundlePrice > 0 && summary.buildPrice > 0 && bundlePrice > summary.buildPrice) {
             warnings.push('سعر المجموعة أعلى من مجموع أسعار الكتب منفردة، يعني العميل مش هيشوف أي توفير.');
           }
-          if (items.length > 0 && summary.available === 0 && summary.bottleneck) {
+          if (digital && items.length > 0 && !iapProductId.trim()) {
+            warnings.push('لسه مفيش معرّف منتج المتجر: السلسلة مش هتتباع من التطبيق لحد ما تكتبه.');
+          }
+          if (!digital && items.length > 0 && summary.available === 0 && summary.bottleneck) {
             warnings.push(
               `المخزون الحالي مش كفاية ولا لمجموعة واحدة، فهتظهر في المتجر "غير متوفرة" لحد ما يزيد مخزون: ${summary.bottleneck.title}.`
             );

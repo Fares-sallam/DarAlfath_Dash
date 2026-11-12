@@ -25,18 +25,21 @@ import {
   type BookStatCard,
 } from '@/lib/bookFilters';
 import {
+  DIGITAL_BUNDLE_VARIANT_NAME,
   buildComponentOptions,
   bundleItemsByVariant,
+  bundleKindOf,
   computeBundleSummary,
   copyItemsToVariantName,
   type BundleItemDraft,
+  type BundleKind,
   type HideBookPlan,
 } from '@/lib/bundles';
 import {
   Search, Plus, Edit, Trash2, BookOpen, Copy, ToggleLeft,
   ToggleRight, X, Upload, Tag, DollarSign, Package, ExternalLink,
   FileText, Loader2, AlertCircle, ImageIcon, Star,
-  Filter, Globe2, Eye, Layers
+  Filter, Globe2, Eye, Layers, Tablet
 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -140,6 +143,8 @@ interface BundleVariantForm {
   price: string;
   /** Until the admin types a price, it follows the live سعر البناء. */
   priceTouched: boolean;
+  /** An e-book series' product id in App Store Connect / Google Play (empty for a paper bundle). */
+  iap_product_id: string;
 }
 
 const emptyBundleVariant = (name = BUNDLE_VARIANT_NAMES[0]): BundleVariantForm => ({
@@ -148,6 +153,7 @@ const emptyBundleVariant = (name = BUNDLE_VARIANT_NAMES[0]): BundleVariantForm =
   items: [],
   price: '',
   priceTouched: false,
+  iap_product_id: '',
 });
 
 /** Preset copy names plus «مخصص», which opens a box for any other name. */
@@ -727,18 +733,34 @@ export default function Books() {
   // Book vs bundle (مجموعة) — picked when adding, fixed afterwards.
   const [productKind, setProductKind] = useState<'single' | 'bundle'>('single');
   const isBundle = productKind === 'bundle';
+  // A bundle is paper copies (shipped, with stock) or an e-book series (digital copies, one purchase for all). Fixed
+  // when adding, like the product kind.
+  const [bundleKind, setBundleKind] = useState<BundleKind>('paper');
+  const isSeries = isBundle && bundleKind === 'digital';
+  const switchBundleKind = (kind: BundleKind) => {
+    if (kind === bundleKind) return;
+    setBundleKind(kind);
+    const first = emptyBundleVariant(kind === 'digital' ? DIGITAL_BUNDLE_VARIANT_NAME : BUNDLE_VARIANT_NAMES[0]);
+    setBundleVariants([first]);
+    setActiveBundleKey(first._key);
+  };
   // Each copy of a bundle (ورق عادي، مقاس 24*17، ...) has its own books and price.
   const [bundleVariants, setBundleVariants] = useState<BundleVariantForm[]>(() => [emptyBundleVariant()]);
   const [activeBundleKey, setActiveBundleKey] = useState('');
 
-  const componentOptions = useMemo(() => buildComponentOptions(products), [products]);
+  const componentOptions = useMemo(() => buildComponentOptions(products, bundleKind), [products, bundleKind]);
   const componentById = useMemo(
     () => new Map(componentOptions.map((o) => [o.variant_id, o])),
     [componentOptions]
   );
+  // Every copy of either kind, for the product list (it shows paper bundles and series side by side).
+  const allComponentById = useMemo(
+    () => new Map([...buildComponentOptions(products, 'paper'), ...buildComponentOptions(products, 'digital')].map((o) => [o.variant_id, o])),
+    [products]
+  );
   const bundleSummaries = useMemo(
-    () => new Map(bundleVariants.map((bv) => [bv._key, computeBundleSummary(bv.items, componentById)])),
-    [bundleVariants, componentById]
+    () => new Map(bundleVariants.map((bv) => [bv._key, computeBundleSummary(bv.items, componentById, bundleKind)])),
+    [bundleVariants, componentById, bundleKind]
   );
   const activeBundle = bundleVariants.find((bv) => bv._key === activeBundleKey) ?? bundleVariants[0];
   const bundlePriceOf = (bv: BundleVariantForm) => {
@@ -856,6 +878,7 @@ export default function Books() {
     setEbookSizeMb(null);
     setEbookOriginalFilename('');
     setProductKind('single');
+    setBundleKind('paper');
     const first = emptyBundleVariant();
     setBundleVariants([first]);
     setActiveBundleKey(first._key);
@@ -868,6 +891,7 @@ export default function Books() {
     savedSnapshot.current = null;
     setEditProduct(p);
     setProductKind(p.is_bundle ? 'bundle' : 'single');
+    setBundleKind(p.is_bundle ? bundleKindOf(p) : 'paper');
     if (p.is_bundle) {
       const itemsByVariant = bundleItemsByVariant(p);
       const copies: BundleVariantForm[] = (p.product_variants ?? []).map((v) => ({
@@ -877,6 +901,7 @@ export default function Books() {
         items: itemsByVariant.get(v.id) ?? [],
         price: String(v.sale_price ?? v.price ?? ''),
         priceTouched: true,
+        iap_product_id: v.iap_product_id ?? '',
       }));
       const list = copies.length ? copies : [emptyBundleVariant()];
       setBundleVariants(list);
@@ -1082,9 +1107,13 @@ export default function Books() {
         return fail(bv, 'لازم فيها كتابين مختلفين على الأقل');
       }
       if ((bundleSummaries.get(bv._key)?.unknownItems ?? 0) > 0) {
-        return fail(bv, 'فيه كتاب اتمسح أو مبقاش نسخة ورقية. شيله الأول');
+        return fail(bv, isSeries ? 'فيه كتاب اتمسح أو مبقاش له نسخة إلكترونية. شيله الأول' : 'فيه كتاب اتمسح أو مبقاش نسخة ورقية. شيله الأول');
       }
-      if (toNumber(bundlePriceOf(bv)) <= 0) return fail(bv, 'أدخل سعر المجموعة');
+      if (toNumber(bundlePriceOf(bv)) <= 0) return fail(bv, isSeries ? 'أدخل سعر السلسلة' : 'أدخل سعر المجموعة');
+      if (isSeries) {
+        const iapProblem = iapProductIdError(bv.iap_product_id);
+        if (iapProblem) return fail(bv, iapProblem);
+      }
     }
 
     setUploading(true);
@@ -1112,7 +1141,9 @@ export default function Books() {
       return {
         id: bv.id,
         variant_name: bv.variant_name.trim(),
-        variant_type: 'مادي' as const,
+        // A series' single copy is digital and carries its store product id; a paper bundle's copies are physical.
+        variant_type: (isSeries ? 'رقمي' : 'مادي') as 'مادي' | 'رقمي',
+        iap_product_id: isSeries ? bv.iap_product_id.trim() || null : null,
         cost_price: summary.totalCost,
         base_price: basePrice,
         sale_price: price,
@@ -1136,7 +1167,7 @@ export default function Books() {
       keywords: form.keywords
         ? form.keywords.split('،').map((k) => k.trim()).filter(Boolean)
         : [],
-      type: 'ورقي',
+      type: isSeries ? 'رقمي' : 'ورقي',
       is_bundle: true,
       cost_price: cheapest.cost_price,
       base_price: cheapest.base_price,
@@ -1399,7 +1430,7 @@ export default function Books() {
                     filtersLabel: booksFiltersLabel,
                     capped: products.length >= 300,
                     bundleAvailable: (p, variantId) =>
-                      computeBundleSummary(bundleItemsByVariant(p).get(variantId) ?? [], componentById).available,
+                      computeBundleSummary(bundleItemsByVariant(p).get(variantId) ?? [], allComponentById, bundleKindOf(p)).available,
                   }
                 )
               }
@@ -1551,12 +1582,17 @@ export default function Books() {
                             <div className="min-w-0">
                               <p className="text-sm font-semibold text-gray-800 truncate flex items-center gap-1.5">
                                 <span className="truncate">{product.title}</span>
-                                {product.is_bundle && (
+                                {product.is_bundle && (bundleKindOf(product) === 'digital' ? (
+                                  <span className="flex-shrink-0 inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md bg-purple-100 text-purple-800">
+                                    <Tablet size={11} />
+                                    سلسلة إلكترونية
+                                  </span>
+                                ) : (
                                   <span className="flex-shrink-0 inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md bg-amber-100 text-amber-800">
                                     <Layers size={11} />
                                     مجموعة
                                   </span>
-                                )}
+                                ))}
                               </p>
                               <p className="text-xs text-gray-400">{product.author}</p>
                               {product.isbn && (
@@ -1582,7 +1618,7 @@ export default function Books() {
                               const itemsByVariant = bundleItemsByVariant(product);
                               const copies = (product.product_variants ?? []).map((v) => {
                                 const items = itemsByVariant.get(v.id) ?? [];
-                                return { id: v.id, name: v.variant_name, books: items.length, available: computeBundleSummary(items, componentById).available };
+                                return { id: v.id, name: v.variant_name, books: items.length, available: computeBundleSummary(items, allComponentById, bundleKindOf(product)).available };
                               });
                               const availClass = (n: number) => `text-xs ${n === 0 ? 'text-red-500 font-semibold' : 'text-gray-400'}`;
                               if (copies.length <= 1) {
@@ -1590,7 +1626,9 @@ export default function Books() {
                                 return (
                                   <div className="leading-tight">
                                     <p>{only.books.toLocaleString('ar-EG')} كتب</p>
-                                    <p className={availClass(only.available)}>متاح {only.available.toLocaleString('ar-EG')}</p>
+                                    {bundleKindOf(product) === 'digital'
+                                      ? <p className="text-xs text-purple-500">إلكترونية · من غير مخزون</p>
+                                      : <p className={availClass(only.available)}>متاح {only.available.toLocaleString('ar-EG')}</p>}
                                   </div>
                                 );
                               }
@@ -1704,13 +1742,13 @@ export default function Books() {
             <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center">
-                  {isBundle ? <Layers size={18} className="text-blue-700" /> : <BookOpen size={18} className="text-blue-700" />}
+                  {isSeries ? <Tablet size={18} className="text-blue-700" /> : isBundle ? <Layers size={18} className="text-blue-700" /> : <BookOpen size={18} className="text-blue-700" />}
                 </div>
                 <div>
                   <h2 className="font-bold text-gray-800">
                     {editProduct
-                      ? isBundle ? 'تعديل المجموعة' : 'تعديل الكتاب'
-                      : isBundle ? 'إضافة مجموعة جديدة' : 'إضافة كتاب جديد'}
+                      ? isSeries ? 'تعديل السلسلة الإلكترونية' : isBundle ? 'تعديل المجموعة' : 'تعديل الكتاب'
+                      : isSeries ? 'إضافة سلسلة إلكترونية جديدة' : isBundle ? 'إضافة مجموعة جديدة' : 'إضافة كتاب جديد'}
                   </h2>
                   <p className="text-xs text-gray-400">
                     {selectedCountry?.name
@@ -1749,13 +1787,19 @@ export default function Books() {
                   {([
                     { kind: 'single', label: 'كتاب منفرد', icon: BookOpen },
                     { kind: 'bundle', label: 'مجموعة كتب', icon: Layers },
+                    { kind: 'series', label: 'سلسلة إلكترونية', icon: Tablet },
                   ] as const).map(({ kind, label, icon: Icon }) => (
                     <button
                       key={kind}
                       type="button"
-                      onClick={() => setProductKind(kind)}
+                      onClick={() => {
+                        setProductKind(kind === 'single' ? 'single' : 'bundle');
+                        if (kind !== 'single') switchBundleKind(kind === 'series' ? 'digital' : 'paper');
+                      }}
                       className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
-                        productKind === kind ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                        (kind === 'single' ? !isBundle : kind === 'series' ? isSeries : isBundle && !isSeries)
+                          ? 'bg-white text-blue-700 shadow-sm'
+                          : 'text-gray-500 hover:text-gray-700'
                       }`}
                     >
                       <Icon size={14} />
@@ -1765,7 +1809,9 @@ export default function Books() {
                 </div>
                 {isBundle && (
                   <p className="text-xs text-gray-400 mt-2">
-                    المجموعة بتتكون من كتب موجودة بالفعل، وبيعها بيخصم من مخزون الكتب نفسها.
+                    {isSeries
+                      ? 'السلسلة بتتكون من كتب إلكترونية موجودة بالفعل. العميل بيشتريها مرة واحدة ويقرا كل كتبها، ومفيش مخزون ولا شحن. كل كتاب فيها لازم يكون له نسخة إلكترونية بملف.'
+                      : 'المجموعة بتتكون من كتب موجودة بالفعل، وبيعها بيخصم من مخزون الكتب نفسها.'}
                   </p>
                 )}
               </div>
@@ -1773,7 +1819,7 @@ export default function Books() {
 
             <div className="flex gap-2 px-6 py-4 border-b border-gray-100 bg-gray-50/50">
               {tabBtn('info', '📋 المعلومات الأساسية')}
-              {tabBtn('variants', isBundle ? '📚 نسخ المجموعة' : '📦 أنواع النسخ')}
+              {tabBtn('variants', isSeries ? '📚 كتب السلسلة وسعرها' : isBundle ? '📚 نسخ المجموعة' : '📦 أنواع النسخ')}
               {tabBtn('media', '🖼️ الصور والملفات')}
             </div>
 
@@ -1789,13 +1835,13 @@ export default function Books() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                        {isBundle ? 'اسم المجموعة' : 'اسم الكتاب'} <span className="text-red-500">*</span>
+                        {isSeries ? 'اسم السلسلة' : isBundle ? 'اسم المجموعة' : 'اسم الكتاب'} <span className="text-red-500">*</span>
                       </label>
                       <input
                         value={form.title}
                         onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
                         className="input-field"
-                        placeholder={isBundle ? 'مثال: سلسلة الفتح الرباني كاملة' : 'مثال: ذاكرة الجسد'}
+                        placeholder={isSeries ? 'مثال: سلسلة النحو بين يديك (إلكترونية)' : isBundle ? 'مثال: سلسلة الفتح الرباني كاملة' : 'مثال: ذاكرة الجسد'}
                       />
                     </div>
 
@@ -1941,7 +1987,9 @@ export default function Books() {
                         ملخص المجموعة
                       </h4>
                       <p className="text-xs text-blue-700 mb-3 leading-relaxed">
-                        النسخ وكتب كل نسخة وسعرها بيتحددوا من تبويب <b>نسخ المجموعة</b>، ومخزون كل نسخة بيتحسب تلقائيًا من مخزون كتبها.
+                        {isSeries
+                          ? <>كتب السلسلة وسعرها ومعرّف المتجر بيتحددوا من تبويب <b>كتب السلسلة وسعرها</b>. مفيش مخزون ولا شحن.</>
+                          : <>النسخ وكتب كل نسخة وسعرها بيتحددوا من تبويب <b>نسخ المجموعة</b>، ومخزون كل نسخة بيتحسب تلقائيًا من مخزون كتبها.</>}
                       </p>
                       <div className="bg-white rounded-xl overflow-hidden">
                         <table className="w-full text-sm">
@@ -1950,7 +1998,7 @@ export default function Books() {
                               <th className="text-right font-semibold px-3 py-2">النسخة</th>
                               <th className="text-right font-semibold px-3 py-2">الكتب</th>
                               <th className="text-right font-semibold px-3 py-2">السعر</th>
-                              <th className="text-right font-semibold px-3 py-2">المتاح</th>
+                              <th className="text-right font-semibold px-3 py-2">{isSeries ? 'التسليم' : 'المتاح'}</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -1967,7 +2015,7 @@ export default function Books() {
                                     {price > 0 ? `${price.toLocaleString()} ${currencySymbol}` : '—'}
                                   </td>
                                   <td className={`px-3 py-2 font-bold ${bv.items.length > 0 && s?.available === 0 ? 'text-red-500' : 'text-gray-800'}`}>
-                                    {(s?.available ?? 0).toLocaleString('ar-EG')}
+                                    {isSeries ? 'إلكتروني' : (s?.available ?? 0).toLocaleString('ar-EG')}
                                   </td>
                                 </tr>
                               );
@@ -1977,7 +2025,7 @@ export default function Books() {
                       </div>
                       {bundleVariants.some((bv) => bv.items.length < 2) && (
                         <div className="mt-3 bg-red-50 border border-red-100 rounded-xl p-3 text-xs text-red-600 font-semibold">
-                          كل نسخة لازم فيها كتابين على الأقل. كمّلها من تبويب نسخ المجموعة قبل الحفظ.
+                          كل {isSeries ? 'سلسلة' : 'نسخة'} لازم فيها كتابين على الأقل. كمّلها من التبويب التاني قبل الحفظ.
                         </div>
                       )}
                     </div>
@@ -2037,15 +2085,19 @@ export default function Books() {
                 <div className="space-y-4">
                   <div className="flex items-center justify-between gap-3">
                     <div>
-                      <p className="text-sm font-bold text-gray-700">نسخ المجموعة <span className="text-red-500">*</span></p>
+                      <p className="text-sm font-bold text-gray-700">{isSeries ? 'كتب السلسلة وسعرها' : 'نسخ المجموعة'} <span className="text-red-500">*</span></p>
                       <p className="text-xs text-gray-400">
-                        كل نسخة ليها كتبها وسعرها، ومخزونها بيتحسب من مخزون كتبها.
+                        {isSeries
+                          ? 'السلسلة ليها نسخة إلكترونية واحدة: كتبها وسعرها ومعرّف المتجر.'
+                          : 'كل نسخة ليها كتبها وسعرها، ومخزونها بيتحسب من مخزون كتبها.'}
                       </p>
                     </div>
-                    <button onClick={addBundleVariant} className="btn-primary text-sm flex items-center gap-1.5 flex-shrink-0">
-                      <Plus size={14} />
-                      إضافة نسخة
-                    </button>
+                    {!isSeries && (
+                      <button onClick={addBundleVariant} className="btn-primary text-sm flex items-center gap-1.5 flex-shrink-0">
+                        <Plus size={14} />
+                        إضافة نسخة
+                      </button>
+                    )}
                   </div>
 
                   {bundleVariants.length > 1 && (
@@ -2066,7 +2118,7 @@ export default function Books() {
                           >
                             {bv.variant_name || 'بدون اسم'}
                             <span className={`text-xs ${on ? 'text-blue-100' : 'text-gray-400'}`}>
-                              {bv.items.length.toLocaleString('ar-EG')} كتب · متاح {(s?.available ?? 0).toLocaleString('ar-EG')}
+                              {bv.items.length.toLocaleString('ar-EG')} كتب{isSeries ? '' : ` · متاح ${(s?.available ?? 0).toLocaleString('ar-EG')}`}
                             </span>
                           </button>
                         );
@@ -2078,11 +2130,15 @@ export default function Books() {
                     <div className="flex items-center justify-between gap-3">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-xs font-semibold text-gray-500">اسم النسخة</span>
-                        <VariantNameField
-                          value={activeBundle.variant_name}
-                          presets={BUNDLE_VARIANT_NAMES}
-                          onChange={(name) => updateBundleVariant(activeBundle._key, { variant_name: name })}
-                        />
+                        {isSeries ? (
+                          <span className="px-3 py-1.5 rounded-lg bg-white border border-gray-200 text-sm font-semibold text-gray-700">{DIGITAL_BUNDLE_VARIANT_NAME}</span>
+                        ) : (
+                          <VariantNameField
+                            value={activeBundle.variant_name}
+                            presets={BUNDLE_VARIANT_NAMES}
+                            onChange={(name) => updateBundleVariant(activeBundle._key, { variant_name: name })}
+                          />
+                        )}
                       </div>
                       {bundleVariants.length > 1 && (
                         <button
@@ -2104,6 +2160,9 @@ export default function Books() {
                       onPriceChange={(value) => updateBundleVariant(activeBundle._key, { price: value, priceTouched: true })}
                       onResetPrice={() => updateBundleVariant(activeBundle._key, { priceTouched: false })}
                       currencySymbol={currencySymbol}
+                      kind={bundleKind}
+                      iapProductId={activeBundle.iap_product_id}
+                      onIapProductIdChange={(value) => updateBundleVariant(activeBundle._key, { iap_product_id: value })}
                     />
                   </div>
                 </div>

@@ -700,10 +700,15 @@ export function useUpsertProduct() {
       }
 
       if (isBundle) {
+        // A bundle is a set of paper copies OR an e-book series (digital copies), never a mix: the database refuses it
+        // too (bundle_items_validate), this just says so before anything is written.
+        if (new Set(normalizedVariants.map((v) => v.variant_type)).size > 1) {
+          throw new Error('المجموعة إما ورقية أو سلسلة إلكترونية. مينفعش نخلط نسخ ورقية مع إلكترونية');
+        }
         const names = new Set<string>();
         for (const variant of normalizedVariants) {
           const label = `نسخة المجموعة «${variant.variant_name}»`;
-          if (variant.variant_type !== 'مادي') throw new Error(`${label}: المجموعة بتتكون من نسخ ورقية بس`);
+          const digitalSeries = variant.variant_type === 'رقمي';
           if (names.has(variant.variant_name)) throw new Error(`فيه نسختين بنفس الاسم «${variant.variant_name}». غيّر اسم واحدة منهم`);
           names.add(variant.variant_name);
           const items = variant.bundleItems ?? [];
@@ -711,6 +716,10 @@ export function useUpsertProduct() {
           if (distinct.size < 2) throw new Error(`${label}: لازم فيها كتابين مختلفين على الأقل`);
           if (distinct.size !== items.length) {
             throw new Error(`${label}: فيه كتاب متكرر. زوّد عدد نسخه بدل ما تضيفه مرتين`);
+          }
+          // An e-book is bought once: one copy of each book per series (the database enforces it too).
+          if (digitalSeries && items.some((i) => Math.trunc(i.quantity) !== 1)) {
+            throw new Error(`${label}: الكتاب الإلكتروني نسخة واحدة في السلسلة`);
           }
         }
       }
@@ -961,9 +970,9 @@ export function useUpsertProduct() {
         .is('variant_id', null)
         .then(() => {}, () => {});
 
-      // Electronic book entry
+      // Electronic book entry. An e-book SERIES has no file of its own (each of its books has), so it gets no row here.
       const hasDigital = normalizedVariants.some((v) => v.variant_type === 'رقمي');
-      if (hasDigital) {
+      if (hasDigital && !isBundle) {
         const ebookPayload: Record<string, unknown> = {
           product_id: productId,
           is_sold_once: true,
@@ -982,7 +991,7 @@ export function useUpsertProduct() {
         await supabase
           .from('electronic_books')
           .upsert(ebookPayload, { onConflict: 'product_id' });
-      } else if (isEdit) {
+      } else if (isEdit && !isBundle) {
         await supabase.from('electronic_books').delete().eq('product_id', productId);
       }
 

@@ -9,7 +9,21 @@ import type { Product } from '@/hooks/useBooks';
  * admin is still picking books.
  */
 
-/** A physical book copy that can be put inside a bundle. */
+/**
+ * A bundle is either a set of PAPER copies (shipped, with stock) or an e-book SERIES (a set of digital copies: one
+ * purchase gives all the books, nothing to ship or count). The two are never mixed (the database refuses it).
+ */
+export type BundleKind = 'paper' | 'digital';
+
+/** The one copy a series has. */
+export const DIGITAL_BUNDLE_VARIANT_NAME = 'إلكتروني';
+
+/** Which kind a saved bundle is: its copies are digital (a series) or paper. */
+export function bundleKindOf(p: Pick<Product, 'product_variants'>): BundleKind {
+  return (p.product_variants ?? []).some((v) => v.variant_type === 'رقمي') ? 'digital' : 'paper';
+}
+
+/** A book copy that can be put inside a bundle: a physical copy for a paper bundle, a digital one for a series. */
 export interface BundleComponentOption {
   variant_id: string;
   product_id: string;
@@ -41,8 +55,10 @@ export interface BundleSummary {
   bottleneck: { title: string; variant_name: string } | null;
   missingCost: string[];
   missingPrice: string[];
-  /** Items whose book no longer exists (deleted) or isn't a physical copy anymore. */
+  /** Items whose book no longer exists (deleted) or isn't a copy of the right kind anymore. */
   unknownItems: number;
+  /** A series has no stock to run out of (`available` is 0 and means nothing then). */
+  unlimited: boolean;
 }
 
 const round = (n: number, digits: number) => {
@@ -50,13 +66,17 @@ const round = (n: number, digits: number) => {
   return Math.round(n * f) / f;
 };
 
-/** Physical copies of non-bundle products — a bundle can't contain another bundle. */
-export function buildComponentOptions(products: Product[]): BundleComponentOption[] {
+/**
+ * Copies of non-bundle products that fit the kind of bundle: physical ones for a paper bundle, digital ones for a
+ * series. A bundle can't contain another bundle.
+ */
+export function buildComponentOptions(products: Product[], kind: BundleKind = 'paper'): BundleComponentOption[] {
+  const wanted = kind === 'digital' ? 'رقمي' : 'مادي';
   const options: BundleComponentOption[] = [];
   for (const p of products) {
     if (p.is_bundle) continue;
     for (const v of p.product_variants ?? []) {
-      if (v.variant_type !== 'مادي') continue;
+      if (v.variant_type !== wanted) continue;
       options.push({
         variant_id: v.id,
         product_id: p.id,
@@ -66,9 +86,9 @@ export function buildComponentOptions(products: Product[]): BundleComponentOptio
         price: Number(v.sale_price ?? v.price ?? 0) || 0,
         cost: Number(v.cost_price ?? 0) || 0,
         // Same 0.3kg fallback the DB default and the checkout edge
-        // functions use for a copy with no weight set.
-        weight_kg: Number(v.weight_kg ?? 0) || 0.3,
-        available: v.stock == null ? null : Math.max(0, (v.stock ?? 0) - (v.reserved_stock ?? 0)),
+        // functions use for a copy with no weight set. An e-book weighs nothing.
+        weight_kg: kind === 'digital' ? 0 : Number(v.weight_kg ?? 0) || 0.3,
+        available: kind === 'digital' || v.stock == null ? null : Math.max(0, (v.stock ?? 0) - (v.reserved_stock ?? 0)),
         is_active: p.is_active,
       });
     }
@@ -290,8 +310,10 @@ export function copyItemsToVariantName(
 
 export function computeBundleSummary(
   items: BundleItemDraft[],
-  byVariantId: Map<string, BundleComponentOption>
+  byVariantId: Map<string, BundleComponentOption>,
+  kind: BundleKind = 'paper'
 ): BundleSummary {
+  const digital = kind === 'digital';
   let totalCost = 0;
   let buildPrice = 0;
   let weightKg = 0;
@@ -315,6 +337,8 @@ export function computeBundleSummary(
     weightKg += option.weight_kg * qty;
     if (option.cost <= 0) missingCost.push(option.title);
     if (option.price <= 0) missingPrice.push(option.title);
+    // A series has no stock: nothing caps how many can be sold.
+    if (digital) continue;
 
     // A copy with no inventory row in this country counts as zero — same
     // rule as the database, so the form never promises stock the store
@@ -330,10 +354,11 @@ export function computeBundleSummary(
     totalCost: round(totalCost, 2),
     buildPrice: round(buildPrice, 2),
     weightKg: round(weightKg, 3),
-    available: items.length === 0 || !Number.isFinite(available) ? 0 : available,
-    bottleneck,
+    available: digital || items.length === 0 || !Number.isFinite(available) ? 0 : available,
+    bottleneck: digital ? null : bottleneck,
     missingCost,
     missingPrice,
     unknownItems,
+    unlimited: digital,
   };
 }

@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import Layout from '@/components/layout/Layout';
+import PromoCardsSection from '@/components/promo/PromoCardsSection';
 import {
   Image as ImageIcon, Upload, Trash2, ArrowUp, ArrowDown, Eye, EyeOff,
   Loader2, AlertTriangle, ExternalLink, Save, Smartphone, X, Moon,
@@ -382,6 +383,9 @@ export default function HeroSlides() {
             </ul>
           )}
         </div>
+
+        {/* ── صندوق العروض في التطبيق (تحت البانر) ── */}
+        <PromoCardsSection />
       </div>
     </Layout>
   );

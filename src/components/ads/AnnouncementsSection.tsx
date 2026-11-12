@@ -30,17 +30,20 @@ export default function AnnouncementsSection() {
   const swap = useSwapOrder('site_announcements', 'site-announcements');
 
   const [message, setMessage] = useState('');
+  const [audience, setAudience] = useState<Announcement['audience']>('all');
+  const [previewAudience, setPreviewAudience] = useState<'web' | 'app'>('web');
   const [link, setLink] = useState('');
   const [startsAt, setStartsAt] = useState('');
   const [endsAt, setEndsAt] = useState('');
 
   const datesWrong = Boolean(startsAt && endsAt && new Date(endsAt) <= new Date(startsAt));
-  const live = rows.filter((r) => announcementState(r).label === 'ظاهرة الآن');
+  const live = rows.filter((r) => announcementState(r).label === 'ظاهرة الآن' && (r.audience === 'all' || r.audience === previewAudience));
 
   const add = async () => {
     if (!message.trim() || datesWrong) return;
     await save.mutateAsync({
       message: message.trim(),
+      audience,
       link_url: link.trim() || null,
       starts_at: fromLocalInput(startsAt),
       ends_at: fromLocalInput(endsAt),
@@ -57,18 +60,28 @@ export default function AnnouncementsSection() {
       {/* What the strip shows right now. */}
       <div className="rounded-2xl overflow-hidden border border-gray-100">
         <p className="text-xs font-semibold text-gray-500 px-4 py-2 bg-gray-50">معاينة الشريط تحت الهيدر</p>
+        <div className="flex gap-1 px-4 py-2" role="group" aria-label="معاينة حسب المنصة">
+          {(['web', 'app'] as const).map((target) => (
+            <button key={target} type="button" onClick={() => setPreviewAudience(target)} aria-pressed={previewAudience === target} className={`px-3 py-1 text-xs rounded border ${previewAudience === target ? 'bg-indigo-50 border-indigo-400 text-indigo-700' : 'border-gray-200 text-gray-500'}`}>{target === 'web' ? 'الموقع' : 'التطبيق'}</button>
+          ))}
+        </div>
         {live.length ? (
           <div className="bg-gradient-to-l from-[#12448f] to-[#092f6a] text-white text-center text-sm font-bold py-2.5 px-4" data-testid="announcement-preview">
             {live[0].message}
             {live.length > 1 && <span className="opacity-60 font-normal"> · و{live.length - 1} غيرها بالتناوب كل 5 ثواني</span>}
           </div>
         ) : (
-          <p className="text-sm text-gray-400 text-center py-3">مفيش رسالة ظاهرة دلوقتي، فالشريط مش ظاهر في الموقع.</p>
+          <p className="text-sm text-gray-400 text-center py-3">مفيش رسالة ظاهرة على {previewAudience === 'web' ? 'الموقع' : 'التطبيق'} دلوقتي.</p>
         )}
       </div>
 
       <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-3">
         <h2 className="text-sm font-bold text-gray-700">رسالة جديدة</h2>
+        <label className="text-xs text-gray-500 flex flex-col gap-1">تظهر على
+          <select value={audience} onChange={(e) => setAudience(e.target.value as Announcement['audience'])} className={field} aria-label="منصة الرسالة الجديدة">
+            <option value="all">الموقع والتطبيق</option><option value="web">الموقع فقط</option><option value="app">التطبيق فقط</option>
+          </select>
+        </label>
         <textarea
           value={message}
           onChange={(e) => setMessage(e.target.value)}
@@ -135,10 +148,11 @@ function AnnouncementRow({
   onDelete: () => void;
 }) {
   const [message, setMessage] = useState(row.message);
+  const [audience, setAudience] = useState<Announcement['audience']>(row.audience);
   const [link, setLink] = useState(row.link_url ?? '');
   const [startsAt, setStartsAt] = useState(toLocalInput(row.starts_at));
   const [endsAt, setEndsAt] = useState(toLocalInput(row.ends_at));
-  const dirty = message !== row.message || link !== (row.link_url ?? '') || startsAt !== toLocalInput(row.starts_at) || endsAt !== toLocalInput(row.ends_at);
+  const dirty = message !== row.message || audience !== row.audience || link !== (row.link_url ?? '') || startsAt !== toLocalInput(row.starts_at) || endsAt !== toLocalInput(row.ends_at);
   const datesWrong = Boolean(startsAt && endsAt && new Date(endsAt) <= new Date(startsAt));
   const state = announcementState(row);
 
@@ -151,7 +165,11 @@ function AnnouncementRow({
       <div className="flex-1 min-w-0 space-y-2">
         <div className="flex items-center gap-2">
           <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${state.tone}`}>{state.label}</span>
+          <span className="text-[11px] text-gray-500">{row.audience === 'all' ? 'الموقع والتطبيق' : row.audience === 'web' ? 'الموقع فقط' : 'التطبيق فقط'}</span>
         </div>
+        <select value={audience} onChange={(e) => setAudience(e.target.value as Announcement['audience'])} className={field} aria-label="منصة الرسالة">
+          <option value="all">الموقع والتطبيق</option><option value="web">الموقع فقط</option><option value="app">التطبيق فقط</option>
+        </select>
         <input value={message} onChange={(e) => setMessage(e.target.value)} maxLength={200} aria-label="نص الرسالة" className={`${field} w-full`} />
         <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
           <input value={link} onChange={(e) => setLink(e.target.value)} placeholder="رابط (اختياري)" dir="ltr" aria-label="رابط الرسالة" className={field} />
@@ -162,7 +180,7 @@ function AnnouncementRow({
       </div>
       {dirty && (
         <button
-          onClick={() => onSave({ message: message.trim(), link_url: link.trim() || null, starts_at: fromLocalInput(startsAt), ends_at: fromLocalInput(endsAt) })}
+          onClick={() => onSave({ message: message.trim(), audience, link_url: link.trim() || null, starts_at: fromLocalInput(startsAt), ends_at: fromLocalInput(endsAt) })}
           disabled={!message.trim() || datesWrong}
           className="p-2 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 disabled:opacity-40"
           aria-label="حفظ" title="حفظ"

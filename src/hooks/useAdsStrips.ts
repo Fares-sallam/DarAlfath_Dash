@@ -84,6 +84,7 @@ export function useSaveHeaderNav() {
 export interface Announcement {
   id: string;
   message: string;
+  audience: 'all' | 'web' | 'app';
   link_url: string | null;
   is_active: boolean;
   sort_order: number;
@@ -97,7 +98,7 @@ export function useAnnouncements() {
     queryFn: async (): Promise<Announcement[]> => {
       const { data, error } = await supabase
         .from('site_announcements')
-        .select('id, message, link_url, is_active, sort_order, starts_at, ends_at')
+        .select('id, message, audience, link_url, is_active, sort_order, starts_at, ends_at')
         .order('sort_order', { ascending: true })
         .order('created_at', { ascending: true });
       if (error) throw error;

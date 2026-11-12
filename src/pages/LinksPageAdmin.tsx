@@ -113,27 +113,6 @@ export default function LinksPageAdmin() {
             </h1>
             <p className="text-sm text-gray-500 mt-1">صفحة واحدة فيها كل حاجة عن الدار: المتجر والتطبيق والسوشيال والعروض. التغييرات بتظهر في الموقع أول ما تحفظ.</p>
           </div>
-
-          <div className="flex items-center gap-2 flex-wrap">
-            <span dir="ltr" className="hidden md:inline-block max-w-[260px] truncate px-3 py-2 rounded-xl bg-white border border-gray-200 text-xs text-gray-500" title={PAGE_URL}>
-              {PAGE_URL.replace(/^https?:\/\//, '')}
-            </span>
-            <button type="button" onClick={copyUrl} className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 bg-white text-xs font-semibold text-gray-700 hover:bg-gray-50">
-              {copied ? <Check size={14} className="text-green-600" /> : <Copy size={14} />}
-              {copied ? 'تم النسخ' : 'نسخ رابط الصفحة'}
-            </button>
-            <a href={PAGE_URL} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700">
-              <ExternalLink size={14} /> فتح الصفحة
-            </a>
-            {/* beside the editor on a wide screen; below it on a phone, so a button goes there */}
-            <button
-              type="button"
-              onClick={() => document.getElementById('links-preview')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-              className="xl:hidden flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 bg-white text-xs font-semibold text-gray-700 hover:bg-gray-50"
-            >
-              <ArrowDown size={14} /> المعاينة
-            </button>
-          </div>
         </div>
 
         {isLoading && (
@@ -151,6 +130,7 @@ export default function LinksPageAdmin() {
         {ready && (
           <div className="xl:flex xl:items-start xl:gap-6">
             <section className="min-w-0 flex-1 space-y-4 xl:ml-[424px]">
+              <div className="flex items-center gap-2 flex-wrap">
               <div className="flex gap-2 overflow-x-auto pb-1" role="tablist" aria-label="أقسام الصفحة">
                 {TABS.map((t) => {
                   const on = t.key === tab;
@@ -170,6 +150,27 @@ export default function LinksPageAdmin() {
                     </button>
                   );
                 })}
+              </div>
+          <div className="flex items-center gap-2 flex-wrap" data-testid="links-actions">
+            <span dir="ltr" className="hidden md:inline-block max-w-[260px] truncate px-3 py-2 rounded-xl bg-white border border-gray-200 text-xs text-gray-500" title={PAGE_URL}>
+              {PAGE_URL.replace(/^https?:\/\//, '')}
+            </span>
+            <button type="button" onClick={copyUrl} className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 bg-white text-xs font-semibold text-gray-700 hover:bg-gray-50">
+              {copied ? <Check size={14} className="text-green-600" /> : <Copy size={14} />}
+              {copied ? 'تم النسخ' : 'نسخ رابط الصفحة'}
+            </button>
+            <a href={PAGE_URL} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700">
+              <ExternalLink size={14} /> فتح الصفحة
+            </a>
+            {/* beside the editor on a wide screen; below it on a phone, so a button goes there */}
+            <button
+              type="button"
+              onClick={() => document.getElementById('links-preview')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+              className="xl:hidden flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 bg-white text-xs font-semibold text-gray-700 hover:bg-gray-50"
+            >
+              <ArrowDown size={14} /> المعاينة
+            </button>
+          </div>
               </div>
 
               <div role="tabpanel" aria-label={TABS.find((t) => t.key === tab)?.label}>

@@ -30,6 +30,7 @@ import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCountry } from '@/contexts/CountryContext';
 import { useStoreSettings, useUpsertStoreSettings } from '@/hooks/useSettings';
+import ShippingOffersSection from '@/components/shipping/ShippingOffersSection';
 import {
   useShippingStats,
   useShipmentDetail,
@@ -122,32 +123,25 @@ export default function Shipping() {
   const { data: storeSettings } = useStoreSettings();
   const upsertStoreSettings = useUpsertStoreSettings();
   const [shippingCost, setShippingCost] = useState<string>('');
-  const [freeShipThreshold, setFreeShipThreshold] = useState<string>('');
+  // Free shipping moved to offers (ShippingOffersSection, table shipping_offers); this card keeps the flat rate.
 
   useEffect(() => {
     if (storeSettings) {
       setShippingCost(String(storeSettings.default_shipping_cost ?? 45));
-      setFreeShipThreshold(String(storeSettings.free_shipping_threshold ?? 499));
     }
   }, [storeSettings]);
 
   const handleSaveShippingSettings = async () => {
     const cost = Number(shippingCost);
-    const threshold = Number(freeShipThreshold);
 
     if (!Number.isFinite(cost) || cost < 0) {
       toast.error('سعر الشحن يجب أن يكون رقماً موجباً');
-      return;
-    }
-    if (!Number.isFinite(threshold) || threshold < 0) {
-      toast.error('الحد الأدنى للشحن المجاني يجب أن يكون رقماً موجباً');
       return;
     }
 
     try {
       await upsertStoreSettings.mutateAsync({
         default_shipping_cost: cost,
-        free_shipping_threshold: threshold,
       });
       toast.success('تم حفظ إعدادات الشحن');
     } catch (err) {
@@ -344,22 +338,6 @@ export default function Shipping() {
               />
             </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-gray-600 mb-1.5">
-                الحد الأدنى للشحن المجاني ({currencySymbol})
-              </label>
-              <input
-                type="number"
-                min="0"
-                step="any"
-                value={freeShipThreshold}
-                onChange={(e) => setFreeShipThreshold(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl border border-gray-200 focus:border-blue-400 focus:ring-1 focus:ring-blue-200 outline-none text-sm"
-                placeholder="499"
-              />
-              <p className="text-[10px] text-gray-400 mt-1">ضع 0 لإلغاء الشحن المجاني التلقائي</p>
-            </div>
-
             <div className="flex items-end">
               <button
                 onClick={handleSaveShippingSettings}
@@ -376,6 +354,8 @@ export default function Shipping() {
             </div>
           </div>
         </div>
+
+        <ShippingOffersSection />
 
         <ShippingRatesSection />
 

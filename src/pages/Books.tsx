@@ -77,6 +77,9 @@ interface VariantForm {
 interface BookForm {
   title: string;
   author: string;
+  publisher: string;
+  page_count: string;
+  publication_year: string;
   description: string;
   category_id: string;
   isbn: string;
@@ -94,6 +97,9 @@ interface BookForm {
 const emptyForm: BookForm = {
   title: '',
   author: '',
+  publisher: '',
+  page_count: '',
+  publication_year: '',
   description: '',
   category_id: '',
   isbn: '',
@@ -914,6 +920,9 @@ export default function Books() {
     setForm({
       title: p.title,
       author: p.author,
+      publisher: p.publisher ?? '',
+      page_count: p.page_count == null ? '' : String(p.page_count),
+      publication_year: p.publication_year == null ? '' : String(p.publication_year),
       description: p.description ?? '',
       category_id: p.category_id ?? '',
       isbn: p.isbn ?? '',
@@ -1161,6 +1170,9 @@ export default function Books() {
       id: editProduct?.id,
       title: form.title,
       author: form.author,
+      publisher: form.publisher.trim() || null,
+      page_count: form.page_count ? Number(form.page_count) : null,
+      publication_year: form.publication_year ? Number(form.publication_year) : null,
       description: form.description || undefined,
       cover_url: finalCoverUrl || undefined,
       category_id: form.category_id || undefined,
@@ -1183,6 +1195,14 @@ export default function Books() {
   };
 
   const handleSave = async () => {
+    if (form.page_count && (!Number.isInteger(Number(form.page_count)) || Number(form.page_count) <= 0)) {
+      toast.error('عدد الصفحات لازم يكون رقمًا صحيحًا أكبر من صفر');
+      return;
+    }
+    if (form.publication_year && (!Number.isInteger(Number(form.publication_year)) || Number(form.publication_year) < 1000 || Number(form.publication_year) > 2100)) {
+      toast.error('سنة النشر لازم تكون بين 1000 و2100');
+      return;
+    }
     if (!form.title || !form.author) {
       toast.error('العنوان والمؤلف إلزاميان');
       return;
@@ -1273,6 +1293,9 @@ export default function Books() {
       id: editProduct?.id,
       title: form.title,
       author: form.author,
+      publisher: form.publisher.trim() || null,
+      page_count: form.page_count ? Number(form.page_count) : null,
+      publication_year: form.publication_year ? Number(form.publication_year) : null,
       description: form.description || undefined,
       cover_url: finalCoverUrl || undefined,
       category_id: form.category_id || undefined,
@@ -1326,6 +1349,9 @@ export default function Books() {
     await upsertMutation.mutateAsync({
       title: `${p.title} (نسخة)`,
       author: p.author,
+      publisher: p.publisher,
+      page_count: p.page_count,
+      publication_year: p.publication_year,
       description: p.description,
       cover_url: p.cover_url,
       category_id: p.category_id,
@@ -1856,6 +1882,18 @@ export default function Books() {
                         placeholder="اسم المؤلف"
                       />
                     </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <label className="block text-sm font-semibold text-gray-700">الناشر (اختياري)
+                      <input value={form.publisher} onChange={(e) => setForm((f) => ({ ...f, publisher: e.target.value }))} className="input-field mt-1.5" maxLength={160} placeholder="اسم دار النشر" />
+                    </label>
+                    <label className="block text-sm font-semibold text-gray-700">عدد الصفحات (اختياري)
+                      <input type="number" min={1} step={1} value={form.page_count} onChange={(e) => setForm((f) => ({ ...f, page_count: e.target.value }))} className="input-field mt-1.5" placeholder="مثال: 240" />
+                    </label>
+                    <label className="block text-sm font-semibold text-gray-700">سنة النشر (اختياري)
+                      <input type="number" min={1000} max={2100} step={1} value={form.publication_year} onChange={(e) => setForm((f) => ({ ...f, publication_year: e.target.value }))} className="input-field mt-1.5" placeholder="مثال: 2024" />
+                    </label>
                   </div>
 
                   <div>

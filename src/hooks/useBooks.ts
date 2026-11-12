@@ -100,6 +100,9 @@ export interface Product {
   id: string;
   title: string;
   author: string;
+  publisher?: string | null;
+  page_count?: number | null;
+  publication_year?: number | null;
   description?: string;
   cover_url?: string;
   category_id?: string;
@@ -156,6 +159,9 @@ export interface UpsertProductInput {
   id?: string;
   title: string;
   author: string;
+  publisher?: string | null;
+  page_count?: number | null;
+  publication_year?: number | null;
   description?: string;
   cover_url?: string;
   category_id?: string;
@@ -519,7 +525,7 @@ export function useProducts() {
       const { data, error } = await supabase
         .from('products')
         .select(`
-          id, title, author, description, cover_url, category_id, isbn, keywords,
+          id, title, author, publisher, page_count, publication_year, description, cover_url, category_id, isbn, keywords,
           type, cost_price, base_price, sale_price, profit, is_active, is_bundle, created_at, updated_at,
           categories!products_category_id_fkey(id, name, slug),
           product_variants(id, product_id, variant_name, variant_type, sku, iap_product_id, price, cost_price, base_price, sale_price, sale_channel, weight_kg),
@@ -777,6 +783,9 @@ export function useUpsertProduct() {
           .update({
             title: input.title,
             author: input.author,
+            publisher: input.publisher ?? null,
+            page_count: input.page_count ?? null,
+            publication_year: input.publication_year ?? null,
             description: input.description,
             cover_url: input.cover_url,
             category_id: input.category_id || null,
@@ -800,6 +809,9 @@ export function useUpsertProduct() {
           .insert({
             title: input.title,
             author: input.author,
+            publisher: input.publisher ?? null,
+            page_count: input.page_count ?? null,
+            publication_year: input.publication_year ?? null,
             description: input.description,
             cover_url: input.cover_url,
             category_id: input.category_id || null,

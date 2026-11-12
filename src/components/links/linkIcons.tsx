@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react';
 import {
   BookOpen, Calendar, Download, Gift, Globe, GraduationCap, Heart, Library, Link2, Mail, MapPin,
-  Megaphone, Percent, Phone, Play, Smartphone, Sparkles, Star, Store, Tag, Truck, type LucideIcon,
+  Megaphone, Percent, Phone, Smartphone, Sparkles, Star, Store, Tag, Truck, WalletCards, type LucideIcon,
 } from 'lucide-react';
 
 /* The icons a link on the company page can wear (the keys are lib/linksPage's ICON_OPTIONS).
@@ -30,9 +30,20 @@ const TikTok = mark('M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 
 const Telegram = mark('M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z');
 const XMark = mark('M18.901 1.153h3.68l-8.04 9.19L24 22.846h-7.406l-5.8-7.584-6.638 7.584H.474l8.6-9.83L0 1.154h7.594l5.243 6.932ZM17.61 20.644h2.039L6.486 3.24H4.298Z');
 const AppleMark = mark('M12.152 6.896c-.948 0-2.415-1.078-3.96-1.04-2.04.027-3.91 1.183-4.961 3.014-2.117 3.675-.546 9.103 1.519 12.09 1.013 1.454 2.208 3.09 3.792 3.039 1.52-.065 2.09-.987 3.935-.987 1.831 0 2.35.987 3.96.948 1.637-.026 2.676-1.48 3.676-2.948 1.156-1.688 1.636-3.325 1.662-3.415-.039-.013-3.182-1.221-3.22-4.857-.026-3.04 2.48-4.494 2.597-4.559-1.429-2.09-3.623-2.324-4.39-2.376-2-.156-3.675 1.09-4.61 1.09zM15.53 3.83c.843-1.012 1.4-2.427 1.245-3.83-1.207.052-2.662.805-3.532 1.818-.78.896-1.454 2.338-1.273 3.714 1.338.104 2.715-.688 3.559-1.701');
+const VodafoneCash = mark('M12 0A12 12 0 0 0 0 12A12 12 0 0 0 12 24A12 12 0 0 0 24 12A12 12 0 0 0 12 0M16.25 1.12C16.57 1.12 16.9 1.15 17.11 1.22C14.94 1.67 13.21 3.69 13.22 6C13.22 6.05 13.22 6.11 13.23 6.17C16.87 7.06 18.5 9.25 18.5 12.28C18.54 15.31 16.14 18.64 12.09 18.65C8.82 18.66 5.41 15.86 5.39 11.37C5.38 8.4 7 5.54 9.04 3.85C11.04 2.19 13.77 1.13 16.25 1.12Z');
 
-/** Google Play's triangle, filled like the other marks. */
-const GooglePlay: Draw = ({ size, className }) => <Play size={size} className={className} fill="currentColor" />;
+const GooglePlay: Draw = ({ size, className }) => (
+  <svg viewBox="0 0 24 24" width={size} height={size} className={className} aria-hidden="true" focusable="false">
+    <path fill="#EA4335" d="M22.018 13.298l-3.919 2.218-3.515-3.493 3.543-3.521 3.891 2.202a1.49 1.49 0 0 1 0 2.594z" />
+    <path fill="#34A853" d="M1.337.924a1.486 1.486 0 0 0-.112.568v21.017c0 .217.045.419.124.6l11.155-11.087L1.337.924z" />
+    <path fill="#4285F4" d="M13.544 10.989l3.258-3.238L3.45.195a1.466 1.466 0 0 0-.946-.179l11.04 10.973z" />
+    <path fill="#FBBC04" d="m13.544 13.056-11 10.933c.298.036.612-.016.906-.183l13.324-7.54-3.23-3.21z" />
+  </svg>
+);
+
+const InstaPay: Draw = ({ size, className }) => (
+  <img src="/branding/instapay-app.png" width={Math.round(size * 1.5)} height={Math.round(size * 1.5)} alt="" className={className} aria-hidden="true" />
+);
 
 export const LINK_ICONS: Record<string, Draw> = {
   facebook: Facebook,
@@ -53,6 +64,9 @@ export const LINK_ICONS: Record<string, Draw> = {
   app: outline(Smartphone),
   apple: AppleMark,
   googleplay: GooglePlay,
+  instapay: InstaPay,
+  wallets: outline(WalletCards),
+  vodafonecash: VodafoneCash,
   download: outline(Download),
   offer: outline(Tag),
   gift: outline(Gift),

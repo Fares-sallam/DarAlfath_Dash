@@ -44,6 +44,8 @@ export interface ProductVariant {
   cost_price?: number;
   base_price?: number;
   sale_price?: number | null;
+  /** Where the discount applies: website, app, or both (lib/saleChannel). */
+  sale_channel?: 'all' | 'web' | 'app' | null;
   stock?: number | null;
   reserved_stock?: number | null;
   min_stock?: number | null;
@@ -140,6 +142,8 @@ export interface ProductVariantInput {
   cost_price?: number;
   base_price?: number;
   sale_price?: number | null;
+  /** Where the discount applies: website, app, or both (default both). */
+  sale_channel?: 'all' | 'web' | 'app';
   stock?: number | null;
   reserved_stock?: number | null;
   min_stock?: number | null;
@@ -518,7 +522,7 @@ export function useProducts() {
           id, title, author, description, cover_url, category_id, isbn, keywords,
           type, cost_price, base_price, sale_price, profit, is_active, is_bundle, created_at, updated_at,
           categories!products_category_id_fkey(id, name, slug),
-          product_variants(id, product_id, variant_name, variant_type, sku, iap_product_id, price, cost_price, base_price, sale_price, weight_kg),
+          product_variants(id, product_id, variant_name, variant_type, sku, iap_product_id, price, cost_price, base_price, sale_price, sale_channel, weight_kg),
           electronic_books(id, product_id, file_path, file_format, is_sold_once, file_size_mb, protected, watermark, original_filename),
           product_series(series_id, book_series(id, name, author)),
           product_categories(category_id, categories(id, name, slug)),
@@ -843,6 +847,7 @@ export function useUpsertProduct() {
           base_price: variant.base_price,
           sale_price: variant.sale_price,
           price: variant.sale_price,
+          sale_channel: variant.sale_channel ?? 'all',
           weight_kg: variant.weight_kg,
         };
 

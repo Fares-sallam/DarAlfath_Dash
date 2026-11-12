@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
+import { SALE_CHANNEL_LABELS, isSaleChannel, type SaleChannel } from '@/lib/saleChannel';
 import { useSearchParams } from 'react-router-dom';
 import Layout from '@/components/layout/Layout';
 import ReportDownloadButton from '@/components/reports/ReportDownloadButton';
@@ -63,6 +64,8 @@ interface VariantForm {
   cost_price: string;
   base_price: string;
   sale_price: string;
+  /** Where the discount applies: website, app, or both. */
+  sale_channel: SaleChannel;
   stock: string;
   min_stock: string;
   weight_kg: string;
@@ -109,6 +112,7 @@ const emptyVariant = (): VariantForm => ({
   cost_price: '',
   base_price: '',
   sale_price: '',
+  sale_channel: 'all',
   stock: '0',
   min_stock: '5',
   weight_kg: '0.3',
@@ -906,6 +910,7 @@ export default function Books() {
         cost_price: String(v.cost_price ?? 0),
         base_price: String(v.base_price ?? v.price ?? 0),
         sale_price: String(v.sale_price ?? v.price ?? v.base_price ?? 0),
+        sale_channel: isSaleChannel(v.sale_channel) ? v.sale_channel : 'all',
         stock: String(v.stock ?? 0),
         min_stock: String(v.min_stock ?? 5),
         weight_kg: String(v.weight_kg ?? 0.3),
@@ -1265,6 +1270,7 @@ export default function Books() {
           base_price: basePrice,
           sale_price: salePrice,
           price: salePrice,
+          sale_channel: v.sale_channel,
           stock: v.variant_type === 'مادي' ? toNumber(v.stock) : null,
           reserved_stock: 0,
           min_stock: v.variant_type === 'مادي' ? toNumber(v.min_stock, 5) : 0,
@@ -2275,6 +2281,30 @@ export default function Books() {
                                 <p className="text-sm font-bold text-amber-600">
                                   {discountPercent > 0 ? `${discountPercent}%` : 'لا يوجد خصم'}
                                 </p>
+                                {discountPercent > 0 && (
+                                  <label className="mt-2 block text-[11px] text-gray-500">
+                                    الخصم على
+                                    <select
+                                      value={v.sale_channel}
+                                      onChange={(e) =>
+                                        setVariants((prev) =>
+                                          prev.map((x, i) => (i === idx ? { ...x, sale_channel: e.target.value as SaleChannel } : x))
+                                        )
+                                      }
+                                      className="input-field text-xs py-1 h-auto mt-1"
+                                      aria-label={`الخصم على أي قناة للنسخة ${v.variant_name}`}
+                                    >
+                                      {(Object.keys(SALE_CHANNEL_LABELS) as SaleChannel[]).map((c) => (
+                                        <option key={c} value={c}>{SALE_CHANNEL_LABELS[c]}</option>
+                                      ))}
+                                    </select>
+                                    {v.sale_channel !== 'all' && (
+                                      <span className="block mt-1 text-[10px] text-gray-400">
+                                        {v.sale_channel === 'web' ? 'التطبيق' : 'الموقع'} هيبيع بالسعر الأساسي.
+                                      </span>
+                                    )}
+                                  </label>
+                                )}
                               </div>
 
                               <div className="bg-white rounded-xl p-3">

@@ -16,6 +16,7 @@ type TurnstileApi = {
 const SITE_KEY = ((import.meta.env.VITE_TURNSTILE_SITE_KEY as string | undefined) ?? '').trim();
 const SCRIPT_SRC = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
 const TIMEOUT_MS = 60_000;
+const LOAD_TIMEOUT_MS = 10_000;
 
 export const authCaptchaEnabled = () => SITE_KEY.length > 0;
 
@@ -28,19 +29,34 @@ function loadTurnstile(): Promise<TurnstileApi | undefined> {
   if (loading) return loading;
   loading = new Promise((resolve) => {
     let script = document.querySelector<HTMLScriptElement>('script[data-turnstile-script="true"]');
+    let settled = false;
+    const finish = (api?: TurnstileApi) => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timeout);
+      script?.removeEventListener('load', onLoad);
+      script?.removeEventListener('error', onError);
+      if (!api) {
+        script?.remove();
+        loading = null;
+      }
+      resolve(api);
+    };
+    const onLoad = () => finish(turnstile());
+    const onError = () => finish(undefined);
+    const timeout = window.setTimeout(() => finish(undefined), LOAD_TIMEOUT_MS);
     if (!script) {
       script = document.createElement('script');
       script.src = SCRIPT_SRC;
       script.async = true;
       script.defer = true;
       script.dataset.turnstileScript = 'true';
-      document.head.appendChild(script);
     }
-    const done = () => resolve(turnstile());
-    script.addEventListener('load', done, { once: true });
-    script.addEventListener('error', () => { loading = null; resolve(undefined); }, { once: true });
+    script.addEventListener('load', onLoad, { once: true });
+    script.addEventListener('error', onError, { once: true });
+    if (!script.isConnected) document.head.appendChild(script);
     // the tag may have loaded already (added by another widget)
-    window.setTimeout(() => { if (turnstile()) done(); }, 0);
+    window.setTimeout(() => { if (turnstile()) finish(turnstile()); }, 0);
   });
   return loading;
 }

@@ -809,7 +809,8 @@ export function useUpsertProduct() {
             cost_price: summary.cost_price,
             base_price: summary.base_price,
             sale_price: summary.sale_price ?? null,
-            is_active: input.is_active ?? true,
+            // Do not expose a newly-created product until every dependent row is saved.
+            is_active: false,
             is_bundle: isBundle,
           })
           .select()
@@ -953,10 +954,11 @@ export function useUpsertProduct() {
 
         // set_bundle_items' trigger writes the last copy's cost/price onto
         // the product row; restore the across-copies summary books use.
-        await supabase
+        const { error: priceErr } = await supabase
           .from('products')
           .update({ cost_price: summary.cost_price, base_price: summary.base_price, sale_price: summary.sale_price ?? null })
           .eq('id', productId);
+        if (priceErr) throw priceErr;
       }
 
       const removedVariantIds = oldVariantIds.filter((id) => !keptVariantIds.includes(id));
@@ -988,16 +990,19 @@ export function useUpsertProduct() {
         if (input.ebookFileSizeMb !== undefined) ebookPayload.file_size_mb = input.ebookFileSizeMb;
         if (input.ebookOriginalFilename) ebookPayload.original_filename = input.ebookOriginalFilename;
 
-        await supabase
+        const { error: ebookErr } = await supabase
           .from('electronic_books')
           .upsert(ebookPayload, { onConflict: 'product_id' });
+        if (ebookErr) throw ebookErr;
       } else if (isEdit && !isBundle) {
-        await supabase.from('electronic_books').delete().eq('product_id', productId);
+        const { error: ebookErr } = await supabase.from('electronic_books').delete().eq('product_id', productId);
+        if (ebookErr) throw ebookErr;
       }
 
       // Sync series
       if (isEdit) {
-        await supabase.from('product_series').delete().eq('product_id', productId);
+        const { error: seriesErr } = await supabase.from('product_series').delete().eq('product_id', productId);
+        if (seriesErr) throw seriesErr;
       }
 
       if (input.seriesIds && input.seriesIds.length > 0) {
@@ -1006,14 +1011,16 @@ export function useUpsertProduct() {
           series_id: sid,
           sort_order: idx,
         }));
-        await supabase.from('product_series').insert(seriesData);
+        const { error: seriesErr } = await supabase.from('product_series').insert(seriesData);
+        if (seriesErr) throw seriesErr;
       }
 
       // Sync additional categories — exclude the primary category_id so a
       // book never shows the same category twice (once as primary, once
       // as "additional").
       if (isEdit) {
-        await supabase.from('product_categories').delete().eq('product_id', productId);
+        const { error: categoriesErr } = await supabase.from('product_categories').delete().eq('product_id', productId);
+        if (categoriesErr) throw categoriesErr;
       }
 
       const extraCategoryIds = (input.additionalCategoryIds ?? []).filter(
@@ -1024,7 +1031,8 @@ export function useUpsertProduct() {
           product_id: productId,
           category_id: cid,
         }));
-        await supabase.from('product_categories').insert(categoryData);
+        const { error: categoriesErr } = await supabase.from('product_categories').insert(categoryData);
+        if (categoriesErr) throw categoriesErr;
       }
 
       // Additional images
@@ -1036,7 +1044,16 @@ export function useUpsertProduct() {
           sort_order: idx,
           is_primary: img.is_primary ?? false,
         }));
-        await supabase.from('product_images').insert(imgData);
+        const { error: imagesErr } = await supabase.from('product_images').insert(imgData);
+        if (imagesErr) throw imagesErr;
+      }
+
+      if (!isEdit && (input.is_active ?? true)) {
+        const { error: publishErr } = await supabase
+          .from('products')
+          .update({ is_active: true })
+          .eq('id', productId);
+        if (publishErr) throw publishErr;
       }
 
       return { id: productId };
@@ -1052,7 +1069,11 @@ export function useUpsertProduct() {
         toast.success(input.id ? 'تم تحديث الكتاب بنجاح' : 'تم إضافة الكتاب بنجاح');
       }
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => {
+      qc.invalidateQueries({ queryKey: ['products'] });
+      qc.invalidateQueries({ queryKey: ['inventory'] });
+      toast.error(`${e.message} - قد تكون بعض الخطوات اتسجلت. حدّث الصفحة وراجع المنتج قبل المحاولة مرة أخرى.`);
+    },
   });
 }
 

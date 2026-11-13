@@ -3,6 +3,8 @@
    wording" when it is missing, so these defaults are exactly what the app does before anything is saved. */
 
 export interface AppHomeSettings {
+  brand_name_ar: string | null;
+  brand_name_en: string | null;
   free_shipping_bar_enabled: boolean;
   free_shipping_progress_text: string | null;
   free_shipping_done_text: string | null;
@@ -14,6 +16,8 @@ export interface AppHomeSettings {
 }
 
 export const DEFAULT_APP_HOME_SETTINGS: AppHomeSettings = {
+  brand_name_ar: null,
+  brand_name_en: null,
   free_shipping_bar_enabled: true,
   free_shipping_progress_text: null,
   free_shipping_done_text: null,
@@ -28,6 +32,9 @@ export const DEFAULT_APP_HOME_SETTINGS: AppHomeSettings = {
 export const DEFAULT_PROGRESS_TEXT = 'اطلب بـ {threshold} ج.م أو أكثر واحصل على شحن مجاني';
 export const DEFAULT_DONE_TEXT = 'مبروك! طلبك يشمل شحنًا مجانيًا';
 export const DEFAULT_DEPARTMENTS_TITLE = 'أقسام المتجر';
+export const DEFAULT_BRAND_NAME_AR = 'دار الفتح للنشر والتوزيع';
+export const DEFAULT_BRAND_NAME_EN = 'Dar Al-Fath Publishing & Distribution';
+export const MAX_BRAND_NAME_LENGTH = 60;
 
 /** The longest wording the app takes (it cuts anything longer). */
 export const MAX_TEXT_LENGTH = 200;
@@ -43,6 +50,11 @@ export const PLACEHOLDERS = [
 export function cleanText(value: string): string | null {
   const s = value.trim().slice(0, MAX_TEXT_LENGTH);
   return s.length > 0 ? s : null;
+}
+
+export function cleanBrandName(value: string): string | null {
+  const name = value.replace(/[\r\n]+/g, ' ').trim().slice(0, MAX_BRAND_NAME_LENGTH);
+  return name || null;
 }
 
 /** The {words} in a wording that the app does not know (a typo would show up as written, braces and all). */
@@ -62,6 +74,8 @@ export function toSettings(row: Partial<AppHomeSettings> | null | undefined): Ap
   if (!row) return { ...DEFAULT_APP_HOME_SETTINGS };
   const on = (v: unknown) => v !== false;
   return {
+    brand_name_ar: row.brand_name_ar ?? null,
+    brand_name_en: row.brand_name_en ?? null,
     free_shipping_bar_enabled: on(row.free_shipping_bar_enabled),
     free_shipping_progress_text: row.free_shipping_progress_text ?? null,
     free_shipping_done_text: row.free_shipping_done_text ?? null,

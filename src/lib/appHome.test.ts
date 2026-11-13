@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  DEFAULT_APP_HOME_SETTINGS, MAX_TEXT_LENGTH, cartProgress, cleanText, fillTemplate, formatAmount, sameSettings,
+  DEFAULT_APP_HOME_SETTINGS, MAX_TEXT_LENGTH, cartProgress, cleanBrandName, cleanText, fillTemplate, formatAmount, sameSettings,
   toSettings, unknownPlaceholders,
 } from './appHome';
 
@@ -12,6 +12,16 @@ describe('cleanText', () => {
   });
   it('cuts at the length the app takes', () => {
     expect(cleanText('ا'.repeat(500))).toHaveLength(MAX_TEXT_LENGTH);
+  });
+});
+
+describe('cleanBrandName', () => {
+  it('uses the app default for an empty value and keeps the name on one line', () => {
+    expect(cleanBrandName('   ')).toBeNull();
+    expect(cleanBrandName('دار الفتح\nللنشر والتوزيع')).toBe('دار الفتح للنشر والتوزيع');
+  });
+  it('limits the name to what fits the app header', () => {
+    expect(cleanBrandName('a'.repeat(100))).toHaveLength(60);
   });
 });
 
@@ -53,6 +63,7 @@ describe('sameSettings', () => {
     expect(sameSettings(a, { ...a })).toBe(true);
     expect(sameSettings(a, { ...a, show_offers: false })).toBe(false);
     expect(sameSettings(a, { ...a, store_departments_title: 'أقسامنا' })).toBe(false);
+    expect(sameSettings(a, { ...a, brand_name_ar: 'دار أخرى' })).toBe(false);
   });
 });
 

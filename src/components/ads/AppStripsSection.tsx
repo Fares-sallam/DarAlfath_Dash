@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { CheckCircle2, Loader2, RotateCcw, Save, Smartphone, Truck } from 'lucide-react';
+import { CheckCircle2, Loader2, RotateCcw, Save, Smartphone, Store, Truck } from 'lucide-react';
 import { Switch } from './CategoryBarSection';
 import { useAppHomeSettings, useSaveAppHomeSettings } from '@/hooks/useAppHome';
 import { useShippingOffers } from '@/hooks/useShippingOffers';
 import { currentOffer } from '@/lib/shippingOffers';
 import {
-  DEFAULT_APP_HOME_SETTINGS, DEFAULT_DEPARTMENTS_TITLE, DEFAULT_DONE_TEXT, DEFAULT_PROGRESS_TEXT, MAX_TEXT_LENGTH,
-  PLACEHOLDERS, cartProgress, cleanText, fillTemplate, formatAmount, sameSettings, unknownPlaceholders,
+  DEFAULT_APP_HOME_SETTINGS, DEFAULT_BRAND_NAME_AR, DEFAULT_BRAND_NAME_EN, DEFAULT_DEPARTMENTS_TITLE,
+  DEFAULT_DONE_TEXT, DEFAULT_PROGRESS_TEXT, MAX_BRAND_NAME_LENGTH, MAX_TEXT_LENGTH,
+  PLACEHOLDERS, cartProgress, cleanBrandName, cleanText, fillTemplate, formatAmount, sameSettings, unknownPlaceholders,
   type AppHomeSettings,
 } from '@/lib/appHome';
 
@@ -47,6 +48,35 @@ export default function AppStripsSection() {
 
   return (
     <div className="space-y-5">
+      <section className="bg-white rounded-2xl border border-gray-100 p-5 space-y-4" data-testid="app-brand-name">
+        <h2 className="text-sm font-bold text-gray-800 flex items-center gap-2"><Store size={16} className="text-indigo-600" /> اسم الناشر في رئيسية التطبيق</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <label className="block text-xs font-semibold text-gray-600">
+            الاسم بالعربية
+            <input
+              dir="rtl"
+              value={draft.brand_name_ar ?? ''}
+              onChange={(e) => set('brand_name_ar', e.target.value || null)}
+              maxLength={MAX_BRAND_NAME_LENGTH}
+              placeholder={DEFAULT_BRAND_NAME_AR}
+              className={`${field} mt-1`}
+            />
+          </label>
+          <label className="block text-xs font-semibold text-gray-600">
+            الاسم بالإنجليزية
+            <input
+              dir="ltr"
+              value={draft.brand_name_en ?? ''}
+              onChange={(e) => set('brand_name_en', e.target.value || null)}
+              maxLength={MAX_BRAND_NAME_LENGTH}
+              placeholder={DEFAULT_BRAND_NAME_EN}
+              className={`${field} mt-1`}
+            />
+          </label>
+        </div>
+        <p className="text-xs text-gray-500">اترك الحقل فارغًا لاستخدام الاسم الافتراضي.</p>
+      </section>
+
       {/* ── The free-shipping bar ── */}
       <section className="bg-white rounded-2xl border border-gray-100 p-5 space-y-4" data-testid="app-shipping-bar">
         <div className="flex items-start justify-between gap-3">
@@ -181,6 +211,8 @@ export default function AppStripsSection() {
 function normalise(s: AppHomeSettings): AppHomeSettings {
   return {
     ...s,
+    brand_name_ar: cleanBrandName(s.brand_name_ar ?? ''),
+    brand_name_en: cleanBrandName(s.brand_name_en ?? ''),
     free_shipping_progress_text: s.free_shipping_progress_text ? cleanText(s.free_shipping_progress_text) : null,
     free_shipping_done_text: s.free_shipping_done_text ? cleanText(s.free_shipping_done_text) : null,
     store_departments_title: s.store_departments_title ? cleanText(s.store_departments_title) : null,

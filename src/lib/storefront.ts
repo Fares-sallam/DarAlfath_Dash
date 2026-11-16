@@ -3,7 +3,7 @@
  * VITE_STOREFRONT_URL when the store moves to its own domain; until then it is the Vercel address.
  */
 export const STOREFRONT_URL = (
-  (import.meta.env.VITE_STOREFRONT_URL as string | undefined)?.trim() || 'https://dar-alfath-client.vercel.app'
+  (import.meta.env.VITE_STOREFRONT_URL as string | undefined)?.trim() || 'https://darolfath.com/store'
 ).replace(/\/+$/, '');
 
 /** A book's (or bundle's) page in the store. */

@@ -476,7 +476,6 @@ export default function Login() {
             ))}
           </ul>
         </div>
-        <div className="lg-frieze" aria-hidden="true" />
       </aside>
 
       <main className="lg-main">

@@ -83,19 +83,6 @@
   color: var(--lg-teal);
 }
 
-/* the pattern strip along the foot, the one the store uses between its sections */
-.lg-frieze {
-  position: absolute;
-  inset-inline: 0;
-  bottom: 0;
-  height: 26px;
-  background-image: url('/patterns/brand-pattern-night.svg');
-  background-repeat: repeat-x;
-  background-size: auto 78px;
-  background-position: center top;
-  opacity: 0.95;
-}
-
 /* ── The form side ───────────────────────────────────────────────────────── */
 
 .lg-main { position: relative; flex: 1; display: flex; align-items: center; justify-content: center; padding: 28px 20px 40px; isolation: isolate; overflow: hidden; }

@@ -71,6 +71,20 @@ describe('button colours', () => {
     ]);
   });
 
+  it('has the two customer sign-in buttons, with their own css variables, and the original colour until one is chosen', () => {
+    expect(BUTTON_KEYS).toEqual(expect.arrayContaining(['auth_submit', 'auth_tabs']));
+    expect(DEFAULT_APPEARANCE.button_styles.auth_submit).toEqual({ color: 'default', tone: 0, night: { color: 'same', tone: 0 } });
+    // a row saved before they existed has neither: both read as the original colour
+    const old = resolveButtonStyles({ add_to_cart: { color: 'teal', tone: 0 } });
+    expect(old.auth_submit.color).toBe('default');
+    expect(old.auth_tabs.color).toBe('default');
+    const vars = buttonCssVars(resolveButtonStyles({ auth_submit: { color: 'green', tone: 1 }, auth_tabs: { color: 'navy', tone: 0 } }));
+    expect(Object.keys(vars).sort()).toEqual([
+      '--ab-auth-submit-bg', '--ab-auth-submit-fg', '--ab-auth-submit-hover', '--ab-auth-submit-hover-fg',
+      '--ab-auth-tabs-bg', '--ab-auth-tabs-fg', '--ab-auth-tabs-hover', '--ab-auth-tabs-hover-fg',
+    ]);
+  });
+
   it('keeps the text readable on every colour and tone', () => {
     const worst: string[] = [];
     for (const color of BUTTON_COLORS.filter((c): c is Exclude<ButtonColor, 'default'> => c !== 'default')) {

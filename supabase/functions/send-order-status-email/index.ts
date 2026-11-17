@@ -30,7 +30,7 @@ import { corsHeaders } from '../_shared/cors.ts';
 
 const GMAIL_USER         = Deno.env.get('GMAIL_USER')         ?? '';
 const GMAIL_APP_PASSWORD = Deno.env.get('GMAIL_APP_PASSWORD') ?? '';
-const SITE_URL           = Deno.env.get('SITE_URL')           ?? 'https://dar-alfath-client.vercel.app';
+const SITE_URL           = Deno.env.get('SITE_URL')           ?? 'https://darolfath.com';
 const OWNER_EMAIL  = 'faresalsaid780@gmail.com';
 const ADMIN_ROLES  = ['super_admin', 'admin', 'manager'];
 
@@ -157,7 +157,7 @@ function buildEmailHtml(kind: TrackedKind, customerName: string, orderId: string
     </div>
 
     <div style="text-align:center;margin-top:24px">
-      <a href="${SITE_URL}/account/orders" style="display:inline-block;background:${c.accent};color:white;padding:12px 28px;border-radius:12px;text-decoration:none;font-weight:600">
+      <a href="${SITE_URL}/store/account/orders" style="display:inline-block;background:${c.accent};color:white;padding:12px 28px;border-radius:12px;text-decoration:none;font-weight:600">
         عرض طلباتي
       </a>
     </div>

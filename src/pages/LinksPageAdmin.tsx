@@ -6,12 +6,12 @@ import BlocksPanel from '@/components/links/admin/BlocksPanel';
 import PreviewPhone from '@/components/links/admin/PreviewPhone';
 import SettingsPanel from '@/components/links/admin/SettingsPanel';
 import { useLinksPageAdmin, useSaveLinksPage } from '@/hooks/useLinksPageAdmin';
-import { STOREFRONT_URL } from '@/lib/storefront';
+import { LINKS_PAGE_URL } from '@/lib/storefront';
 import {
   DEFAULT_LINKS_SETTINGS, blockToRow, validateBlock, type LinksBlock, type LinksPageSettings,
 } from '@/lib/linksPage';
 
-const PAGE_URL = `${STOREFRONT_URL}/links`;
+const PAGE_URL = LINKS_PAGE_URL;
 
 /** What the saved page and the page on screen are compared by (a block is compared as it would be saved). */
 const signature = (settings: LinksPageSettings, blocks: LinksBlock[]) =>
@@ -23,7 +23,7 @@ const TABS = [
 ] as const;
 
 /**
- * إدارة الصفحة والروابط: the company links page the store shows at /links. Everything is edited here
+ * إدارة الصفحة والروابط: the company links page, the front page of the domain. Everything is edited here
  * (the blocks, their order, the dividers, the page's look) and saved together; the preview beside it
  * is drawn by the same code the store uses, from what is on screen, saved or not.
  */

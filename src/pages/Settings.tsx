@@ -943,7 +943,7 @@ function SeoSection() {
       <div className="border border-gray-200 rounded-2xl p-4 bg-gray-50">
         <p className="text-xs font-semibold text-gray-500 mb-2">معاينة في Google</p>
         <p className="text-blue-700 text-base font-semibold">{seoTitle}</p>
-        <p className="text-xs text-green-700 mt-0.5">https://darelfath.vercel.app</p>
+        <p className="text-xs text-green-700 mt-0.5">https://darolfath.com</p>
         <p className="text-sm text-gray-600 mt-1">{seoDesc.slice(0, 160)}</p>
       </div>
       <button onClick={handleSave} disabled={upsertStore.isPending} className="btn-primary flex items-center gap-2 disabled:opacity-60">

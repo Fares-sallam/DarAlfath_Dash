@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useLogo } from '@/contexts/LogoContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { AUTH_CAPTCHA_ERROR, getAuthCaptchaToken, isCaptchaError } from '@/lib/authCaptcha';
@@ -11,6 +10,9 @@ import {
   KeyRound,
   RefreshCw,
   BookOpen,
+  Truck,
+  BarChart3,
+  Lightbulb,
   Loader2,
   ShieldCheck,
   Eye,
@@ -18,6 +20,8 @@ import {
   Lock,
   CheckCircle2,
 } from 'lucide-react';
+import '@/components/links/linksPageFonts.css';
+import './login.css';
 
 type Step = 'emailPassword' | 'otp' | 'setPassword';
 type Mode = 'login' | 'firstTime' | 'forgotPassword';
@@ -31,12 +35,13 @@ function passwordStrength(
   if (/[0-9]/.test(pw)) score++;
   if (/[^A-Za-z0-9]/.test(pw)) score++;
 
+  // the four steps run from a warning red through the house colours
   const map: Record<number, { label: string; color: string }> = {
-    0: { label: 'ضعيفة جداً', color: 'bg-red-400' },
-    1: { label: 'ضعيفة', color: 'bg-orange-400' },
-    2: { label: 'متوسطة', color: 'bg-yellow-400' },
-    3: { label: 'جيدة', color: 'bg-blue-500' },
-    4: { label: 'قوية', color: 'bg-green-500' },
+    0: { label: 'ضعيفة جداً', color: '#d96a6a' },
+    1: { label: 'ضعيفة', color: '#e39a52' },
+    2: { label: 'متوسطة', color: '#2aa3ab' },
+    3: { label: 'جيدة', color: '#054180' },
+    4: { label: 'قوية', color: '#067e70' },
   };
 
   return { score, ...map[score] };
@@ -44,7 +49,6 @@ function passwordStrength(
 
 export default function Login() {
   const navigate = useNavigate();
-  const { logoUrl } = useLogo();
   const { user, loading: authLoading } = useAuth();
 
   const emailInputRef = useRef<HTMLInputElement | null>(null);
@@ -425,79 +429,72 @@ export default function Login() {
 
   const currentIdx = steps.indexOf(step);
 
-  return (
-    <div className="min-h-screen flex" dir="rtl">
-      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-[#0B1F4D] via-[#102A66] to-[#16377A] items-center justify-center p-12 relative overflow-hidden">
-        <div className="absolute top-0 left-0 w-64 h-64 rounded-full bg-white/5 -translate-x-1/2 -translate-y-1/2" />
-        <div className="absolute bottom-0 right-0 w-96 h-96 rounded-full bg-white/5 translate-x-1/3 translate-y-1/3" />
-        <div className="absolute top-1/2 left-1/2 w-48 h-48 rounded-full bg-[#D4AF37]/10 -translate-x-1/2 -translate-y-1/2" />
+  const FEATURES = [
+    { icon: BookOpen, text: 'إدارة شاملة لآلاف الكتب الورقية والرقمية' },
+    { icon: Truck, text: 'متابعة الطلبات والشحن لجميع محافظات مصر' },
+    { icon: BarChart3, text: 'تحليلات متقدمة وتقارير فورية' },
+  ];
 
-        <div className="relative z-10 text-center max-w-sm">
-          <div className="w-20 h-20 rounded-2xl bg-white/15 flex items-center justify-center mx-auto mb-6 shadow-2xl overflow-hidden">
-            {logoUrl ? (
-              <img
-                src={logoUrl}
-                alt="شعار دار الفتح"
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <BookOpen size={40} className="text-[#D4AF37]" />
-            )}
-          </div>
-
-          <h1 className="text-4xl font-black text-white mb-2">دار الفتح</h1>
-          <p className="text-blue-200/80 text-lg mb-8">للنشر والتوزيع</p>
-
-          <div className="space-y-4 text-right">
-            {[
-              { icon: '📚', text: 'إدارة شاملة لآلاف الكتب الورقية والرقمية' },
-              { icon: '📦', text: 'متابعة الطلبات والشحن لجميع محافظات مصر' },
-              { icon: '📊', text: 'تحليلات متقدمة وتقارير فورية' },
-            ].map((item, i) => (
-              <div
-                key={i}
-                className="flex items-center gap-3 bg-white/10 rounded-2xl px-4 py-3"
-              >
-                <span className="text-2xl">{item.icon}</span>
-                <span className="text-white/90 text-sm font-medium">
-                  {item.text}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
+  const EmailField = (
+    <div>
+      <label className="lg-label" htmlFor="login-email">البريد الإلكتروني</label>
+      <div className="lg-input">
+        <input
+          id="login-email"
+          ref={emailInputRef}
+          type="email"
+          name="email"
+          autoComplete="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="admin@darelfath.com"
+          required
+          autoFocus
+          className="lg-input__el"
+          dir="ltr"
+        />
+        <Mail size={18} className="lg-input__icon" />
       </div>
+    </div>
+  );
 
-      <div className="flex-1 flex items-center justify-center bg-gray-50 p-6">
-        <div className="w-full max-w-md">
-          <div className="lg:hidden text-center mb-8">
-            <div className="w-16 h-16 rounded-2xl bg-[#0B1F4D] flex items-center justify-center mx-auto mb-3 overflow-hidden">
-              {logoUrl ? (
-                <img
-                  src={logoUrl}
-                  alt="شعار دار الفتح"
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <BookOpen size={30} className="text-[#D4AF37]" />
-              )}
-            </div>
-            <h1 className="text-2xl font-black text-[#0B1F4D]">دار الفتح</h1>
-          </div>
+  return (
+    <div className="lg-root" dir="rtl">
+      <aside className="lg-brand">
+        <div className="lg-brand__pattern" aria-hidden="true" />
+        <div className="lg-brand__inner">
+          <img className="lg-brand__logo lg-rise" style={{ '--i': 0 } as React.CSSProperties} src="/branding/logo-horizontal-dark.svg" alt="دار الفتح للنشر والتوزيع" width={3214} height={850} />
+          <h1 className="lg-brand__title lg-rise" style={{ '--i': 1 } as React.CSSProperties}>
+            المكتبة والمتجر والطلبات،<br /><em>في لوحة واحدة</em>
+          </h1>
+          <ul className="lg-brand__list">
+            {FEATURES.map(({ icon: Icon, text }, i) => (
+              <li key={text} className="lg-brand__item lg-rise" style={{ '--i': i + 2 } as React.CSSProperties}>
+                <span><Icon size={19} aria-hidden="true" /></span>
+                <span>{text}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div className="lg-frieze" aria-hidden="true" />
+      </aside>
 
-          <div className="bg-white rounded-3xl shadow-xl p-8">
+      <main className="lg-main">
+        <div className="lg-wash" aria-hidden="true" />
+        <div className="lg-wash lg-wash--end" aria-hidden="true" />
+
+        <div className="lg-col">
+          <img className="lg-mobile-logo lg-rise" src="/branding/logo-horizontal.svg" alt="دار الفتح للنشر والتوزيع" width={3214} height={850} />
+
+          <section className="lg-card lg-rise" style={{ '--i': 1 } as React.CSSProperties}>
             {step === 'emailPassword' && (
-              <>
-                <div className="mb-7">
-                  <div className="flex items-center gap-3 mb-1">
-                    <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
-                      {mode === 'forgotPassword' ? (
-                        <Lock size={18} className="text-blue-700" />
-                      ) : (
-                        <Mail size={18} className="text-blue-700" />
-                      )}
+              <div className="lg-step" key={`main-${mode}`}>
+                <div className="lg-head">
+                  <div className="lg-head__row">
+                    <div className="lg-chip">
+                      {mode === 'forgotPassword' ? <Lock size={20} /> : <Mail size={20} />}
                     </div>
-                    <h2 className="text-xl font-black text-gray-900">
+                    <h2 className="lg-title">
                       {mode === 'forgotPassword'
                         ? 'استعادة كلمة المرور'
                         : mode === 'firstTime'
@@ -505,8 +502,7 @@ export default function Login() {
                         : 'تسجيل الدخول'}
                     </h2>
                   </div>
-
-                  <p className="text-sm text-gray-500 mt-1">
+                  <p className="lg-sub">
                     {mode === 'forgotPassword'
                       ? 'أدخل بريدك وسنرسل كود تحقق لإعادة تعيين كلمة المرور'
                       : mode === 'firstTime'
@@ -516,38 +512,14 @@ export default function Login() {
                 </div>
 
                 {mode === 'login' && (
-                  <form onSubmit={handleLogin} className="space-y-5" autoComplete="on">
-                    <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">
-                        البريد الإلكتروني
-                      </label>
-                      <div className="relative">
-                        <input
-                          ref={emailInputRef}
-                          type="email"
-                          name="email"
-                          autoComplete="email"
-                          value={email}
-                          onChange={(e) => setEmail(e.target.value)}
-                          placeholder="admin@darelfath.com"
-                          required
-                          autoFocus
-                          className="w-full h-12 pr-11 pl-4 rounded-2xl border-2 border-gray-200 bg-gray-50 text-sm focus:outline-none focus:border-blue-600 transition-colors"
-                          dir="ltr"
-                        />
-                        <Mail
-                          size={17}
-                          className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400"
-                        />
-                      </div>
-                    </div>
+                  <form onSubmit={handleLogin} className="lg-form" autoComplete="on">
+                    {EmailField}
 
                     <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">
-                        كلمة المرور
-                      </label>
-                      <div className="relative">
+                      <label className="lg-label" htmlFor="login-password">كلمة المرور</label>
+                      <div className="lg-input">
                         <input
+                          id="login-password"
                           ref={passwordInputRef}
                           type={showPw ? 'text' : 'password'}
                           name="password"
@@ -556,57 +528,44 @@ export default function Login() {
                           onChange={(e) => setPassword(e.target.value)}
                           placeholder="••••••••"
                           required
-                          className="w-full h-12 pr-11 pl-10 rounded-2xl border-2 border-gray-200 bg-gray-50 text-sm focus:outline-none focus:border-blue-600 transition-colors"
+                          className="lg-input__el lg-input__el--eye"
                           dir="ltr"
                         />
-                        <Lock
-                          size={17}
-                          className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400"
-                        />
+                        <Lock size={18} className="lg-input__icon" />
                         <button
                           type="button"
-                          onClick={() => setShowPw((s) => !s)}
-                          className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                          onClick={() => setShowPw((v) => !v)}
+                          className="lg-input__eye"
+                          aria-label={showPw ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور'}
                         >
-                          {showPw ? <EyeOff size={17} /> : <Eye size={17} />}
+                          {showPw ? <EyeOff size={18} /> : <Eye size={18} />}
                         </button>
                       </div>
                     </div>
 
-                    <button
-                      type="submit"
-                      disabled={loading || authLoading}
-                      className="w-full h-12 bg-[#0B1F4D] hover:bg-[#162d6e] disabled:opacity-60 text-white font-bold rounded-2xl flex items-center justify-center gap-2 transition-colors"
-                    >
-                      {loading || authLoading ? (
-                        <Loader2 size={18} className="animate-spin" />
-                      ) : (
-                        <KeyRound size={18} />
-                      )}
-                      {loading || authLoading
-                        ? 'جارٍ تسجيل الدخول...'
-                        : 'تسجيل الدخول'}
+                    <button type="submit" disabled={loading || authLoading} className="lg-btn">
+                      {loading || authLoading ? <Loader2 size={19} className="animate-spin" /> : <KeyRound size={19} />}
+                      {loading || authLoading ? 'جارٍ تسجيل الدخول...' : 'تسجيل الدخول'}
                     </button>
 
-                    <div className="flex items-center justify-between pt-1">
+                    <div className="lg-links">
                       <button
                         type="button"
                         onClick={() => {
                           setMode('forgotPassword');
                           setPassword('');
                         }}
-                        className="text-sm text-blue-700 font-semibold hover:underline"
+                        className="lg-link"
                       >
                         نسيت كلمة المرور؟
                       </button>
-
                       <button
                         type="button"
                         onClick={() => {
                           setMode('firstTime');
                           setPassword('');
                         }}
-                        className="text-sm text-gray-500 font-semibold hover:underline"
+                        className="lg-link lg-link--muted"
                       >
                         أول مرة؟ تعيين كلمة مرور
                       </button>
@@ -615,43 +574,11 @@ export default function Login() {
                 )}
 
                 {(mode === 'forgotPassword' || mode === 'firstTime') && (
-                  <div className="space-y-5">
-                    <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">
-                        البريد الإلكتروني
-                      </label>
-                      <div className="relative">
-                        <input
-                          ref={emailInputRef}
-                          type="email"
-                          name="email"
-                          autoComplete="email"
-                          value={email}
-                          onChange={(e) => setEmail(e.target.value)}
-                          placeholder="admin@darelfath.com"
-                          required
-                          autoFocus
-                          className="w-full h-12 pr-11 pl-4 rounded-2xl border-2 border-gray-200 bg-gray-50 text-sm focus:outline-none focus:border-blue-600 transition-colors"
-                          dir="ltr"
-                        />
-                        <Mail
-                          size={17}
-                          className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400"
-                        />
-                      </div>
-                    </div>
+                  <div className="lg-form">
+                    {EmailField}
 
-                    <button
-                      type="button"
-                      onClick={handleSendOtp}
-                      disabled={loading}
-                      className="w-full h-12 bg-[#0B1F4D] hover:bg-[#162d6e] disabled:opacity-60 text-white font-bold rounded-2xl flex items-center justify-center gap-2 transition-colors"
-                    >
-                      {loading ? (
-                        <Loader2 size={18} className="animate-spin" />
-                      ) : (
-                        <Mail size={18} />
-                      )}
+                    <button type="button" onClick={handleSendOtp} disabled={loading} className="lg-btn">
+                      {loading ? <Loader2 size={19} className="animate-spin" /> : <Mail size={19} />}
                       {loading
                         ? 'جارٍ الإرسال...'
                         : mode === 'forgotPassword'
@@ -668,45 +595,34 @@ export default function Login() {
                         setNewPw('');
                         setConfirmPw('');
                       }}
-                      className="w-full flex items-center justify-center gap-1.5 text-sm text-gray-500 font-semibold hover:underline"
+                      className="lg-link lg-link--muted lg-link--center"
                     >
-                      <ArrowLeft size={13} /> العودة لتسجيل الدخول
+                      <ArrowLeft size={14} /> العودة لتسجيل الدخول
                     </button>
                   </div>
                 )}
-              </>
+              </div>
             )}
 
             {step === 'otp' && (
-              <>
-                <div className="mb-7">
-                  <button
-                    onClick={resetToMain}
-                    className="flex items-center gap-1.5 text-gray-400 hover:text-gray-600 text-sm mb-4 transition-colors"
-                  >
+              <div className="lg-step" key="otp">
+                <div className="lg-head">
+                  <button type="button" onClick={resetToMain} className="lg-back">
                     <ArrowLeft size={14} /> تغيير البريد
                   </button>
-
-                  <div className="flex items-center gap-3 mb-1">
-                    <div className="w-10 h-10 rounded-xl bg-green-50 flex items-center justify-center">
-                      <ShieldCheck size={18} className="text-green-600" />
-                    </div>
-                    <h2 className="text-xl font-black text-gray-900">
-                      {mode === 'forgotPassword' ? 'كود الاستعادة' : 'كود التحقق'}
-                    </h2>
+                  <div className="lg-head__row">
+                    <div className="lg-chip lg-chip--teal"><ShieldCheck size={20} /></div>
+                    <h2 className="lg-title">{mode === 'forgotPassword' ? 'كود الاستعادة' : 'كود التحقق'}</h2>
                   </div>
-
-                  <p className="text-sm text-gray-500 mt-1">
-                    تم إرسال كود مكون من{' '}
-                    <span className="font-bold text-blue-700">6 أرقام</span> إلى
-                  </p>
-                  <p className="text-sm font-bold text-gray-800 mt-0.5" dir="ltr">
-                    {email}
+                  <p className="lg-sub">
+                    تم إرسال كود مكون من <strong style={{ color: '#054180' }}>6 أرقام</strong> إلى
+                    <br />
+                    <span dir="ltr" style={{ fontWeight: 700, color: '#0e2542' }}>{email}</span>
                   </p>
                 </div>
 
-                <form id="otp-form" onSubmit={handleVerifyOtp} className="space-y-6">
-                  <div className="flex justify-center gap-3" dir="ltr">
+                <form id="otp-form" onSubmit={handleVerifyOtp} className="lg-form" style={{ gap: 22 }}>
+                  <div className="lg-otp" dir="ltr">
                     {otp.map((digit, i) => (
                       <input
                         key={i}
@@ -718,84 +634,53 @@ export default function Login() {
                         onChange={(e) => handleOtpChange(i, e.target.value)}
                         onKeyDown={(e) => handleOtpKeyDown(i, e)}
                         onPaste={handleOtpPaste}
-                        className={`w-12 h-14 text-center text-xl font-black rounded-2xl border-2 transition-all focus:outline-none ${
-                          digit
-                            ? 'border-blue-600 bg-blue-50 text-blue-800'
-                            : 'border-gray-200 bg-gray-50 focus:border-blue-400'
-                        }`}
+                        aria-label={`الرقم ${i + 1} من الكود`}
+                        className={`lg-otp__el${digit ? ' lg-otp__el--filled' : ''}`}
                       />
                     ))}
                   </div>
 
-                  <button
-                    type="submit"
-                    disabled={loading || otp.join('').length < 6}
-                    className="w-full h-12 bg-[#0B1F4D] hover:bg-[#162d6e] disabled:opacity-60 text-white font-bold rounded-2xl flex items-center justify-center gap-2 transition-colors"
-                  >
-                    {loading ? (
-                      <Loader2 size={18} className="animate-spin" />
-                    ) : (
-                      <KeyRound size={18} />
-                    )}
+                  <button type="submit" disabled={loading || otp.join('').length < 6} className="lg-btn">
+                    {loading ? <Loader2 size={19} className="animate-spin" /> : <KeyRound size={19} />}
                     {loading ? 'جارٍ التحقق...' : 'تأكيد الكود'}
                   </button>
 
-                  <div className="text-center">
+                  <div style={{ textAlign: 'center' }}>
                     {resendCountdown > 0 ? (
-                      <p className="text-sm text-gray-400">
-                        إعادة الإرسال بعد{' '}
-                        <span className="font-bold text-blue-700">
-                          {resendCountdown}
-                        </span>{' '}
-                        ثانية
+                      <p style={{ margin: 0, fontSize: 13.5, color: '#7d93a8' }}>
+                        إعادة الإرسال بعد <strong style={{ color: '#054180' }}>{resendCountdown}</strong> ثانية
                       </p>
                     ) : (
-                      <button
-                        type="button"
-                        onClick={handleSendOtp}
-                        className="text-sm text-blue-700 font-semibold hover:underline flex items-center gap-1.5 mx-auto"
-                      >
-                        <RefreshCw size={13} /> لم تستلم الكود؟ إعادة الإرسال
+                      <button type="button" onClick={handleSendOtp} className="lg-link lg-link--center">
+                        <RefreshCw size={14} /> لم تستلم الكود؟ إعادة الإرسال
                       </button>
                     )}
                   </div>
                 </form>
 
-                <div className="mt-5 bg-amber-50 border border-amber-100 rounded-2xl p-3 flex items-start gap-2">
-                  <span className="text-lg mt-0.5">💡</span>
-                  <p className="text-xs text-amber-800">
-                    افحص مجلد <strong>Spam</strong> أو <strong>Junk</strong> إذا لم يصل الكود
-                  </p>
+                <div className="lg-tip">
+                  <Lightbulb size={16} />
+                  <p style={{ margin: 0 }}>افحص مجلد <strong>Spam</strong> أو <strong>Junk</strong> إذا لم يصل الكود</p>
                 </div>
-              </>
+              </div>
             )}
 
             {step === 'setPassword' && (
-              <>
-                <div className="mb-7">
-                  <div className="flex items-center gap-3 mb-1">
-                    <div className="w-10 h-10 rounded-xl bg-purple-50 flex items-center justify-center">
-                      <Lock size={18} className="text-purple-700" />
-                    </div>
-                    <h2 className="text-xl font-black text-gray-900">
-                      {mode === 'forgotPassword'
-                        ? 'كلمة مرور جديدة'
-                        : 'تعيين كلمة المرور'}
-                    </h2>
+              <div className="lg-step" key="setPassword">
+                <div className="lg-head">
+                  <div className="lg-head__row">
+                    <div className="lg-chip"><Lock size={20} /></div>
+                    <h2 className="lg-title">{mode === 'forgotPassword' ? 'كلمة مرور جديدة' : 'تعيين كلمة المرور'}</h2>
                   </div>
-
-                  <div className="mt-2 flex items-center gap-1.5 text-xs text-green-600 font-semibold">
-                    <CheckCircle2 size={13} /> تم التحقق من البريد الإلكتروني
-                  </div>
+                  <div className="lg-ok"><CheckCircle2 size={15} /> تم التحقق من البريد الإلكتروني</div>
                 </div>
 
-                <form onSubmit={handleSetPassword} className="space-y-5">
+                <form onSubmit={handleSetPassword} className="lg-form">
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      كلمة المرور
-                    </label>
-                    <div className="relative">
+                    <label className="lg-label" htmlFor="new-password">كلمة المرور</label>
+                    <div className="lg-input">
                       <input
+                        id="new-password"
                         type={showNewPw ? 'text' : 'password'}
                         value={newPw}
                         onChange={(e) => setNewPw(e.target.value)}
@@ -803,86 +688,64 @@ export default function Login() {
                         required
                         autoFocus
                         autoComplete="new-password"
-                        className="w-full h-12 pr-11 pl-10 rounded-2xl border-2 border-gray-200 bg-gray-50 text-sm focus:outline-none focus:border-purple-500 transition-colors"
+                        className="lg-input__el lg-input__el--eye"
                         dir="ltr"
                       />
-                      <Lock
-                        size={17}
-                        className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400"
-                      />
+                      <Lock size={18} className="lg-input__icon" />
                       <button
                         type="button"
-                        onClick={() => setShowNewPw((s) => !s)}
-                        className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                        onClick={() => setShowNewPw((v) => !v)}
+                        className="lg-input__eye"
+                        aria-label={showNewPw ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور'}
                       >
-                        {showNewPw ? <EyeOff size={17} /> : <Eye size={17} />}
+                        {showNewPw ? <EyeOff size={18} /> : <Eye size={18} />}
                       </button>
                     </div>
 
                     {newPw && (
-                      <div className="mt-2">
-                        <div className="flex gap-1 mb-1">
+                      <>
+                        <div className="lg-strength" aria-hidden="true">
                           {[0, 1, 2, 3].map((i) => (
-                            <div
-                              key={i}
-                              className={`h-1.5 flex-1 rounded-full transition-all ${
-                                i < pwStrength.score ? pwStrength.color : 'bg-gray-100'
-                              }`}
-                            />
+                            <i key={i} style={i < pwStrength.score ? { background: pwStrength.color } : undefined} />
                           ))}
                         </div>
-                        <p className="text-xs text-gray-500">
-                          قوة: <span className="font-semibold">{pwStrength.label}</span>
+                        <p className="lg-strength-note">
+                          قوة: <strong style={{ color: pwStrength.color }}>{pwStrength.label}</strong>
                         </p>
-                      </div>
+                      </>
                     )}
                   </div>
 
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      تأكيد كلمة المرور
-                    </label>
-                    <div className="relative">
+                    <label className="lg-label" htmlFor="confirm-password">تأكيد كلمة المرور</label>
+                    <div className="lg-input">
                       <input
+                        id="confirm-password"
                         type={showConfirmPw ? 'text' : 'password'}
                         value={confirmPw}
                         onChange={(e) => setConfirmPw(e.target.value)}
                         placeholder="أعد إدخال كلمة المرور"
                         required
                         autoComplete="new-password"
-                        className={`w-full h-12 pr-11 pl-10 rounded-2xl border-2 bg-gray-50 text-sm focus:outline-none transition-colors ${
-                          confirmPw && newPw !== confirmPw
-                            ? 'border-red-400'
-                            : confirmPw && newPw === confirmPw
-                            ? 'border-green-400'
-                            : 'border-gray-200 focus:border-purple-500'
+                        className={`lg-input__el lg-input__el--eye${
+                          confirmPw && newPw !== confirmPw ? ' lg-input__el--bad' : confirmPw && newPw === confirmPw ? ' lg-input__el--good' : ''
                         }`}
                         dir="ltr"
                       />
-                      <Lock
-                        size={17}
-                        className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400"
-                      />
+                      <Lock size={18} className="lg-input__icon" />
                       <button
                         type="button"
-                        onClick={() => setShowConfirmPw((s) => !s)}
-                        className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                        onClick={() => setShowConfirmPw((v) => !v)}
+                        className="lg-input__eye"
+                        aria-label={showConfirmPw ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور'}
                       >
-                        {showConfirmPw ? <EyeOff size={17} /> : <Eye size={17} />}
+                        {showConfirmPw ? <EyeOff size={18} /> : <Eye size={18} />}
                       </button>
                     </div>
                   </div>
 
-                  <button
-                    type="submit"
-                    disabled={loading || newPw.length < 8 || newPw !== confirmPw}
-                    className="w-full h-12 bg-[#0B1F4D] hover:bg-[#162d6e] disabled:opacity-60 text-white font-bold rounded-2xl flex items-center justify-center gap-2 transition-colors"
-                  >
-                    {loading ? (
-                      <Loader2 size={18} className="animate-spin" />
-                    ) : (
-                      <Lock size={18} />
-                    )}
+                  <button type="submit" disabled={loading || newPw.length < 8 || newPw !== confirmPw} className="lg-btn">
+                    {loading ? <Loader2 size={19} className="animate-spin" /> : <Lock size={19} />}
                     {loading
                       ? 'جارٍ الحفظ...'
                       : mode === 'forgotPassword'
@@ -890,37 +753,23 @@ export default function Login() {
                       : 'تعيين كلمة المرور والدخول'}
                   </button>
                 </form>
-              </>
+              </div>
             )}
 
             {mode !== 'login' && (
-              <div className="flex justify-center gap-2 mt-6">
-                {steps.map((s, i) => {
-                  const isActive = step === s;
-                  const isDone = i < currentIdx;
-
-                  return (
-                    <div
-                      key={s}
-                      className={`rounded-full transition-all ${
-                        isActive
-                          ? 'w-6 h-2 bg-[#0B1F4D]'
-                          : isDone
-                          ? 'w-2 h-2 bg-[#D4AF37]'
-                          : 'w-2 h-2 bg-gray-200'
-                      }`}
-                    />
-                  );
-                })}
+              <div className="lg-dots" aria-hidden="true">
+                {steps.map((s, i) => (
+                  <i key={s} data-on={step === s ? 'active' : i < currentIdx ? 'done' : 'idle'} />
+                ))}
               </div>
             )}
-          </div>
+          </section>
 
-          <p className="text-center text-xs text-gray-400 mt-4">
+          <p className="lg-foot lg-rise" style={{ '--i': 2 } as React.CSSProperties}>
             دار الفتح للنشر والتوزيع · © 2025 جميع الحقوق محفوظة
           </p>
         </div>
-      </div>
+      </main>
     </div>
   );
 }

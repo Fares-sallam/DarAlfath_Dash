@@ -25,11 +25,10 @@
 //  caller shouldn't treat that as a failure.
 // ════════════════════════════════════════════════════════════════════════
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { SMTPClient } from 'https://deno.land/x/denomailer@1.6.0/mod.ts';
 import { corsHeaders } from '../_shared/cors.ts';
 
-const GMAIL_USER         = Deno.env.get('GMAIL_USER')         ?? '';
-const GMAIL_APP_PASSWORD = Deno.env.get('GMAIL_APP_PASSWORD') ?? '';
+const RESEND_API_KEY     = Deno.env.get('RESEND_API_KEY')     ?? '';
+const EMAIL_FROM         = Deno.env.get('EMAIL_FROM')         ?? 'Dar Alfath <info@darolfath.com>';
 const SITE_URL           = Deno.env.get('SITE_URL')           ?? 'https://darolfath.com';
 const OWNER_EMAIL  = 'faresalsaid780@gmail.com';
 const ADMIN_ROLES  = ['super_admin', 'admin', 'manager'];
@@ -172,34 +171,21 @@ function buildEmailHtml(kind: TrackedKind, customerName: string, orderId: string
 </html>`;
 }
 
-async function sendViaSmtp(to: string, subject: string, html: string) {
-  const client = new SMTPClient({
-    connection: {
-      hostname: 'smtp.gmail.com',
-      port:     465,
-      tls:      true,
-      auth: {
-        username: GMAIL_USER,
-        password: GMAIL_APP_PASSWORD,
-      },
+// Resend's HTTPS API (the darolfath.com domain is verified there). Throws on any
+// non-2xx answer so the callers' try/catch keeps reporting per-recipient errors.
+async function sendEmail(to: string, subject: string, html: string) {
+  const res = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${RESEND_API_KEY}`,
+      'Content-Type': 'application/json',
     },
+    body: JSON.stringify({ from: EMAIL_FROM, to: [to], subject, html }),
   });
-
-  try {
-    await client.send({
-      // ASCII-only display name — denomailer's header encoder mis-folds long
-      // non-ASCII Subject/From values (confirmed live: an Arabic subject
-      // arrived as raw undecoded quoted-printable, corrupting the whole
-      // message). The Arabic branding lives in the HTML body instead, which
-      // isn't subject to this header-folding bug.
-      from:    `Dar Alfath <${GMAIL_USER}>`,
-      to,
-      subject,
-      content: 'text/html',
-      html,
-    });
-  } finally {
-    await client.close();
+  if (!res.ok) {
+    let detail = '';
+    try { detail = ((await res.json()) as { message?: string }).message ?? ''; } catch { /* not JSON */ }
+    throw new Error(`Resend ${res.status}${detail ? `: ${detail}` : ''}`);
   }
 }
 
@@ -275,9 +261,9 @@ Deno.serve(async (req) => {
       return jsonOk({ skipped: true, reason: `untracked status: ${status}` });
     }
 
-    if (!GMAIL_USER || !GMAIL_APP_PASSWORD) {
-      console.warn('[status-email] GMAIL_USER or GMAIL_APP_PASSWORD not set — skipping');
-      return jsonOk({ skipped: true, reason: 'gmail credentials missing' });
+    if (!RESEND_API_KEY) {
+      console.warn('[status-email] RESEND_API_KEY not set — skipping');
+      return jsonOk({ skipped: true, reason: 'resend api key missing' });
     }
 
     const { data: orderRow, error: fetchErr } = await supabase
@@ -305,7 +291,7 @@ Deno.serve(async (req) => {
     const companyName = (orderRow.shipping_companies as { company_name?: string } | null)?.company_name;
 
     try {
-      await sendViaSmtp(
+      await sendEmail(
         customerEmail,
         COPY[kind].subject(orderRow.id),
         buildEmailHtml(kind, customerName, orderRow.id, orderRow.tracking_number ?? undefined, companyName),

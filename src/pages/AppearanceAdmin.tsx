@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, ArrowDown, ArrowUp, ExternalLink, Loader2, Palette, RotateCcw, Save, Undo2 } from 'lucide-react';
+import { AlertTriangle, ArrowDown, ArrowUp, ExternalLink, Loader2, Moon, Palette, RotateCcw, Save, Sun, Undo2 } from 'lucide-react';
 import Layout from '@/components/layout/Layout';
 import { Switch } from '@/components/ads/CategoryBarSection';
 import StrengthSlider from '@/components/appearance/StrengthSlider';
@@ -7,15 +7,16 @@ import StripSample from '@/components/appearance/StripSample';
 import { Segmented } from '@/components/links/admin/ui';
 import { useSaveStorefrontAppearance, useStorefrontAppearanceAdmin } from '@/hooks/useStorefrontAppearance';
 import {
-  BRAND_COLORS, BUTTON_COLORS, BUTTON_KEYS, BUTTON_META, DEFAULT_APPEARANCE, HOME_SECTION_META, PREVIEW_PARAM,
+  BRAND_COLORS, BUTTON_COLORS, BUTTON_KEYS, BUTTON_META, DEFAULT_APPEARANCE, HOME_SECTION_META, NIGHT_COLORS, PREVIEW_PARAM,
   STRIP_ARRANGEMENTS, STRIP_ARRANGEMENT_LABEL, TONES, TONE_LABELS, buttonPaint, encodePreview, resolveAppearance,
-  type ButtonColor, type ButtonKey, type StorefrontAppearance, type StripArrangement, type Tone,
+  type ButtonColor, type ButtonKey, type NightColor, type StoreTheme, type StorefrontAppearance, type StripArrangement, type Tone,
 } from '@/lib/appearance';
 import { STOREFRONT_URL } from '@/lib/storefront';
 
 const signature = (a: StorefrontAppearance) => JSON.stringify(resolveAppearance(a));
 
-const SWATCH_BG: Record<ButtonColor, string> = {
+const SWATCH_BG: Record<NightColor, string> = {
+  same: 'linear-gradient(135deg, #ffffff 0 50%, #0a2a52 50% 100%)',
   default: 'repeating-linear-gradient(45deg, #e5e7eb 0 4px, #f9fafb 4px 8px)',
   navy: BRAND_COLORS.navy.hex,
   teal: BRAND_COLORS.teal.hex,
@@ -23,13 +24,22 @@ const SWATCH_BG: Record<ButtonColor, string> = {
   mint: BRAND_COLORS.mint.hex,
 };
 
-const COLOR_NAME: Record<ButtonColor, string> = {
+const COLOR_NAME: Record<NightColor, string> = {
+  same: 'نفس لون النهار',
   default: 'الأصلي',
   navy: BRAND_COLORS.navy.label,
   teal: BRAND_COLORS.teal.label,
   green: BRAND_COLORS.green.label,
   mint: BRAND_COLORS.mint.label,
 };
+
+/** What a button looks like with no colour chosen, in each theme (as the store designed it), for the sample. */
+const ORIGINAL_SAMPLE: Record<StoreTheme, { background: string; color: string; borderColor: string }> = {
+  light: { background: '#eef3f9', color: '#054180', borderColor: '#dbe5f1' },
+  dark: { background: 'rgba(42, 163, 171, 0.12)', color: '#2aa3ab', borderColor: '#0a4a8a' },
+};
+
+const THEME_LABEL: Record<StoreTheme, string> = { light: 'الوضع الفاتح (النهاري)', dark: 'الوضع الليلي' };
 
 /**
  * مظهر المتجر: what the store looks like and how its home page is put together, set here and read by the store
@@ -43,6 +53,8 @@ export default function AppearanceAdmin() {
 
   const [draft, setDraft] = useState<StorefrontAppearance>(DEFAULT_APPEARANCE);
   const [ready, setReady] = useState(false);
+  /** Which theme's button colours are being edited: the store has a day look and a night look. */
+  const [theme, setTheme] = useState<StoreTheme>('light');
 
   const saved = data?.appearance;
   const dirty = ready && saved !== undefined && signature(draft) !== signature(saved);
@@ -77,18 +89,27 @@ export default function AppearanceAdmin() {
     patch({ home_sections: list });
   };
 
-  const setButton = (key: ButtonKey, change: Partial<{ color: ButtonColor; tone: Tone }>) =>
-    patch({
-      button_styles: {
-        ...draft.button_styles,
-        [key]: {
-          ...draft.button_styles[key],
-          ...change,
+  const setButton = (key: ButtonKey, change: Partial<{ color: NightColor; tone: Tone }>) => {
+    const current = draft.button_styles[key];
+    const next = theme === 'light'
+      ? {
+          ...current,
+          ...(change.color !== undefined ? { color: change.color as ButtonColor } : null),
+          ...(change.tone !== undefined ? { tone: change.tone } : null),
           // choosing the original colour puts the tone back to the middle
           ...(change.color === 'default' ? { tone: 0 as Tone } : null),
-        },
-      },
-    });
+        }
+      : {
+          ...current,
+          night: {
+            ...current.night,
+            ...(change.color !== undefined ? { color: change.color } : null),
+            ...(change.tone !== undefined ? { tone: change.tone } : null),
+            ...(change.color === 'default' || change.color === 'same' ? { tone: 0 as Tone } : null),
+          },
+        };
+    patch({ button_styles: { ...draft.button_styles, [key]: next } });
+  };
 
   const previewUrl = useMemo(() => `${STOREFRONT_URL}?${PREVIEW_PARAM}=${encodePreview(draft)}`, [draft]);
 
@@ -255,13 +276,33 @@ export default function AppearanceAdmin() {
                 <h2 className="text-sm font-bold text-gray-700">ألوان الأزرار</h2>
                 <p className="text-[11px] text-gray-400 mt-1">
                   الاختيار من ألوان الهوية بس (كحلي، تركواز، أخضر، نعناعي) بخمس درجات. لون النص بيتظبط لوحده عشان يتقري. «الأصلي» معناه التصميم الحالي.
+                  للمتجر وضعين (نهاري وليلي) واللون بيتحدد لكل وضع لوحده، لأن اللون اللي بيبان حلو في النهار ممكن ما يبانش في الليل.
                 </p>
+              </div>
+              <div className="flex items-center gap-2 flex-wrap" data-testid="button-theme-switch">
+                {(['light', 'dark'] as const).map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    role="tab"
+                    aria-selected={theme === t}
+                    data-testid={`button-theme-${t}`}
+                    onClick={() => setTheme(t)}
+                    className={`flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold transition-colors ${theme === t ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}
+                  >
+                    {t === 'light' ? <Sun size={14} /> : <Moon size={14} />}
+                    {THEME_LABEL[t]}
+                  </button>
+                ))}
               </div>
               <div className="space-y-4">
                 {BUTTON_KEYS.map((key) => {
                   const meta = BUTTON_META[key];
                   const style = draft.button_styles[key];
-                  const paint = buttonPaint(style);
+                  const paint = buttonPaint(style, theme);
+                  const shown = theme === 'light' ? style.color : style.night.color;
+                  const shownTone = theme === 'light' ? style.tone : style.night.tone;
+                  const choices: NightColor[] = theme === 'light' ? BUTTON_COLORS : NIGHT_COLORS;
                   return (
                     <div key={key} className="rounded-xl border border-gray-100 p-3 space-y-3" data-testid={`button-${key}`}>
                       <div className="flex items-start justify-between gap-3">
@@ -270,16 +311,22 @@ export default function AppearanceAdmin() {
                           <p className="text-[11px] text-gray-400">{meta.hint}</p>
                         </div>
                         <span
-                          className="shrink-0 rounded-full px-4 py-1.5 text-xs font-bold border"
-                          style={paint ? { background: paint.bg, color: paint.fg, borderColor: paint.bg } : { background: '#eef3f9', color: '#054180', borderColor: '#dbe5f1' }}
-                          data-testid={`button-${key}-sample`}
+                          className="shrink-0 rounded-xl p-2.5"
+                          style={{ background: theme === 'light' ? '#ffffff' : '#00102a', border: '1px solid #e5e7eb' }}
+                          data-testid={`button-${key}-stage`}
                         >
-                          {meta.sample}
+                          <span
+                            className="block rounded-full px-4 py-1.5 text-xs font-bold border"
+                            style={paint ? { background: paint.bg, color: paint.fg, borderColor: paint.bg } : ORIGINAL_SAMPLE[theme]}
+                            data-testid={`button-${key}-sample`}
+                          >
+                            {meta.sample}
+                          </span>
                         </span>
                       </div>
-                      <div role="radiogroup" aria-label={`لون ${meta.label}`} className="flex flex-wrap gap-2">
-                        {BUTTON_COLORS.map((color) => {
-                          const on = style.color === color;
+                      <div role="radiogroup" aria-label={`لون ${meta.label} (${THEME_LABEL[theme]})`} className="flex flex-wrap gap-2">
+                        {choices.map((color) => {
+                          const on = shown === color;
                           return (
                             <button
                               key={color}
@@ -297,10 +344,10 @@ export default function AppearanceAdmin() {
                           );
                         })}
                       </div>
-                      {style.color !== 'default' && (
+                      {shown !== 'default' && shown !== 'same' && (
                         <Segmented<string>
                           label={`درجة ${meta.label}`}
-                          value={String(style.tone)}
+                          value={String(shownTone)}
                           options={TONES.map((t) => ({ key: String(t), label: TONE_LABELS[t] }))}
                           onChange={(t) => setButton(key, { tone: Number(t) as Tone })}
                         />

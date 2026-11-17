@@ -1,6 +1,6 @@
 import { useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import { Heading as HeadingIcon, Image as ImageIcon, Layers, Link2, Minus, Plus, Tag, Type } from 'lucide-react';
-import { BLOCK_KIND_LABEL, LINK_PRESETS, makeBlock, type BlockKind, type LinkPreset, type LinksBlock } from '@/lib/linksPage';
+import { BLOCK_KIND_LABEL, LINK_PRESETS, hasBrandColor, makeBlock, resolveLook, type BlockKind, type LinkPreset, type LinksBlock } from '@/lib/linksPage';
 import { LinkIcon } from '../linkIcons';
 import BlockCard, { describeBlock } from './BlockCard';
 
@@ -59,6 +59,14 @@ export default function BlocksPanel({ blocks, setBlocks, openId, setOpenId }: Pr
       [next[index], next[target]] = [next[target], next[index]];
       return next;
     });
+
+  /** Every icon that has colours of its own (the social accounts, the app stores) at once, in the company's colours or the page's. */
+  const brandBlocks = blocks.filter((b) => (b.kind === 'link' || b.kind === 'offer') && hasBrandColor(b.icon));
+  const setAllIconColors = (mode: 'brand' | 'theme') =>
+    setBlocks((list) =>
+      list.map((b) => ((b.kind === 'link' || b.kind === 'offer') && hasBrandColor(b.icon) ? { ...b, look: { ...b.look, iconColor: mode } } : b)),
+    );
+  const brandCount = brandBlocks.filter((b) => resolveLook(b.kind, b.look).iconColor === 'brand').length;
 
   const duplicate = (index: number) => {
     const { id: _sourceId, ...rest } = blocks[index];
@@ -128,7 +136,7 @@ export default function BlocksPanel({ blocks, setBlocks, openId, setOpenId }: Pr
                     data-testid={`preset-${preset.key}`}
                     className="flex items-center gap-1.5 pl-3 pr-2.5 py-1.5 rounded-full border border-gray-200 bg-white text-xs font-semibold text-gray-600 hover:border-indigo-300 hover:text-indigo-700 transition-colors"
                   >
-                    <LinkIcon name={preset.patch.icon} size={14} />
+                    <LinkIcon name={preset.patch.icon} size={14} brand={hasBrandColor(preset.patch.icon)} />
                     {preset.label}
                   </button>
                 ))}
@@ -136,6 +144,35 @@ export default function BlocksPanel({ blocks, setBlocks, openId, setOpenId }: Pr
             </div>
           ))}
         </div>
+
+        {brandBlocks.length > 0 && (
+          <div className="border-t border-gray-100 pt-3 flex items-center justify-between gap-3 flex-wrap" data-testid="icon-colors-all">
+            <div className="min-w-0">
+              <h3 className="text-xs font-bold text-gray-500">ألوان كل الأيقونات في الصفحة</h3>
+              <p className="text-[11px] text-gray-400 mt-0.5">
+                {brandBlocks.length} أيقونة ليها ألوان أصلية (يوتيوب أحمر، فيسبوك أزرق...) و{brandCount} منهم بالألوان الأصلية دلوقتي. تقدر تغيّر كل واحدة لوحدها من تحرير العنصر.
+              </p>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setAllIconColors('brand')}
+                data-testid="icon-colors-brand"
+                className="px-3 py-1.5 rounded-full border border-gray-200 bg-white text-xs font-semibold text-gray-600 hover:border-indigo-300 hover:text-indigo-700"
+              >
+                ألوان الشركات الأصلية
+              </button>
+              <button
+                type="button"
+                onClick={() => setAllIconColors('theme')}
+                data-testid="icon-colors-theme"
+                className="px-3 py-1.5 rounded-full border border-gray-200 bg-white text-xs font-semibold text-gray-600 hover:border-indigo-300 hover:text-indigo-700"
+              >
+                ألوان الصفحة
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {blocks.length === 0 ? (

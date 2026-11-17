@@ -1,11 +1,12 @@
-import { STRIP_ARRANGEMENTS, STRIP_ARRANGEMENT_LABEL, type StripArrangement } from '@/lib/appearance';
+import { STRIP_ARRANGEMENTS, STRIP_ARRANGEMENT_LABEL, type StripArrangement, type Tone } from '@/lib/appearance';
 import {
-  ALIGN_LABEL, DIVIDER_LENGTHS, DIVIDER_LENGTH_LABEL, SIZES, SIZE_LABEL, URL_RULE, classifyUrl, ltr, normalizeUrlInput, resolveLook,
-  type Align, type DividerLength, type LinkDisplay, type LinksBlock,
+  ALIGN_LABEL, DIVIDER_LENGTHS, DIVIDER_LENGTH_LABEL, ICON_COLORS, ICON_COLOR_LABEL, SIZES, SIZE_LABEL, TONEABLE_STYLES, URL_RULE,
+  classifyUrl, hasBrandColor, ltr, normalizeUrlInput, resolveLook,
+  type Align, type DividerLength, type IconColor, type LinkDisplay, type LinksBlock,
 } from '@/lib/linksPage';
 import { Switch } from '@/components/ads/CategoryBarSection';
 import {
-  ColorPicker, DividerTypePicker, Field, IconPicker, ImageField, ScheduleFields, Segmented, field,
+  ColorPicker, DividerTypePicker, Field, IconPicker, ImageField, ScheduleFields, Segmented, TonePicker, field,
 } from './ui';
 
 type Patch = Partial<LinksBlock>;
@@ -36,6 +37,29 @@ export default function BlockEditor({ block, onChange }: { block: LinksBlock; on
       />
     </Field>
   );
+
+  /** The icon's own colours (red for YouTube...) or the page's: only offered for an icon that has colours of its own. */
+  const IconColorField = hasBrandColor(block.icon) ? (
+    <Field
+      label="لون الأيقونة"
+      hint="ألوان الشركة الأصلية (أحمر يوتيوب، أزرق فيسبوك...) بتظهر الأيقونة على خلفية بيضاء عشان تبان في الفاتح والليلي. ألوان الصفحة بتخلي الأيقونة بلون الزر."
+    >
+      <Segmented<IconColor>
+        label="لون الأيقونة"
+        value={look.iconColor}
+        options={ICON_COLORS.map((k) => ({ key: k, label: ICON_COLOR_LABEL[k] }))}
+        onChange={(iconColor) => setLook({ iconColor })}
+      />
+    </Field>
+  ) : null;
+
+  /** How light or dark the chosen house colour is. */
+  const toneField = (hidden = false) =>
+    !hidden && TONEABLE_STYLES.includes(look.style) ? (
+      <Field label="درجة اللون" hint="أفتح أو أغمق من لون الهوية. لون النص بيتظبط لوحده عشان يتقري.">
+        <TonePicker value={look.tone} onChange={(tone: Tone) => setLook({ tone })} />
+      </Field>
+    ) : null;
 
   const Schedule = (
     <Field label="جدولة الظهور" hint="سيبهم فاضيين لو العنصر يفضل ظاهر على طول.">
@@ -85,8 +109,11 @@ export default function BlockEditor({ block, onChange }: { block: LinksBlock; on
               className={field}
             />
           </Field>
-          <Field label="الأيقونة"><IconPicker value={block.icon} onChange={(icon) => onChange({ icon })} /></Field>
+          <Field label="الأيقونة"><IconPicker value={block.icon} onChange={(icon) => onChange({ icon })} brand={look.iconColor === 'brand'} /></Field>
+          {IconColorField}
+          {/* an icon-only button in the company's colours has a white face, so there is no colour to tone */}
           <Field label="اللون (من ألوان الهوية)"><ColorPicker value={look.style} onChange={(style) => setLook({ style })} /></Field>
+          {toneField(look.display === 'icon' && look.iconColor === 'brand' && hasBrandColor(block.icon))}
           {look.display === 'button' && (
             <Field label="شارة صغيرة (اختياري)" hint="مثال: جديد، خصم 20%">
               <input value={block.badge ?? ''} onChange={(e) => onChange({ badge: e.target.value })} maxLength={30} className={`${field} max-w-xs`} />
@@ -132,9 +159,11 @@ export default function BlockEditor({ block, onChange }: { block: LinksBlock; on
             </Field>
           </div>
           <Field label="أيقونة جنب الشارة (اختياري)">
-            <IconPicker value={block.icon} onChange={(icon) => onChange({ icon })} />
+            <IconPicker value={block.icon} onChange={(icon) => onChange({ icon })} brand={look.iconColor === 'brand'} />
           </Field>
+          {IconColorField}
           <Field label="لون الزر والشارة"><ColorPicker value={look.style} onChange={(style) => setLook({ style })} /></Field>
+          {toneField()}
           <div className="flex items-center justify-between gap-3 rounded-xl bg-gray-50 border border-gray-100 px-3 py-2.5">
             <span className="text-xs font-semibold text-gray-600">
               إظهار «ينتهي يوم ...» من تاريخ الاختفاء

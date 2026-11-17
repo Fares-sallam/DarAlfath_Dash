@@ -47,18 +47,18 @@ describe('home sections', () => {
 describe('button colours', () => {
   it('reads anything unknown as the original colour', () => {
     const styles = resolveButtonStyles({ add_to_cart: { color: 'red', tone: 1 }, quick_buy: 'teal', view_all: { color: 'teal', tone: 9 } });
-    expect(styles.add_to_cart).toEqual({ color: 'default', tone: 0 });
-    expect(styles.quick_buy).toEqual({ color: 'default', tone: 0 });
-    expect(styles.view_all).toEqual({ color: 'teal', tone: 0 });
-    expect(styles.view_category).toEqual({ color: 'default', tone: 0 });
+    expect(styles.add_to_cart).toEqual({ color: 'default', tone: 0, night: { color: 'same', tone: 0 } });
+    expect(styles.quick_buy).toEqual({ color: 'default', tone: 0, night: { color: 'same', tone: 0 } });
+    expect(styles.view_all).toEqual({ color: 'teal', tone: 0, night: { color: 'same', tone: 0 } });
+    expect(styles.view_category).toEqual({ color: 'default', tone: 0, night: { color: 'same', tone: 0 } });
     expect(resolveButtonStyles(null).add_to_cart.color).toBe('default');
     expect(resolveButtonStyles([1, 2]).quick_buy.color).toBe('default');
   });
 
   it('paints nothing for the original colour, and only house colours otherwise', () => {
-    expect(buttonPaint({ color: 'default', tone: 0 })).toBeNull();
+    expect(buttonPaint({ color: 'default', tone: 0, night: { color: 'same', tone: 0 } })).toBeNull();
     expect(buttonCssVars(DEFAULT_APPEARANCE.button_styles)).toEqual({});
-    const base = buttonPaint({ color: 'navy', tone: 0 });
+    const base = buttonPaint({ color: 'navy', tone: 0, night: { color: 'same', tone: 0 } });
     expect(base?.bg).toBe(BRAND_COLORS.navy.hex);
     expect(base?.fg).toBe('#ffffff');
   });
@@ -75,11 +75,45 @@ describe('button colours', () => {
     const worst: string[] = [];
     for (const color of BUTTON_COLORS.filter((c): c is Exclude<ButtonColor, 'default'> => c !== 'default')) {
       for (const tone of TONES) {
-        const paint = buttonPaint({ color, tone })!;
+        const paint = buttonPaint({ color, tone, night: { color: 'same', tone: 0 } })!;
         // the text is always the better of white and the house navy: never worse than 3:1 (large, bold button text)
         const ratio = contrastRatio(paint.bg, paint.fg);
         const hoverRatio = contrastRatio(paint.hover, paint.hoverFg);
         if (ratio < 3 || hoverRatio < 3) worst.push(`${color}/${tone}: ${ratio.toFixed(2)} ${hoverRatio.toFixed(2)}`);
+      }
+    }
+    expect(worst).toEqual([]);
+  });
+
+  it('has a night colour of its own: the same as the day by default, the original, or another house colour', () => {
+    const styles = resolveButtonStyles({
+      view_all: { color: 'navy', tone: 1 },
+      view_category: { color: 'navy', tone: 0, night: { color: 'default', tone: 2 } },
+      add_to_cart: { color: 'teal', tone: 0, night: { color: 'mint', tone: -1 } },
+      quick_buy: { color: 'green', tone: 0, night: { color: 'purple', tone: 1 } },
+    });
+    // same: the night paint is the day paint
+    expect(buttonPaint(styles.view_all, 'dark')).toEqual(buttonPaint(styles.view_all, 'light'));
+    // default: keeps the night look the button was designed with, whatever the day colour is
+    expect(buttonPaint(styles.view_category, 'light')).not.toBeNull();
+    expect(buttonPaint(styles.view_category, 'dark')).toBeNull();
+    expect(styles.view_category.night).toEqual({ color: 'default', tone: 0 });
+    // another house colour, with its own tone
+    expect(buttonPaint(styles.add_to_cart, 'light')?.bg).toBe(BRAND_COLORS.teal.hex);
+    expect(buttonPaint(styles.add_to_cart, 'dark')?.bg).toBe(shade(BRAND_COLORS.mint.hex, -1));
+    // a colour that is not a house colour falls back to "same as day"
+    expect(styles.quick_buy.night).toEqual({ color: 'same', tone: 0 });
+    // and the variables follow the theme
+    expect(buttonCssVars(styles, 'dark')['--ab-view-category-bg']).toBeUndefined();
+    expect(buttonCssVars(styles, 'light')['--ab-view-category-bg']).toBe(BRAND_COLORS.navy.hex);
+  });
+
+  it('keeps the night text readable on every colour and tone too', () => {
+    const worst: string[] = [];
+    for (const color of BUTTON_COLORS.filter((c) => c !== 'default')) {
+      for (const tone of TONES) {
+        const paint = buttonPaint(resolveButtonStyles({ view_all: { color: 'navy', night: { color, tone } } }).view_all, 'dark')!;
+        if (contrastRatio(paint.bg, paint.fg) < 3) worst.push(`${color}/${tone}`);
       }
     }
     expect(worst).toEqual([]);

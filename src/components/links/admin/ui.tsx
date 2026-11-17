@@ -3,9 +3,10 @@ import { ImagePlus, Loader2, Trash2, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import { uploadLinksImage } from '@/hooks/useLinksPageAdmin';
 import {
-  COLOR_STYLES, COLOR_STYLE_LABEL, DIVIDER_TYPES, DIVIDER_TYPE_LABEL, ICON_OPTIONS, isImageUrl,
+  COLOR_STYLES, COLOR_STYLE_LABEL, DIVIDER_TYPES, DIVIDER_TYPE_LABEL, ICON_OPTIONS, isImageUrl, hasBrandColor,
   type ColorStyle, type DividerType,
 } from '@/lib/linksPage';
+import { TONES, TONE_LABELS, type Tone } from '@/lib/appearance';
 import { LinkIcon } from '../linkIcons';
 import { Divider } from '../LinksPageView';
 import '../linksPage.css';
@@ -93,7 +94,7 @@ export function ColorPicker({ value, onChange }: { value: ColorStyle; onChange: 
 }
 
 /** Every icon a link can wear, one tap each. */
-export function IconPicker({ value, onChange }: { value: string | null; onChange: (next: string | null) => void }) {
+export function IconPicker({ value, onChange, brand = false }: { value: string | null; onChange: (next: string | null) => void; brand?: boolean }) {
   return (
     <div className="space-y-2">
       <div className="grid grid-cols-6 sm:grid-cols-10 gap-1.5 max-h-44 overflow-y-auto p-1">
@@ -111,7 +112,7 @@ export function IconPicker({ value, onChange }: { value: string | null; onChange
                 on ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
               }`}
             >
-              <LinkIcon name={o.key} size={19} />
+              <LinkIcon name={o.key} size={19} brand={brand && hasBrandColor(o.key)} />
             </button>
           );
         })}
@@ -250,5 +251,17 @@ export function DividerTypePicker({ value, onChange }: { value: DividerType; onC
         );
       })}
     </div>
+  );
+}
+
+/** How light or dark a button's house colour is (the outline has none). */
+export function TonePicker({ value, onChange }: { value: Tone; onChange: (next: Tone) => void }) {
+  return (
+    <Segmented<string>
+      label="درجة اللون"
+      value={String(value)}
+      options={TONES.map((t) => ({ key: String(t), label: TONE_LABELS[t] }))}
+      onChange={(t) => onChange(Number(t) as Tone)}
+    />
   );
 }

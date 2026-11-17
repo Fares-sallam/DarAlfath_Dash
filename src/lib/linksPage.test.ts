@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_LINKS_SETTINGS, LINK_PRESETS, ICON_OPTIONS, blockStatus, blockToRow, classifyUrl, cleanLook, endsLabel, groupBlocks,
-  isImageUrl, isLive, makeBlock, normalizeUrlInput, resolveBlock, resolveLook, resolveSettings, sortBlocks, validateBlock,
+  hasBrandColor, isImageUrl, isLive, makeBlock, normalizeUrlInput, resolveBlock, resolveLook, resolveSettings, sortBlocks, validateBlock,
 } from './linksPage';
 
 const link = (patch = {}) => makeBlock('link', { id: crypto.randomUUID(), title: 'فيسبوك', url: 'https://facebook.com/x', ...patch });
@@ -213,5 +213,34 @@ describe('quick starts and icons', () => {
 
   it('icon keys are unique', () => {
     expect(known.size).toBe(ICON_OPTIONS.length);
+  });
+});
+
+describe('pattern position, tone and icon colour of the links page', () => {
+  it('reads the pattern position: top, bottom or both; anything else is the top', () => {
+    expect(resolveSettings({ pattern_position: 'both' }).pattern_position).toBe('both');
+    expect(resolveSettings({ pattern_position: 'bottom' }).pattern_position).toBe('bottom');
+    expect(resolveSettings({ pattern_position: 'left' }).pattern_position).toBe('top');
+    expect(resolveSettings({}).pattern_position).toBe('top');
+  });
+
+  it('keeps a tone only for a colour that has one, and an icon colour only when it is the company\'s', () => {
+    const look = resolveLook('link', { style: 'teal', tone: 2, iconColor: 'brand' });
+    expect(look.tone).toBe(2);
+    expect(look.iconColor).toBe('brand');
+    expect(resolveLook('link', { tone: 9, iconColor: 'rainbow' })).toMatchObject({ tone: 0, iconColor: 'theme' });
+    // saved: the outline has no tone; the default icon colour is not written
+    expect(cleanLook('link', { style: 'outline', tone: 2, display: 'button' })).toEqual({ style: 'outline', display: 'button' });
+    expect(cleanLook('link', { style: 'navy', tone: -1, iconColor: 'theme', display: 'icon' })).toEqual({ style: 'navy', tone: -1, display: 'icon' });
+    expect(cleanLook('offer', { style: 'green', tone: 1, iconColor: 'brand' })).toMatchObject({ style: 'green', tone: 1, iconColor: 'brand' });
+    expect(cleanLook('heading', { tone: 2, iconColor: 'brand' })).not.toHaveProperty('tone');
+  });
+
+  it('starts the social presets in the company\'s colours', () => {
+    const youtube = LINK_PRESETS.find((p) => p.key === 'youtube')!;
+    expect(youtube.patch.look).toMatchObject({ iconColor: 'brand' });
+    expect(hasBrandColor('youtube')).toBe(true);
+    expect(hasBrandColor('store')).toBe(false);
+    expect(hasBrandColor(null)).toBe(false);
   });
 });

@@ -1,7 +1,8 @@
 import {
-  BUTTON_SHAPES, BUTTON_SHAPE_LABEL, PAGE_BACKGROUNDS, PAGE_BACKGROUND_LABEL,
-  type ButtonShape, type LinksPageSettings, type PageBackground,
+  BUTTON_SHAPES, BUTTON_SHAPE_LABEL, PAGE_BACKGROUNDS, PAGE_BACKGROUND_LABEL, PATTERN_POSITIONS, PATTERN_POSITION_LABEL,
+  type ButtonShape, type LinksPageSettings, type PageBackground, type PatternPosition,
 } from '@/lib/linksPage';
+import StrengthSlider from '@/components/appearance/StrengthSlider';
 import { Switch } from '@/components/ads/CategoryBarSection';
 import { Field, ImageField, Segmented, field } from './ui';
 
@@ -58,7 +59,27 @@ export default function SettingsPanel({ settings, onChange }: { settings: LinksP
               onChange={(background) => onChange({ background })}
             />
           </Field>
+          {settings.background === 'pattern' && (
+            <Field label="مكان الباترن" hint="يظهر متلاشي من الأعلى، أو صاعد من الأسفل، مش الاتنين مع بعض.">
+              <Segmented<PatternPosition>
+                label="مكان الباترن"
+                value={settings.pattern_position}
+                options={PATTERN_POSITIONS.map((k) => ({ key: k, label: PATTERN_POSITION_LABEL[k] }))}
+                onChange={(pattern_position) => onChange({ pattern_position })}
+              />
+            </Field>
+          )}
         </div>
+        {settings.background === 'pattern' && (
+          <div className="max-w-md">
+            <StrengthSlider
+              label="درجة وضوح الباترن في صفحة الروابط"
+              value={settings.pattern_strength}
+              onChange={(pattern_strength) => onChange({ pattern_strength })}
+              testId="links-pattern-strength"
+            />
+          </div>
+        )}
         <p className="text-[11px] text-gray-400">الألوان والخطوط والشعار والباترن من هوية الدار، والزائر بيشوف الصفحة بالمظهر الفاتح أو الليلي حسب جهازه.</p>
       </section>
 

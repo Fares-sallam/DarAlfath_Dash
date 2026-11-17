@@ -8,8 +8,7 @@ import {
   LayoutDashboard, Settings, BookOpen, ShoppingCart, Users, BookMarked,
   Tag, Package, BarChart3, Truck, ShieldCheck, ActivitySquare, LogOut, X, CreditCard,
   Image as ImageIcon, Youtube, Star, Megaphone, Link2,
-  BookOpen as BookIcon
-} from 'lucide-react';
+  BookOpen as BookIcon, Palette } from 'lucide-react';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -22,6 +21,7 @@ const navItems = [
   { id: 'intro-videos', label: 'فيديوهات "من الدار"', icon: Youtube, path: '/intro-videos', requiresAdmin: true },
   { id: 'ads-strips', label: 'إدارة الإعلانات والأشرطة', icon: Megaphone, path: '/ads-strips', requiresAdmin: true },
   { id: 'links-page', label: 'إدارة الصفحة والروابط', icon: Link2, path: '/links-page', requiresAdmin: true },
+  { id: 'appearance', label: 'مظهر المتجر', icon: Palette, path: '/appearance', requiresAdmin: true },
   { id: 'settings', label: 'الإعدادات', icon: Settings, path: '/settings', requiresAdmin: false },
   { id: 'books', label: 'إدارة الكتب', icon: BookOpen, path: '/books', requiresAdmin: true },
   { id: 'orders', label: 'إدارة الطلبات', icon: ShoppingCart, path: '/orders', requiresAdmin: true },

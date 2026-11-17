@@ -1,0 +1,339 @@
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { AlertTriangle, ArrowDown, ArrowUp, ExternalLink, Loader2, Palette, RotateCcw, Save, Undo2 } from 'lucide-react';
+import Layout from '@/components/layout/Layout';
+import { Switch } from '@/components/ads/CategoryBarSection';
+import StrengthSlider from '@/components/appearance/StrengthSlider';
+import StripSample from '@/components/appearance/StripSample';
+import { Segmented } from '@/components/links/admin/ui';
+import { useSaveStorefrontAppearance, useStorefrontAppearanceAdmin } from '@/hooks/useStorefrontAppearance';
+import {
+  BRAND_COLORS, BUTTON_COLORS, BUTTON_KEYS, BUTTON_META, DEFAULT_APPEARANCE, HOME_SECTION_META, PREVIEW_PARAM,
+  STRIP_ARRANGEMENTS, STRIP_ARRANGEMENT_LABEL, TONES, TONE_LABELS, buttonPaint, encodePreview, resolveAppearance,
+  type ButtonColor, type ButtonKey, type StorefrontAppearance, type StripArrangement, type Tone,
+} from '@/lib/appearance';
+import { STOREFRONT_URL } from '@/lib/storefront';
+
+const signature = (a: StorefrontAppearance) => JSON.stringify(resolveAppearance(a));
+
+const SWATCH_BG: Record<ButtonColor, string> = {
+  default: 'repeating-linear-gradient(45deg, #e5e7eb 0 4px, #f9fafb 4px 8px)',
+  navy: BRAND_COLORS.navy.hex,
+  teal: BRAND_COLORS.teal.hex,
+  green: BRAND_COLORS.green.hex,
+  mint: BRAND_COLORS.mint.hex,
+};
+
+const COLOR_NAME: Record<ButtonColor, string> = {
+  default: 'الأصلي',
+  navy: BRAND_COLORS.navy.label,
+  teal: BRAND_COLORS.teal.label,
+  green: BRAND_COLORS.green.label,
+  mint: BRAND_COLORS.mint.label,
+};
+
+/**
+ * مظهر المتجر: what the store looks like and how its home page is put together, set here and read by the store
+ * itself. The pattern's strength, which home sections show and in what order, and the colour of four buttons
+ * (only the four house colours, in five tones). «معاينة المتجر» opens the real store with what is on screen,
+ * saved or not; nothing reaches customers until it is saved.
+ */
+export default function AppearanceAdmin() {
+  const { data, isLoading, isError, error } = useStorefrontAppearanceAdmin();
+  const save = useSaveStorefrontAppearance();
+
+  const [draft, setDraft] = useState<StorefrontAppearance>(DEFAULT_APPEARANCE);
+  const [ready, setReady] = useState(false);
+
+  const saved = data?.appearance;
+  const dirty = ready && saved !== undefined && signature(draft) !== signature(saved);
+  const dirtyNow = useRef(false);
+  dirtyNow.current = dirty;
+
+  useEffect(() => {
+    if (!saved) return;
+    if (!ready || !dirtyNow.current) {
+      setDraft(saved);
+      setReady(true);
+    }
+  }, [saved, ready]);
+
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [dirty]);
+
+  const patch = (next: Partial<StorefrontAppearance>) => setDraft((d) => ({ ...d, ...next }));
+
+  const moveSection = (index: number, by: -1 | 1) => {
+    const list = [...draft.home_sections];
+    const target = index + by;
+    if (target < 0 || target >= list.length) return;
+    [list[index], list[target]] = [list[target], list[index]];
+    patch({ home_sections: list });
+  };
+
+  const setButton = (key: ButtonKey, change: Partial<{ color: ButtonColor; tone: Tone }>) =>
+    patch({
+      button_styles: {
+        ...draft.button_styles,
+        [key]: {
+          ...draft.button_styles[key],
+          ...change,
+          // choosing the original colour puts the tone back to the middle
+          ...(change.color === 'default' ? { tone: 0 as Tone } : null),
+        },
+      },
+    });
+
+  const previewUrl = useMemo(() => `${STOREFRONT_URL}?${PREVIEW_PARAM}=${encodePreview(draft)}`, [draft]);
+
+  const tableMissing = data?.tableMissing === true;
+  const isDefault = signature(draft) === signature(DEFAULT_APPEARANCE);
+
+  return (
+    <Layout>
+      <div className="space-y-5 pb-28" data-testid="appearance-page">
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+              <Palette className="text-amber-500" size={24} />
+              مظهر المتجر
+            </h1>
+            <p className="text-sm text-gray-500 mt-1 max-w-2xl">
+              درجة الباترن، وترتيب أقسام الرئيسية وإظهارها، وألوان أزرار المتجر من ألوان الهوية. جرّب وعاين في المتجر الحقيقي قبل ما تحفظ.
+            </p>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <a
+              href={previewUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              data-testid="appearance-preview"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700"
+            >
+              <ExternalLink size={14} /> معاينة المتجر بالتعديلات
+            </a>
+            <button
+              type="button"
+              onClick={() => setDraft(DEFAULT_APPEARANCE)}
+              disabled={isDefault}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 bg-white text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-40"
+            >
+              <RotateCcw size={14} /> رجوع للتصميم الأصلي
+            </button>
+          </div>
+        </div>
+
+        {isLoading && <div className="py-24 flex justify-center text-gray-400"><Loader2 className="animate-spin" /></div>}
+
+        {isError && (
+          <div className="bg-white rounded-2xl border border-red-100 p-6 space-y-2" role="alert">
+            <p className="text-sm font-bold text-red-600">تعذّر تحميل الصفحة</p>
+            <p className="text-sm text-gray-600">{error instanceof Error ? error.message : 'خطأ غير معروف'}</p>
+          </div>
+        )}
+
+        {tableMissing && (
+          <div className="bg-amber-50 rounded-2xl border border-amber-200 p-4 flex gap-3" role="alert" data-testid="appearance-missing">
+            <AlertTriangle className="text-amber-600 shrink-0 mt-0.5" size={18} />
+            <p className="text-sm text-amber-800">
+              تحديث قاعدة البيانات الخاص بالصفحة دي لسه ما اتطبقش، فتقدر تجرّب وتعاين لكن مش هتقدر تحفظ لحد ما يتطبق.
+            </p>
+          </div>
+        )}
+
+        {ready && (
+          <div className="grid gap-5 lg:grid-cols-2">
+            {/* ── the pattern ── */}
+            <section className="bg-white rounded-2xl border border-gray-100 p-5 space-y-4 lg:col-span-2" data-testid="appearance-pattern">
+              <div>
+                <h2 className="text-sm font-bold text-gray-700">الباترن في المتجر</h2>
+                <p className="text-[11px] text-gray-400 mt-1">
+                  بيأثر على الباترن ورا الصفحة الرئيسية وعلى شريط الباترن وخلفية التذييل. وصفحة الروابط ليها شريط تاني منفصل
+                  في «إدارة الصفحة والروابط ← إعدادات الصفحة».
+                </p>
+              </div>
+              <div className="max-w-md">
+                <StrengthSlider
+                  label="درجة وضوح الباترن في المتجر"
+                  value={draft.pattern_strength}
+                  onChange={(pattern_strength) => patch({ pattern_strength })}
+                  testId="store-pattern-strength"
+                />
+              </div>
+            </section>
+
+            {/* ── the pattern strips ── */}
+            <section className="bg-white rounded-2xl border border-gray-100 p-5 space-y-4 lg:col-span-2" data-testid="appearance-strip">
+              <div>
+                <h2 className="text-sm font-bold text-gray-700">شريط الباترن بين الأقسام</h2>
+                <p className="text-[11px] text-gray-400 mt-1">
+                  الشريط الصغير (3 وحدات) اللي بيفصل بين أقسام الصفحة الرئيسية وباقي صفحات المتجر. اختار الوحدات تتكرر نسخة واحدة بالظبط،
+                  أو كل وحدة بتبدّل ألوان أهلّتها من ألوان الهوية. (الفاصل في صفحة الروابط ليه الاختيار ده لوحده في «إدارة الصفحة والروابط».)
+                </p>
+              </div>
+              <Segmented<StripArrangement>
+                label="ترتيب وحدات الشريط"
+                value={draft.strip_arrangement}
+                options={STRIP_ARRANGEMENTS.map((k) => ({ key: k, label: STRIP_ARRANGEMENT_LABEL[k] }))}
+                onChange={(strip_arrangement) => patch({ strip_arrangement })}
+              />
+              <div className="grid gap-3 sm:grid-cols-2 max-w-xl">
+                {STRIP_ARRANGEMENTS.map((k) => (
+                  <div
+                    key={k}
+                    className={`rounded-xl border p-3 flex flex-col items-center gap-1 ${draft.strip_arrangement === k ? 'border-indigo-400 bg-indigo-50/40' : 'border-gray-100'}`}
+                  >
+                    <StripSample arrangement={k} label={STRIP_ARRANGEMENT_LABEL[k]} />
+                    <span className="text-[11px] text-gray-500">{STRIP_ARRANGEMENT_LABEL[k]}</span>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            {/* ── home sections ── */}
+            <section className="bg-white rounded-2xl border border-gray-100 p-5 space-y-4" data-testid="appearance-sections">
+              <div>
+                <h2 className="text-sm font-bold text-gray-700">أقسام الصفحة الرئيسية</h2>
+                <p className="text-[11px] text-gray-400 mt-1">
+                  رتّب الأقسام بالأسهم، واقفل اللي مش عايزه يظهر. البانر في الأعلى ثابت. قسم ملوش محتوى في المتجر بيختفي لوحده.
+                </p>
+              </div>
+              <ol className="space-y-2">
+                {draft.home_sections.map((section, index) => {
+                  const meta = HOME_SECTION_META[section.key];
+                  return (
+                    <li
+                      key={section.key}
+                      data-testid={`home-section-${section.key}`}
+                      className={`flex items-center gap-3 rounded-xl border px-3 py-2.5 ${section.visible ? 'border-gray-100 bg-gray-50' : 'border-gray-100 bg-white opacity-60'}`}
+                    >
+                      <span className="w-6 text-center text-xs font-bold text-gray-400 tabular-nums" aria-hidden="true">{index + 1}</span>
+                      <span className="flex-1 min-w-0">
+                        <span className="block text-sm font-semibold text-gray-700">{meta.label}</span>
+                        <span className="block text-[11px] text-gray-400 truncate">{meta.hint}</span>
+                      </span>
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => moveSection(index, -1)}
+                          disabled={index === 0}
+                          aria-label={`حرّك ${meta.label} لأعلى`}
+                          className="p-1.5 rounded-lg text-gray-500 hover:bg-white disabled:opacity-30"
+                        >
+                          <ArrowUp size={15} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => moveSection(index, 1)}
+                          disabled={index === draft.home_sections.length - 1}
+                          aria-label={`حرّك ${meta.label} لأسفل`}
+                          className="p-1.5 rounded-lg text-gray-500 hover:bg-white disabled:opacity-30"
+                        >
+                          <ArrowDown size={15} />
+                        </button>
+                      </div>
+                      <Switch
+                        checked={section.visible}
+                        label={`إظهار ${meta.label}`}
+                        onChange={(visible) => patch({ home_sections: draft.home_sections.map((s) => (s.key === section.key ? { ...s, visible } : s)) })}
+                      />
+                    </li>
+                  );
+                })}
+              </ol>
+            </section>
+
+            {/* ── buttons ── */}
+            <section className="bg-white rounded-2xl border border-gray-100 p-5 space-y-4" data-testid="appearance-buttons">
+              <div>
+                <h2 className="text-sm font-bold text-gray-700">ألوان الأزرار</h2>
+                <p className="text-[11px] text-gray-400 mt-1">
+                  الاختيار من ألوان الهوية بس (كحلي، تركواز، أخضر، نعناعي) بخمس درجات. لون النص بيتظبط لوحده عشان يتقري. «الأصلي» معناه التصميم الحالي.
+                </p>
+              </div>
+              <div className="space-y-4">
+                {BUTTON_KEYS.map((key) => {
+                  const meta = BUTTON_META[key];
+                  const style = draft.button_styles[key];
+                  const paint = buttonPaint(style);
+                  return (
+                    <div key={key} className="rounded-xl border border-gray-100 p-3 space-y-3" data-testid={`button-${key}`}>
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-gray-700">{meta.label}</p>
+                          <p className="text-[11px] text-gray-400">{meta.hint}</p>
+                        </div>
+                        <span
+                          className="shrink-0 rounded-full px-4 py-1.5 text-xs font-bold border"
+                          style={paint ? { background: paint.bg, color: paint.fg, borderColor: paint.bg } : { background: '#eef3f9', color: '#054180', borderColor: '#dbe5f1' }}
+                          data-testid={`button-${key}-sample`}
+                        >
+                          {meta.sample}
+                        </span>
+                      </div>
+                      <div role="radiogroup" aria-label={`لون ${meta.label}`} className="flex flex-wrap gap-2">
+                        {BUTTON_COLORS.map((color) => {
+                          const on = style.color === color;
+                          return (
+                            <button
+                              key={color}
+                              type="button"
+                              role="radio"
+                              aria-checked={on}
+                              aria-label={COLOR_NAME[color]}
+                              data-testid={`button-${key}-${color}`}
+                              onClick={() => setButton(key, { color })}
+                              className={`flex items-center gap-1.5 rounded-full border px-2 py-1 text-xs font-semibold transition-colors ${on ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}
+                            >
+                              <span className="w-4 h-4 rounded-full border border-black/10" style={{ background: SWATCH_BG[color] }} />
+                              {COLOR_NAME[color]}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {style.color !== 'default' && (
+                        <Segmented<string>
+                          label={`درجة ${meta.label}`}
+                          value={String(style.tone)}
+                          options={TONES.map((t) => ({ key: String(t), label: TONE_LABELS[t] }))}
+                          onChange={(t) => setButton(key, { tone: Number(t) as Tone })}
+                        />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          </div>
+        )}
+      </div>
+
+      {dirty && (
+        <div className="fixed bottom-4 inset-x-0 z-40 flex justify-center pointer-events-none px-4 lg:pr-72">
+          <div className="pointer-events-auto flex items-center gap-3 flex-wrap justify-center rounded-2xl bg-gray-900 text-white shadow-2xl px-4 py-3" role="status" data-testid="appearance-save-bar">
+            <span className="text-sm">فيه تغييرات لسه ما اتحفظتش</span>
+            <button type="button" onClick={() => saved && setDraft(saved)} disabled={save.isPending} className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-gray-300 hover:bg-white/10 disabled:opacity-40">
+              <Undo2 size={14} /> تراجع
+            </button>
+            <button
+              type="button"
+              onClick={() => save.mutate(draft)}
+              disabled={save.isPending || tableMissing}
+              data-testid="appearance-save"
+              className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-indigo-500 text-sm font-semibold hover:bg-indigo-400 disabled:opacity-40 disabled:hover:bg-indigo-500"
+            >
+              {save.isPending ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+              حفظ
+            </button>
+          </div>
+        </div>
+      )}
+    </Layout>
+  );
+}

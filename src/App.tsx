@@ -21,6 +21,7 @@ import HeroSlides from "./pages/HeroSlides";
 import IntroVideos from "./pages/IntroVideos";
 import AdsAndStrips from "./pages/AdsAndStrips";
 import LinksPageAdmin from "./pages/LinksPageAdmin";
+import AppearanceAdmin from "./pages/AppearanceAdmin";
 import Series from "./pages/Series";
 import Reviews from "./pages/Reviews";
 import Inventory from "./pages/Inventory";
@@ -138,6 +139,15 @@ const App = () => {
                     element={
                       <ProtectedRoute permission="can_manage_products">
                         <LinksPageAdmin />
+                      </ProtectedRoute>
+                    }
+                  />
+
+                  <Route
+                    path="/appearance"
+                    element={
+                      <ProtectedRoute permission="can_manage_products">
+                        <AppearanceAdmin />
                       </ProtectedRoute>
                     }
                   />

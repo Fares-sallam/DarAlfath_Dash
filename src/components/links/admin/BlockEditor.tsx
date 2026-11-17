@@ -1,3 +1,4 @@
+import { STRIP_ARRANGEMENTS, STRIP_ARRANGEMENT_LABEL, type StripArrangement } from '@/lib/appearance';
 import {
   ALIGN_LABEL, DIVIDER_LENGTHS, DIVIDER_LENGTH_LABEL, SIZES, SIZE_LABEL, URL_RULE, classifyUrl, ltr, normalizeUrlInput, resolveLook,
   type Align, type DividerLength, type LinkDisplay, type LinksBlock,
@@ -243,6 +244,19 @@ export default function BlockEditor({ block, onChange }: { block: LinksBlock; on
       return (
         <div className="space-y-4">
           <Field label="نوع الفاصل"><DividerTypePicker value={look.dividerType} onChange={(type) => setLook({ type })} /></Field>
+          {(look.dividerType === 'pattern' || look.dividerType === 'ornament') && (
+            <Field
+              label="ترتيب وحدات الباترن"
+              hint="متطابق: كل الوحدات نسخة واحدة بالظبط. متنوع: كل وحدة بتبدّل ألوان أهلّتها من ألوان الهوية، والتنويع بيتحدد مرة لكل فاصل وبيفضل زي ما هو."
+            >
+              <Segmented<StripArrangement>
+                label="ترتيب وحدات الباترن"
+                value={look.stripArrangement}
+                options={STRIP_ARRANGEMENTS.map((k) => ({ key: k, label: STRIP_ARRANGEMENT_LABEL[k] }))}
+                onChange={(arrangement) => setLook({ arrangement })}
+              />
+            </Field>
+          )}
           <Field label={look.dividerType === 'space' ? 'حجم المسافة' : 'طول الفاصل'}>
             <Segmented<DividerLength>
               label="الطول"

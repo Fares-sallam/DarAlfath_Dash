@@ -3,7 +3,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import { compressImage } from '@/lib/imageCompression';
 import {
-  BLOCK_COLUMNS, SETTINGS_COLUMNS, blockToRow, resolveBlock, resolveSettings, sortBlocks,
+  BLOCK_COLUMNS, LEGACY_SETTINGS_COLUMNS, SETTINGS_COLUMNS, blockToRow, resolveBlock, resolveSettings, sortBlocks,
   type LinksBlock, type LinksPageSettings,
 } from '@/lib/linksPage';
 
@@ -22,10 +22,14 @@ export function useLinksPageAdmin() {
   return useQuery({
     queryKey: KEY,
     queryFn: async (): Promise<LinksPageAdminData> => {
-      const [settings, blocks] = await Promise.all([
+      const [first, blocks] = await Promise.all([
         supabase.from('links_page_settings').select(SETTINGS_COLUMNS).eq('id', 1).maybeSingle(),
         supabase.from('links_page_blocks').select(BLOCK_COLUMNS).order('sort_order', { ascending: true }).order('created_at', { ascending: true }),
       ]);
+      // Before the pattern migration is applied the two new columns do not exist (42703): ask without them.
+      const settings = first.error?.code === '42703'
+        ? await supabase.from('links_page_settings').select(LEGACY_SETTINGS_COLUMNS).eq('id', 1).maybeSingle()
+        : first;
       if (settings.error) throw settings.error;
       if (blocks.error) throw blocks.error;
       return {
@@ -52,7 +56,7 @@ export function useSaveLinksPage() {
   return useMutation({
     mutationFn: async ({ blocks, settings, settingsChanged, removedIds }: SaveLinksPageInput) => {
       if (settingsChanged) {
-        const { error } = await supabase.from('links_page_settings').upsert({
+        const row = {
           id: 1,
           ...settings,
           title: settings.title.trim(),
@@ -61,7 +65,15 @@ export function useSaveLinksPage() {
           seo_title: settings.seo_title.trim(),
           seo_description: settings.seo_description.trim(),
           share_image_url: settings.share_image_url?.trim() || null,
-        });
+        };
+        let { error } = await supabase.from('links_page_settings').upsert(row);
+        if (error && /pattern_(position|strength)/.test(error.message)) {
+          // The database does not have the pattern columns yet: everything else still saves.
+          const { pattern_position: _position, pattern_strength: _strength, ...legacy } = row;
+          void _position; void _strength;
+          ({ error } = await supabase.from('links_page_settings').upsert(legacy));
+          if (!error) toast.warning('اتحفظت كل الإعدادات ماعدا مكان الباترن ودرجته، لأن تحديث قاعدة البيانات لسه ما اتطبقش.');
+        }
         if (error) throw error;
       }
 

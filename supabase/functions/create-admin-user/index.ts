@@ -139,7 +139,13 @@ Deno.serve(async (req: Request) => {
     /* ── Admin client ── */
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey);
 
-    /* ── Step 1: Create Auth user ── */
+    /* ── Step 1: Create the Auth user, or promote the existing account ──
+       An address that is already registered is usually a customer who signed up on the store.
+       Making that person a supervisor must work: we keep their own password and only grant the
+       role, permissions and countries. Staff accounts and the owner are never touched. */
+    let newUser: { id: string; email?: string | null } | null = null;
+    let promotedExisting = false;
+
     const { data: newUserData, error: createError } =
       await supabaseAdmin.auth.admin.createUser({
         email: normalizedEmail,
@@ -152,13 +158,68 @@ Deno.serve(async (req: Request) => {
       });
 
     if (createError) {
-      return jsonResponse(
-        { error: `فشل إنشاء المستخدم: ${createError.message}` },
-        400
-      );
-    }
+      const alreadyRegistered =
+        (createError as { code?: string }).code === 'email_exists' ||
+        /already (been )?registered/i.test(createError.message);
 
-    const newUser = newUserData.user;
+      if (!alreadyRegistered) {
+        return jsonResponse(
+          { error: `فشل إنشاء المستخدم: ${createError.message}` },
+          400
+        );
+      }
+
+      if (normalizedEmail === OWNER_EMAIL.toLowerCase()) {
+        return jsonResponse({ error: 'هذا حساب مالك النظام ولا يمكن تحويله إلى مشرف' }, 400);
+      }
+
+      let existing: { id: string; email?: string | null } | null = null;
+      for (let page = 1; page <= 50 && !existing; page++) {
+        const { data: pageData, error: listError } = await supabaseAdmin.auth.admin.listUsers({
+          page,
+          perPage: 1000,
+        });
+        if (listError) {
+          return jsonResponse(
+            { error: `تعذر البحث عن الحساب الموجود: ${listError.message}` },
+            500
+          );
+        }
+        existing =
+          pageData.users.find((u) => u.email?.toLowerCase() === normalizedEmail) ?? null;
+        if (pageData.users.length < 1000) break;
+      }
+
+      if (!existing) {
+        return jsonResponse(
+          { error: 'هذا البريد مسجل بالفعل لكن تعذر العثور على الحساب' },
+          400
+        );
+      }
+
+      const { data: existingProfile } = await supabaseAdmin
+        .from('profiles')
+        .select('role')
+        .eq('id', existing.id)
+        .maybeSingle();
+      const { data: existingSettings } = await supabaseAdmin
+        .from('admin_settings')
+        .select('user_id')
+        .eq('user_id', existing.id)
+        .maybeSingle();
+
+      if (existingSettings || (existingProfile?.role && existingProfile.role !== 'user')) {
+        return jsonResponse(
+          { error: 'هذا الحساب مشرف بالفعل. عدّل صلاحياته من قائمة المشرفين' },
+          409
+        );
+      }
+
+      newUser = existing;
+      promotedExisting = true;
+    } else {
+      newUser = newUserData.user;
+    }
 
     if (!newUser) {
       return jsonResponse(
@@ -282,7 +343,10 @@ Deno.serve(async (req: Request) => {
         email: newUser.email,
         country_ids: uniqueCountryIds,
         primary_country_id: resolvedPrimaryCountryId,
-        message: `تم إنشاء حساب المشرف بنجاح: ${trimmedFullName}`,
+        existing_user: promotedExisting,
+        message: promotedExisting
+          ? `هذا البريد كان مسجلاً كعميل، فتمت ترقيته إلى مشرف: ${trimmedFullName}. يدخل بكلمة مروره الحالية`
+          : `تم إنشاء حساب المشرف بنجاح: ${trimmedFullName}`,
       },
       200
     );

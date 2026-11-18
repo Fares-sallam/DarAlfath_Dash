@@ -548,10 +548,12 @@ export function useCreateNewAdminUser() {
 
       return data;
     },
-    onSuccess: () => {
+    onSuccess: (data: { existing_user?: boolean; message?: string } | null) => {
       qc.invalidateQueries({ queryKey: ['admin-settings'] });
       qc.invalidateQueries({ queryKey: ['admin-profiles'] });
-      toast.success('تم إنشاء حساب المشرف بنجاح');
+      toast.success(
+        data?.existing_user && data.message ? data.message : 'تم إنشاء حساب المشرف بنجاح'
+      );
     },
     onError: (e: Error) => toast.error('فشل إنشاء المشرف: ' + e.message),
   });

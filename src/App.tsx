@@ -110,7 +110,7 @@ const App = () => {
                   <Route
                     path="/hero-slides"
                     element={
-                      <ProtectedRoute permission="can_manage_products">
+                      <ProtectedRoute permission="can_manage_home_media">
                         <HeroSlides />
                       </ProtectedRoute>
                     }
@@ -119,7 +119,7 @@ const App = () => {
                   <Route
                     path="/intro-videos"
                     element={
-                      <ProtectedRoute permission="can_manage_products">
+                      <ProtectedRoute permission="can_manage_home_media">
                         <IntroVideos />
                       </ProtectedRoute>
                     }
@@ -128,7 +128,7 @@ const App = () => {
                   <Route
                     path="/ads-strips"
                     element={
-                      <ProtectedRoute permission="can_manage_products">
+                      <ProtectedRoute permission="can_manage_appearance">
                         <AdsAndStrips />
                       </ProtectedRoute>
                     }
@@ -137,7 +137,7 @@ const App = () => {
                   <Route
                     path="/links-page"
                     element={
-                      <ProtectedRoute permission="can_manage_products">
+                      <ProtectedRoute permission="can_manage_links_page">
                         <LinksPageAdmin />
                       </ProtectedRoute>
                     }
@@ -146,7 +146,7 @@ const App = () => {
                   <Route
                     path="/appearance"
                     element={
-                      <ProtectedRoute permission="can_manage_products">
+                      <ProtectedRoute permission="can_manage_appearance">
                         <AppearanceAdmin />
                       </ProtectedRoute>
                     }

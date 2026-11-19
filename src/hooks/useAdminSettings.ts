@@ -23,6 +23,9 @@ export interface AdminPermissions {
   can_export: boolean;
   can_view_activity_log: boolean;
   can_manage_settings: boolean;
+  can_manage_home_media: boolean;
+  can_manage_appearance: boolean;
+  can_manage_links_page: boolean;
 }
 
 export interface CountryAccessItem {
@@ -150,6 +153,9 @@ export function useAdminSettings() {
             can_export,
             can_view_activity_log,
             can_manage_settings,
+            can_manage_home_media,
+            can_manage_appearance,
+            can_manage_links_page,
             profiles(id, full_name, email, phone, role, avatar_url, is_active, created_at),
             countries(id, name, code, currency, currency_symbol)
           `)
@@ -191,6 +197,9 @@ export function useAdminSettings() {
         return {
           ...row,
           can_view_activity_log: row.can_view_activity_log ?? false,
+          can_manage_home_media: row.can_manage_home_media ?? false,
+          can_manage_appearance: row.can_manage_appearance ?? false,
+          can_manage_links_page: row.can_manage_links_page ?? false,
           accessible_countries: accessible,
           primary_country_id: primaryAccess?.country_id ?? row.country_id ?? null,
         };
@@ -468,6 +477,9 @@ export const PERMISSION_FIELDS: {
   { key: 'can_export', label: 'تصدير البيانات', section: 'التقارير', icon: '📤' },
   { key: 'can_view_activity_log', label: 'عرض سجل النشاط', section: 'التقارير', icon: '📝' },
   { key: 'can_manage_settings', label: 'إعدادات المتجر', section: 'الإعدادات', icon: '⚙️' },
+  { key: 'can_manage_home_media', label: 'صور الصفحة الرئيسية والفيديوهات', section: 'مظهر المتجر والصفحات', icon: '🖼️' },
+  { key: 'can_manage_appearance', label: 'الإعلانات والأشرطة ومظهر المتجر', section: 'مظهر المتجر والصفحات', icon: '🎨' },
+  { key: 'can_manage_links_page', label: 'إدارة الصفحة والروابط', section: 'مظهر المتجر والصفحات', icon: '🔗' },
 ];
 
 export const PERMISSION_SECTIONS_GROUPED = (() => {
@@ -491,6 +503,9 @@ export const DEFAULT_PERMISSIONS: AdminPermissions = {
   can_export: false,
   can_view_activity_log: false,
   can_manage_settings: false,
+  can_manage_home_media: false,
+  can_manage_appearance: false,
+  can_manage_links_page: false,
 };
 
 export function countActivePerms(perms: AdminPermissions): number {

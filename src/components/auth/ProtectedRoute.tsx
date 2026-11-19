@@ -13,7 +13,10 @@ type AdminPermissionKey =
   | 'can_view_analytics'
   | 'can_export'
   | 'can_view_activity_log'
-  | 'can_manage_settings';
+  | 'can_manage_settings'
+  | 'can_manage_home_media'
+  | 'can_manage_appearance'
+  | 'can_manage_links_page';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;

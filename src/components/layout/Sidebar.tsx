@@ -4,11 +4,34 @@ import { useLogo } from '@/contexts/LogoContext';
 import { toast } from 'sonner';
 import { STOREFRONT_URL } from '@/lib/storefront';
 import { usePendingReviewsCount } from '@/hooks/useReviews';
+import type { AdminPermissions } from '@/contexts/AuthContext';
 import {
   LayoutDashboard, Settings, BookOpen, ShoppingCart, Users, BookMarked,
   Tag, Package, BarChart3, Truck, ShieldCheck, ActivitySquare, LogOut, X, CreditCard,
-  Image as ImageIcon, Youtube, Star, Megaphone, Link2,
+  Image as ImageIcon, Youtube, Star, Megaphone, Link2, Lock, LockOpen,
   BookOpen as BookIcon, Palette } from 'lucide-react';
+
+/** The permission each entry needs; the lock beside it shows whether the signed-in person has it. */
+const NAV_PERMISSION: Record<string, keyof AdminPermissions | undefined> = {
+  'hero-slides': 'can_manage_home_media',
+  'intro-videos': 'can_manage_home_media',
+  'ads-strips': 'can_manage_appearance',
+  appearance: 'can_manage_appearance',
+  'links-page': 'can_manage_links_page',
+  settings: 'can_manage_settings',
+  books: 'can_manage_products',
+  series: 'can_manage_products',
+  reviews: 'can_manage_products',
+  orders: 'can_manage_orders',
+  payments: 'can_manage_orders',
+  customers: 'can_manage_users',
+  coupons: 'can_manage_coupons',
+  inventory: 'can_manage_inventory',
+  analytics: 'can_view_analytics',
+  shipping: 'can_manage_shipping',
+  admins: 'can_manage_admins',
+  activity: 'can_view_activity_log',
+};
 
 interface SidebarProps {
   isOpen: boolean;
@@ -40,7 +63,7 @@ const navItems = [
 export default function Sidebar({ isOpen, onClose }: SidebarProps) {
   const location = useLocation();
   const navigate = useNavigate();
-  const { logout } = useAuth();
+  const { user, logout } = useAuth();
   const { data: pendingReviews = 0 } = usePendingReviewsCount();
   const { logoUrl } = useLogo();
 
@@ -100,6 +123,8 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
             {navItems.map((item) => {
               const Icon = item.icon;
               const isActive = location.pathname === item.path;
+              const needed = NAV_PERMISSION[item.id];
+              const unlocked = !needed || !!user?.isSystemOwner || !!user?.permissions?.[needed];
               return (
                 <li key={item.id}>
                   <Link
@@ -114,6 +139,14 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                         {pendingReviews}
                       </span>
                     )}
+                    <span
+                      data-testid={`nav-lock-${item.id}`}
+                      data-locked={unlocked ? 'false' : 'true'}
+                      title={unlocked ? 'مفتوحة لحسابك' : 'مغلقة: لا تملك صلاحية دخولها'}
+                      className={unlocked ? 'text-emerald-300' : 'text-red-300'}
+                    >
+                      {unlocked ? <LockOpen size={14} /> : <Lock size={14} />}
+                    </span>
                     {item.requiresAdmin && (
                       <span className="badge-admin text-[10px] px-1.5 py-0.5">مشرف</span>
                     )}

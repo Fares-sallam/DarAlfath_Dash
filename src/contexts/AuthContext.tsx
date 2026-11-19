@@ -23,6 +23,9 @@ export interface AdminPermissions {
   can_export: boolean;
   can_view_activity_log: boolean;
   can_manage_settings: boolean;
+  can_manage_home_media: boolean;
+  can_manage_appearance: boolean;
+  can_manage_links_page: boolean;
 }
 
 const DEFAULT_PERMISSIONS: AdminPermissions = {
@@ -37,6 +40,9 @@ const DEFAULT_PERMISSIONS: AdminPermissions = {
   can_export: false,
   can_view_activity_log: false,
   can_manage_settings: false,
+  can_manage_home_media: false,
+  can_manage_appearance: false,
+  can_manage_links_page: false,
 };
 
 export interface AuthUser {
@@ -98,7 +104,10 @@ async function fetchProfile(userId: string, email: string): Promise<AuthUser> {
           can_view_analytics,
           can_export,
           can_view_activity_log,
-          can_manage_settings
+          can_manage_settings,
+          can_manage_home_media,
+          can_manage_appearance,
+          can_manage_links_page
         `)
         .eq('user_id', userId)
         .maybeSingle(),
@@ -134,6 +143,9 @@ async function fetchProfile(userId: string, email: string): Promise<AuthUser> {
           can_export: adminSettings.can_export ?? false,
           can_view_activity_log: adminSettings.can_view_activity_log ?? false,
           can_manage_settings: adminSettings.can_manage_settings ?? false,
+          can_manage_home_media: adminSettings.can_manage_home_media ?? false,
+          can_manage_appearance: adminSettings.can_manage_appearance ?? false,
+          can_manage_links_page: adminSettings.can_manage_links_page ?? false,
         }
       : { ...DEFAULT_PERMISSIONS };
 

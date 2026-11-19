@@ -254,6 +254,9 @@ function PermissionsPanel({ admin }: PermissionsPanelProps) {
     can_export: row.can_export,
     can_view_activity_log: row.can_view_activity_log,
     can_manage_settings: row.can_manage_settings,
+    can_manage_home_media: row.can_manage_home_media,
+    can_manage_appearance: row.can_manage_appearance,
+    can_manage_links_page: row.can_manage_links_page,
   });
 
   const initialCountryIds = admin.accessible_countries?.length
@@ -1398,6 +1401,9 @@ function AdminCard({ admin, isSelected, onSelect }: AdminCardProps) {
     can_export: admin.can_export,
     can_view_activity_log: admin.can_view_activity_log,
     can_manage_settings: admin.can_manage_settings,
+    can_manage_home_media: admin.can_manage_home_media,
+    can_manage_appearance: admin.can_manage_appearance,
+    can_manage_links_page: admin.can_manage_links_page,
   });
 
   const countryBadges = admin.accessible_countries?.length

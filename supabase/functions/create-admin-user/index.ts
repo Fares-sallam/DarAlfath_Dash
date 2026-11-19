@@ -281,6 +281,10 @@ Deno.serve(async (req: Request) => {
       can_view_analytics: permissions?.can_view_analytics ?? false,
       can_export: permissions?.can_export ?? false,
       can_view_activity_log: permissions?.can_view_activity_log ?? false,
+      can_manage_settings: permissions?.can_manage_settings ?? false,
+      can_manage_home_media: permissions?.can_manage_home_media ?? false,
+      can_manage_appearance: permissions?.can_manage_appearance ?? false,
+      can_manage_links_page: permissions?.can_manage_links_page ?? false,
     };
 
     const { error: settingsError } = await supabaseAdmin

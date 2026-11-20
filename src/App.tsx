@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 
 import { AuthProvider } from "@/contexts/AuthContext";
 import { CountryProvider } from "@/contexts/CountryContext";
@@ -22,7 +22,7 @@ import IntroVideos from "./pages/IntroVideos";
 import AdsAndStrips from "./pages/AdsAndStrips";
 import LinksPageAdmin from "./pages/LinksPageAdmin";
 import AppearanceAdmin from "./pages/AppearanceAdmin";
-import Series from "./pages/Series";
+import Catalog from "./pages/Catalog";
 import Reviews from "./pages/Reviews";
 import Inventory from "./pages/Inventory";
 import Analytics from "./pages/Analytics";
@@ -81,13 +81,15 @@ const App = () => {
                   />
 
                   <Route
-                    path="/series"
+                    path="/catalog"
                     element={
-                      <ProtectedRoute permission="can_manage_products">
-                        <Series />
+                      <ProtectedRoute permission="can_manage_catalog">
+                        <Catalog />
                       </ProtectedRoute>
                     }
                   />
+
+                  <Route path="/series" element={<Navigate to="/catalog" replace />} />
 
                   <Route
                     path="/orders"

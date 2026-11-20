@@ -1,0 +1,120 @@
+import { useCallback } from 'react';
+import { useSearchParams, Link } from 'react-router-dom';
+import { BookOpen, FolderTree, HeartPulse, Home, Menu } from 'lucide-react';
+import Layout from '@/components/layout/Layout';
+import TreeTab from '@/components/catalog/TreeTab';
+import BooksTab from '@/components/catalog/BooksTab';
+import HealthTab from '@/components/catalog/HealthTab';
+import HeaderNavSection from '@/components/ads/HeaderNavSection';
+import CategoryBarSection from '@/components/ads/CategoryBarSection';
+import AppStripsSection from '@/components/ads/AppStripsSection';
+
+const TABS = [
+  { key: 'tree', label: 'الشجرة', hint: 'كل الأقسام والسلاسل والتصنيفات في مكان واحد: التنظيم، الظهور، الترتيب، والكتب.', icon: FolderTree },
+  { key: 'books', label: 'الكتب', hint: 'كل كتاب بسلاسله وتصنيفاته. عدّل التنظيم أو دوّر على الكتب اللي مش تابعة لأي حاجة.', icon: BookOpen },
+  { key: 'menus', label: 'القوائم والأشرطة', hint: 'قايمة الموقع العلوية (الرئيسية، الكتب، السلاسل، تواصل معنا) وشريط التصنيفات.', icon: Menu },
+  { key: 'home', label: 'الصفحة الرئيسية', hint: 'أقسام الرئيسية في الموقع والتطبيق.', icon: Home },
+  { key: 'health', label: 'فحص وتنظيف', hint: 'ملاحظات على التنظيم: عناصر فاضية، أسماء مكررة، كتب بلا تصنيف.', icon: HeartPulse },
+] as const;
+
+/** One place for the catalog: sections, series and categories for the website and the app. */
+export default function Catalog() {
+  const [params, setParams] = useSearchParams();
+  const active = TABS.find((t) => t.key === params.get('tab')) ?? TABS[0];
+  const openNode = params.get('node');
+  const openProduct = params.get('product');
+
+  const clearParam = useCallback(
+    (key: string) =>
+      setParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          next.delete(key);
+          return next;
+        },
+        { replace: true },
+      ),
+    [setParams],
+  );
+  const clearNode = useCallback(() => clearParam('node'), [clearParam]);
+  const clearProduct = useCallback(() => clearParam('product'), [clearParam]);
+
+  return (
+    <Layout>
+      <div className="space-y-5" data-testid="catalog-page">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+            <FolderTree className="text-blue-600" size={24} />
+            السلاسل والتصنيفات
+          </h1>
+          <p className="text-sm text-gray-500 mt-1">
+            أي تعديل هنا بيتطبّق على الموقع والتطبيق (النسخ المنشورة من التطبيق بتشوفه أول ما تفتح أو تسحب للتحديث).
+          </p>
+        </div>
+
+        <div className="flex gap-2 overflow-x-auto pb-1" role="tablist" aria-label="أقسام السلاسل والتصنيفات">
+          {TABS.map((tab) => {
+            const Icon = tab.icon;
+            const on = tab.key === active.key;
+            return (
+              <button
+                key={tab.key}
+                type="button"
+                role="tab"
+                aria-selected={on}
+                onClick={() => setParams({ tab: tab.key }, { replace: true })}
+                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold whitespace-nowrap border transition-colors ${
+                  on ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+                }`}
+                data-testid={`tab-${tab.key}`}
+              >
+                <Icon size={16} />
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+
+        <p className="text-xs text-gray-500">{active.hint}</p>
+
+        <div role="tabpanel" aria-label={active.label}>
+          {active.key === 'tree' && <TreeTab openNodeId={openNode} onOpened={clearNode} />}
+          {active.key === 'books' && <BooksTab openProductId={openProduct} onOpened={clearProduct} />}
+          {active.key === 'menus' && (
+            <div className="space-y-8">
+              <section>
+                <h2 className="text-lg font-bold text-gray-800 mb-3">قايمة الموقع العلوية</h2>
+                <HeaderNavSection />
+              </section>
+              <section>
+                <h2 className="text-lg font-bold text-gray-800 mb-3">شريط التصنيفات</h2>
+                <CategoryBarSection />
+              </section>
+            </div>
+          )}
+          {active.key === 'home' && (
+            <div className="space-y-8">
+              <section className="bg-white rounded-2xl shadow-sm p-5 flex flex-col md:flex-row md:items-center gap-3 justify-between">
+                <div>
+                  <h2 className="text-lg font-bold text-gray-800">أقسام الرئيسية في الموقع</h2>
+                  <p className="text-sm text-gray-500 mt-1">ترتيب وإخفاء أقسام الصفحة الرئيسية (كروت أقسام المتجر، الأكثر مبيعًا، رفوف التصنيفات…).</p>
+                </div>
+                <Link to="/appearance" className="btn-primary self-start whitespace-nowrap">فتح «مظهر المتجر»</Link>
+              </section>
+              <section>
+                <h2 className="text-lg font-bold text-gray-800 mb-3">أقسام الرئيسية في التطبيق</h2>
+                <AppStripsSection />
+              </section>
+            </div>
+          )}
+          {active.key === 'health' && (
+            <HealthTab
+              onOpenNode={(id) => setParams({ tab: 'tree', node: id }, { replace: true })}
+              onOpenProduct={(id) => setParams({ tab: 'books', product: id }, { replace: true })}
+            />
+          )}
+        </div>
+      </div>
+    </Layout>
+  );
+}

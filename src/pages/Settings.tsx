@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import Layout from '@/components/layout/Layout';
 import {
   Save, Store, Bell, Upload, User,
@@ -19,7 +19,6 @@ import { useCountry } from '@/contexts/CountryContext';
 import {
   useCountries, useCreateCountry, useUpdateCountry, useDeleteCountry,
   usePaymentMethods, useCreatePaymentMethod, useUpdatePaymentMethod, useDeletePaymentMethod,
-  useCategories, useCreateCategory, useUpdateCategory, useDeleteCategory,
   useStoreSettings, useUpsertStoreSettings,
   type Country, type PaymentMethod, type Category, type StoreSettingsInput,
 } from '@/hooks/useSettings';
@@ -1383,116 +1382,12 @@ function PaymentMethodsSection() {
    Categories Section
 ════════════════════════════════════════════════════════════ */
 function CategoriesSection() {
-  const { data: categories = [], isLoading, isError } = useCategories();
-  const createMutation = useCreateCategory();
-  const updateMutation = useUpdateCategory();
-  const deleteMutation = useDeleteCategory();
-
-  const [showForm, setShowForm] = useState(false);
-  const [editing, setEditing] = useState<Category | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<Category | null>(null);
-
-  const emptyForm = { name: '', slug: '', description: '' };
-  const [form, setForm] = useState(emptyForm);
-
-  const handleNameChange = (name: string) => {
-    const slug = name.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^\w\u0621-\u064A-]/g, '').replace(/-+/g, '-');
-    setForm(f => ({ ...f, name, slug }));
-  };
-
-  const openEdit = (c: Category) => {
-    setForm({ name: c.name, slug: c.slug, description: c.description ?? '' });
-    setEditing(c); setShowForm(true);
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const payload = { name: form.name, slug: form.slug, description: form.description || undefined };
-    if (editing) { await updateMutation.mutateAsync({ id: editing.id, ...payload }); }
-    else { await createMutation.mutateAsync(payload); }
-    setShowForm(false); setEditing(null); setForm(emptyForm);
-  };
-
-  const isPending = createMutation.isPending || updateMutation.isPending;
-  const COLORS = ['bg-blue-100 text-blue-700','bg-purple-100 text-purple-700','bg-green-100 text-green-700','bg-orange-100 text-orange-700','bg-pink-100 text-pink-700','bg-amber-100 text-amber-700','bg-teal-100 text-teal-700','bg-red-100 text-red-700'];
-
   return (
-    <div className="space-y-5">
-      <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-        <div>
-          <h3 className="font-bold text-gray-800 text-lg">تصنيفات الكتب</h3>
-          <p className="text-xs text-gray-400 mt-0.5">إدارة تصنيفات المكتبة</p>
-        </div>
-        <button onClick={() => { setForm(emptyForm); setEditing(null); setShowForm(true); }} className="btn-primary flex items-center gap-1.5 text-sm">
-          <Plus size={14} /> إضافة تصنيف
-        </button>
-      </div>
-
-      {isLoading && <div className="flex items-center justify-center py-12 gap-2 text-gray-400"><Loader2 size={20} className="animate-spin" /><span className="text-sm">جارٍ التحميل...</span></div>}
-      {isError && <div className="flex items-center justify-center py-12 gap-2 text-red-400"><AlertCircle size={18} /><span className="text-sm">تعذّر تحميل التصنيفات</span></div>}
-
-      {!isLoading && !isError && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {categories.map((cat, idx) => (
-            <div key={cat.id} className="flex items-center justify-between bg-gray-50 hover:bg-gray-100 rounded-2xl p-4 transition-colors group">
-              <div className="flex items-center gap-3 min-w-0">
-                <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-sm font-bold flex-shrink-0 ${COLORS[idx % COLORS.length]}`}>
-                  {cat.name.charAt(0)}
-                </div>
-                <div className="min-w-0">
-                  <p className="font-bold text-gray-800 text-sm truncate">{cat.name}</p>
-                  <p className="text-xs text-gray-400 font-mono truncate" dir="ltr">{cat.slug}</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
-                <button onClick={() => openEdit(cat)} className="p-1.5 rounded-xl hover:bg-blue-50 text-blue-600"><Pencil size={13} /></button>
-                <button onClick={() => setDeleteTarget(cat)} className="p-1.5 rounded-xl hover:bg-red-50 text-red-500"><Trash2 size={13} /></button>
-              </div>
-            </div>
-          ))}
-          {categories.length === 0 && <div className="col-span-2 text-center py-12 text-gray-400"><Tag size={32} className="text-gray-200 mx-auto mb-2" /><p className="text-sm">لا توجد تصنيفات بعد</p></div>}
-        </div>
-      )}
-
-      {showForm && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" dir="rtl">
-          <div className="bg-white rounded-2xl shadow-xl p-6 max-w-md w-full">
-            <div className="flex items-center justify-between mb-5">
-              <h3 className="font-bold text-gray-800">{editing ? 'تعديل التصنيف' : 'إضافة تصنيف'}</h3>
-              <button onClick={() => { setShowForm(false); setEditing(null); }} className="p-1.5 rounded-xl hover:bg-gray-100 text-gray-400"><X size={18} /></button>
-            </div>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1.5">اسم التصنيف</label>
-                <input value={form.name} onChange={e => handleNameChange(e.target.value)} placeholder="روايات، تنمية بشرية..." required className="input-field text-sm py-2 h-auto" />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1.5">الـ Slug</label>
-                <input value={form.slug} onChange={e => setForm(f => ({ ...f, slug: e.target.value }))} placeholder="novels" required className="input-field text-sm py-2 h-auto" dir="ltr" />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1.5">الوصف (اختياري)</label>
-                <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} rows={2} className="input-field text-sm py-2 h-auto resize-none" />
-              </div>
-              <div className="flex gap-3 pt-1">
-                <button type="button" onClick={() => { setShowForm(false); setEditing(null); }} className="flex-1 btn-secondary">إلغاء</button>
-                <button type="submit" disabled={isPending} className="flex-1 btn-primary flex items-center justify-center gap-2 disabled:opacity-60">
-                  {isPending ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
-                  {editing ? 'حفظ' : 'إضافة'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {deleteTarget && (
-        <ConfirmDelete
-          label={deleteTarget.name}
-          onConfirm={() => { deleteMutation.mutate(deleteTarget.id); setDeleteTarget(null); }}
-          onCancel={() => setDeleteTarget(null)}
-        />
-      )}
+    <div className="bg-white rounded-2xl shadow-sm p-8 text-center" data-testid="categories-moved">
+      <div className="w-14 h-14 rounded-2xl bg-blue-100 text-blue-600 flex items-center justify-center mx-auto mb-4"><Tag size={26} /></div>
+      <h3 className="font-bold text-gray-800 text-lg mb-1">التصنيفات انتقلت</h3>
+      <p className="text-sm text-gray-500 mb-5">إدارة التصنيفات بقت مع السلاسل والأقسام في صفحة واحدة، بتحكمات أكتر للموقع والتطبيق.</p>
+      <Link to="/catalog" className="btn-primary inline-flex items-center gap-2">فتح «السلاسل والتصنيفات»</Link>
     </div>
   );
 }

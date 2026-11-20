@@ -285,6 +285,7 @@ Deno.serve(async (req: Request) => {
       can_manage_home_media: permissions?.can_manage_home_media ?? false,
       can_manage_appearance: permissions?.can_manage_appearance ?? false,
       can_manage_links_page: permissions?.can_manage_links_page ?? false,
+      can_manage_catalog: permissions?.can_manage_catalog ?? false,
     };
 
     const { error: settingsError } = await supabaseAdmin

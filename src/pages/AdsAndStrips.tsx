@@ -1,17 +1,13 @@
-import { useSearchParams } from 'react-router-dom';
-import { LayoutGrid, Megaphone, Menu, Rows3, Smartphone, Trophy } from 'lucide-react';
+import { Navigate, useSearchParams } from 'react-router-dom';
+import { LayoutGrid, Megaphone, Smartphone, Trophy } from 'lucide-react';
 import Layout from '@/components/layout/Layout';
 import AnnouncementsSection from '@/components/ads/AnnouncementsSection';
-import CategoryBarSection from '@/components/ads/CategoryBarSection';
 import FeatureBoxesSection from '@/components/ads/FeatureBoxesSection';
 import BestSellersSection from '@/components/ads/BestSellersSection';
-import HeaderNavSection from '@/components/ads/HeaderNavSection';
 import AppStripsSection from '@/components/ads/AppStripsSection';
 
 const TABS = [
-  { key: 'menu', label: 'شريط القائمة الرئيسية', hint: 'الشريط اللي فيه الرئيسية والكتب والسلاسل وتواصل معنا: ترتيبه واللي بيظهر منه.', icon: Menu, Section: HeaderNavSection },
   { key: 'offers', label: 'شريط العروض والإعلانات', hint: 'الشريط اللي تحت الهيدر على طول، برسايل بتتبدل كل 5 ثواني.', icon: Megaphone, Section: AnnouncementsSection },
-  { key: 'categories', label: 'شريط التصنيفات', hint: 'التصنيفات اللي بتظهر في الشريط تحت الهيدر، وترتيبها.', icon: Rows3, Section: CategoryBarSection },
   { key: 'boxes', label: 'مربعات أعلى الفوتر', hint: 'المربعات اللي في آخر الصفحة الرئيسية فوق الفوتر.', icon: LayoutGrid, Section: FeatureBoxesSection },
   { key: 'best', label: 'الأكثر مبيعًا', hint: 'صف «الأكثر مبيعًا» في الرئيسية، ومبيعات كل كتاب عشان تختار.', icon: Trophy, Section: BestSellersSection },
   { key: 'app', label: 'شرايط التطبيق', hint: 'شريط الشحن المجاني في سلة التطبيق، وأقسام الرئيسية في التطبيق اللي تقدر تقفلها أو تفتحها.', icon: Smartphone, Section: AppStripsSection },
@@ -20,6 +16,10 @@ const TABS = [
 /** One place for what the store shows around the books: the strips, the boxes above the footer, and the best sellers row. */
 export default function AdsAndStrips() {
   const [params, setParams] = useSearchParams();
+  // the top menu and the category bar moved to «السلاسل والتصنيفات»
+  if (params.get('tab') === 'menu' || params.get('tab') === 'categories') {
+    return <Navigate to="/catalog?tab=menus" replace />;
+  }
   const active = TABS.find((t) => t.key === params.get('tab')) ?? TABS[0];
   const { Section } = active;
 

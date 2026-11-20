@@ -26,6 +26,7 @@ export interface AdminPermissions {
   can_manage_home_media: boolean;
   can_manage_appearance: boolean;
   can_manage_links_page: boolean;
+  can_manage_catalog: boolean;
 }
 
 export interface CountryAccessItem {
@@ -156,6 +157,7 @@ export function useAdminSettings() {
             can_manage_home_media,
             can_manage_appearance,
             can_manage_links_page,
+            can_manage_catalog,
             profiles(id, full_name, email, phone, role, avatar_url, is_active, created_at),
             countries(id, name, code, currency, currency_symbol)
           `)
@@ -200,6 +202,7 @@ export function useAdminSettings() {
           can_manage_home_media: row.can_manage_home_media ?? false,
           can_manage_appearance: row.can_manage_appearance ?? false,
           can_manage_links_page: row.can_manage_links_page ?? false,
+          can_manage_catalog: row.can_manage_catalog ?? false,
           accessible_countries: accessible,
           primary_country_id: primaryAccess?.country_id ?? row.country_id ?? null,
         };
@@ -480,6 +483,7 @@ export const PERMISSION_FIELDS: {
   { key: 'can_manage_home_media', label: 'صور الصفحة الرئيسية والفيديوهات', section: 'مظهر المتجر والصفحات', icon: '🖼️' },
   { key: 'can_manage_appearance', label: 'الإعلانات والأشرطة ومظهر المتجر', section: 'مظهر المتجر والصفحات', icon: '🎨' },
   { key: 'can_manage_links_page', label: 'إدارة الصفحة والروابط', section: 'مظهر المتجر والصفحات', icon: '🔗' },
+  { key: 'can_manage_catalog', label: 'السلاسل والتصنيفات والأقسام', section: 'الكتالوج', icon: '🗂️' },
 ];
 
 export const PERMISSION_SECTIONS_GROUPED = (() => {
@@ -506,6 +510,7 @@ export const DEFAULT_PERMISSIONS: AdminPermissions = {
   can_manage_home_media: false,
   can_manage_appearance: false,
   can_manage_links_page: false,
+  can_manage_catalog: false,
 };
 
 export function countActivePerms(perms: AdminPermissions): number {

@@ -11,7 +11,7 @@ const modules = [
   { id: 'discount', label: 'إدارة الكوبونات و الخصم', description: 'إدارة الخصومات والعروض الترويجية', icon: Package, path: '/coupons', requiresAdmin: true, color: 'bg-purple-50', iconColor: 'text-purple-600' },
   { id: 'orders', label: 'إدارة الطلبات', description: 'متابعة الطلبات وحالاتها', icon: ShoppingCart, path: '/orders', requiresAdmin: true, color: 'bg-green-50', iconColor: 'text-green-600' },
   { id: 'analytics', label: 'لوحة التحليلات', description: 'عرض الإحصائيات والتقارير', icon: BarChart3, path: '/analytics', requiresAdmin: true, color: 'bg-cyan-50', iconColor: 'text-cyan-600' },
-  { id: 'series', label: 'إدارة السلاسل', description: 'إدارة السلاسل والمكتبات التابعة', icon: BookMarked, path: '/series', requiresAdmin: true, color: 'bg-orange-50', iconColor: 'text-orange-600' },
+  { id: 'catalog', label: 'السلاسل والتصنيفات', description: 'الأقسام والسلاسل والتصنيفات للموقع والتطبيق', icon: BookMarked, path: '/catalog', requiresAdmin: true, color: 'bg-orange-50', iconColor: 'text-orange-600' },
   { id: 'customers', label: 'إدارة العملاء', description: 'إدارة بيانات العملاء', icon: Users, path: '/customers', requiresAdmin: true, color: 'bg-pink-50', iconColor: 'text-pink-600' },
   { id: 'admins', label: 'إعدادات المشرفين', description: 'إدارة حسابات المشرفين والصلاحيات', icon: ShieldCheck, path: '/admins', requiresAdmin: true, color: 'bg-slate-50', iconColor: 'text-slate-600' },
 ];

@@ -237,7 +237,7 @@ export function useCreateCategory() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: { name: string; slug: string; description?: string }) => {
-      const { error } = await supabase.from('categories').insert(input);
+      const { error } = await supabase.from('categories').insert({ ...input, name: input.name.trim() });
       if (error) throw error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['settings-categories'] }); toast.success('تمت إضافة التصنيف'); },
@@ -249,7 +249,8 @@ export function useUpdateCategory() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, ...patch }: { id: string; name?: string; slug?: string; description?: string | null }) => {
-      const { error } = await supabase.from('categories').update(patch).eq('id', id);
+      const cleaned = patch.name === undefined ? patch : { ...patch, name: patch.name.trim() };
+      const { error } = await supabase.from('categories').update(cleaned).eq('id', id);
       if (error) throw error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['settings-categories'] }); toast.success('تم تحديث التصنيف'); },

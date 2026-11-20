@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { useCountry } from '@/contexts/CountryContext';
+import { syncProductSeries } from '@/lib/productSeriesSync';
 import { compressImage } from '@/lib/imageCompression';
 import { EBOOK_MAX_BYTES, EBOOK_MESSAGES, megabytes } from '@/lib/ebookFile';
 import { IAP_DUPLICATE_MESSAGE, iapProductIdError, isIapDuplicateError, normalizeIapProductId } from '@/lib/iap';
@@ -1011,21 +1012,8 @@ export function useUpsertProduct() {
         if (ebookErr) throw ebookErr;
       }
 
-      // Sync series
-      if (isEdit) {
-        const { error: seriesErr } = await supabase.from('product_series').delete().eq('product_id', productId);
-        if (seriesErr) throw seriesErr;
-      }
-
-      if (input.seriesIds && input.seriesIds.length > 0) {
-        const seriesData = input.seriesIds.map((sid, idx) => ({
-          product_id: productId,
-          series_id: sid,
-          sort_order: idx,
-        }));
-        const { error: seriesErr } = await supabase.from('product_series').insert(seriesData);
-        if (seriesErr) throw seriesErr;
-      }
+      // Sync series (keeps each remaining link's position; see lib/productSeriesSync.ts)
+      await syncProductSeries(supabase, productId, input.seriesIds ?? [], isEdit);
 
       // Sync additional categories — exclude the primary category_id so a
       // book never shows the same category twice (once as primary, once

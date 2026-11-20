@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { useCountry } from '@/contexts/CountryContext';
+import { nextSortOrder } from '@/lib/seriesOrder';
 
 /* ── Upload a cover image file, return its public URL (bucket is public) ── */
 export async function uploadSeriesCover(file: File): Promise<string> {
@@ -170,7 +171,8 @@ export function useSeriesBooks(seriesId: string | null) {
           products(id, title, author, cover_url, type, is_active, base_price, sale_price)
         `)
         .eq('series_id', seriesId!)
-        .order('sort_order', { ascending: true });
+        .order('sort_order', { ascending: true })
+        .order('product_id', { ascending: true });
 
       if (Array.isArray(scopedIds) && scopedIds.length > 0) {
         query = query.in('product_id', scopedIds);
@@ -276,7 +278,16 @@ export function useCreateSeries() {
       year?: number | null;
       is_active: boolean;
     }) => {
-      const { error } = await supabase.from('book_series').insert(input);
+      // a new series goes last (it used to start at 0 and tie with the first one)
+      const { data: last, error: lastError } = await supabase
+        .from('book_series')
+        .select('sort_order')
+        .order('sort_order', { ascending: false })
+        .limit(1);
+      if (lastError) throw lastError;
+      const { error } = await supabase
+        .from('book_series')
+        .insert({ ...input, sort_order: nextSortOrder((last ?? []).map((r) => r.sort_order)) });
       if (error) throw error;
     },
     onSuccess: () => {
@@ -416,6 +427,38 @@ export function useRemoveBookFromSeries() {
       qc.invalidateQueries({ queryKey: ['available-products', seriesId] });
       qc.invalidateQueries({ queryKey: ['book-series'] });
       toast.success('تم إزالة الكتاب من السلسلة');
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+/* ── Put the books of a series in a new order ──
+   Takes only the rows whose number changed (see lib/seriesOrder.ts) and writes them together. */
+export function useReorderSeriesBooks() {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      seriesId,
+      rows,
+    }: {
+      seriesId: string;
+      rows: { productId: string; sortOrder: number }[];
+    }) => {
+      const results = await Promise.all(
+        rows.map((row) =>
+          supabase
+            .from('product_series')
+            .update({ sort_order: row.sortOrder })
+            .eq('series_id', seriesId)
+            .eq('product_id', row.productId),
+        ),
+      );
+      const failed = results.find((r) => r.error);
+      if (failed?.error) throw failed.error;
+    },
+    onSuccess: (_, { seriesId }) => {
+      qc.invalidateQueries({ queryKey: ['series-books', seriesId] });
     },
     onError: (e: Error) => toast.error(e.message),
   });

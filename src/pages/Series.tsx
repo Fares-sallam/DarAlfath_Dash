@@ -8,10 +8,11 @@ import {
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCountry } from '@/contexts/CountryContext';
+import { changedPositions, moveItem, nextSortOrder } from '@/lib/seriesOrder';
 import {
   useSeriesList, useSeriesBooks, useAvailableProducts,
   useCreateSeries, useUpdateSeries, useDeleteSeries, useReorderSeries,
-  useAddBookToSeries, useRemoveBookFromSeries, useUpdateBookSortOrder,
+  useAddBookToSeries, useRemoveBookFromSeries, useReorderSeriesBooks,
   uploadSeriesCover,
   type BookSeries, type SeriesBook,
 } from '@/hooks/useSeries';
@@ -280,7 +281,7 @@ function ManageBooksModal({ series, onClose }: ManageBooksModalProps) {
   const { data: availableProducts = [], isLoading: loadingAvailable } = useAvailableProducts(series.id);
   const addMutation = useAddBookToSeries();
   const removeMutation = useRemoveBookFromSeries();
-  const updateOrderMutation = useUpdateBookSortOrder();
+  const reorderBooksMutation = useReorderSeriesBooks();
 
   const [tab, setTab] = useState<'current' | 'add'>('current');
   const [search, setSearch] = useState('');
@@ -290,47 +291,24 @@ function ManageBooksModal({ series, onClose }: ManageBooksModalProps) {
   );
 
   const handleAddBook = async (productId: string) => {
-    const nextOrder =
-      seriesBooks.length > 0 ? Math.max(...seriesBooks.map((b) => b.sort_order)) + 1 : 1;
+    const nextOrder = nextSortOrder(seriesBooks.map((b) => b.sort_order));
 
     await addMutation.mutateAsync({ seriesId: series.id, productId, sortOrder: nextOrder });
   };
 
-  const handleMoveUp = async (book: SeriesBook, index: number) => {
-    if (index === 0) return;
-    const prev = seriesBooks[index - 1];
-
-    await Promise.all([
-      updateOrderMutation.mutateAsync({
-        seriesId: series.id,
-        productId: book.product_id,
-        sortOrder: prev.sort_order,
-      }),
-      updateOrderMutation.mutateAsync({
-        seriesId: series.id,
-        productId: prev.product_id,
-        sortOrder: book.sort_order,
-      }),
-    ]);
+  // Moving a book renumbers the whole list 0…n-1 (the numbers used to be equal, and swapping equal numbers moved nothing).
+  const moveBook = async (index: number, direction: -1 | 1) => {
+    const moved = moveItem(seriesBooks, index, direction);
+    if (!moved) return;
+    const rows = changedPositions(moved).map(({ item, position }) => ({
+      productId: item.product_id,
+      sortOrder: position,
+    }));
+    if (rows.length > 0) await reorderBooksMutation.mutateAsync({ seriesId: series.id, rows });
   };
 
-  const handleMoveDown = async (book: SeriesBook, index: number) => {
-    if (index >= seriesBooks.length - 1) return;
-    const next = seriesBooks[index + 1];
-
-    await Promise.all([
-      updateOrderMutation.mutateAsync({
-        seriesId: series.id,
-        productId: book.product_id,
-        sortOrder: next.sort_order,
-      }),
-      updateOrderMutation.mutateAsync({
-        seriesId: series.id,
-        productId: next.product_id,
-        sortOrder: book.sort_order,
-      }),
-    ]);
-  };
+  const handleMoveUp = (_book: SeriesBook, index: number) => moveBook(index, -1);
+  const handleMoveDown = (_book: SeriesBook, index: number) => moveBook(index, 1);
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 overflow-y-auto" dir="rtl">
@@ -453,7 +431,7 @@ function ManageBooksModal({ series, onClose }: ManageBooksModalProps) {
                         <div className="flex flex-col gap-1 flex-shrink-0">
                           <button
                             onClick={() => handleMoveUp(book, index)}
-                            disabled={index === 0 || updateOrderMutation.isPending}
+                            disabled={index === 0 || reorderBooksMutation.isPending}
                             className="p-1.5 rounded-lg hover:bg-blue-100 disabled:opacity-30 disabled:cursor-not-allowed text-blue-600 transition-colors"
                             title="تحريك لأعلى"
                           >
@@ -461,7 +439,7 @@ function ManageBooksModal({ series, onClose }: ManageBooksModalProps) {
                           </button>
                           <button
                             onClick={() => handleMoveDown(book, index)}
-                            disabled={index >= seriesBooks.length - 1 || updateOrderMutation.isPending}
+                            disabled={index >= seriesBooks.length - 1 || reorderBooksMutation.isPending}
                             className="p-1.5 rounded-lg hover:bg-blue-100 disabled:opacity-30 disabled:cursor-not-allowed text-blue-600 transition-colors"
                             title="تحريك لأسفل"
                           >
@@ -664,10 +642,6 @@ function SeriesCard({ series, onEdit, onManageBooks, position, canMoveEarlier, c
               <ChevronRight size={11} className="text-gray-400" />
             </button>
 
-            <div className="flex items-center gap-1 text-amber-600">
-              <span className="text-sm font-bold">{series.total_sales.toLocaleString()}</span>
-              <span className="text-xs text-gray-400">نسخة مباعة</span>
-            </div>
           </div>
 
           <div className="flex gap-2 flex-wrap">
@@ -776,8 +750,8 @@ export default function SeriesPage() {
   };
 
   const totalBooks = seriesList.reduce((sum, s) => sum + (s.books_count ?? 0), 0);
-  const totalSales = seriesList.reduce((sum, s) => sum + s.total_sales, 0);
   const activeCount = seriesList.filter((s) => s.is_active).length;
+  const inactiveCount = seriesList.length - activeCount;
 
   return (
     <Layout>
@@ -824,7 +798,7 @@ export default function SeriesPage() {
             { label: 'إجمالي السلاسل', value: isLoading ? '—' : seriesList.length, color: 'text-blue-700', bg: 'bg-blue-50', icon: '📚' },
             { label: 'سلاسل نشطة', value: isLoading ? '—' : activeCount, color: 'text-green-700', bg: 'bg-green-50', icon: '✅' },
             { label: 'كتب الدولة الحالية', value: isLoading ? '—' : totalBooks, color: 'text-indigo-700', bg: 'bg-indigo-50', icon: '📖' },
-            { label: 'إجمالي المبيعات', value: isLoading ? '—' : totalSales.toLocaleString(), color: 'text-amber-700', bg: 'bg-amber-50', icon: '🏷️' },
+            { label: 'سلاسل غير نشطة', value: isLoading ? '—' : inactiveCount, color: 'text-amber-700', bg: 'bg-amber-50', icon: '⏸️' },
           ].map((s, i) => (
             <div key={i} className={`${s.bg} rounded-2xl p-4 text-center`}>
               <div className="text-2xl mb-1">{s.icon}</div>

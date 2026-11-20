@@ -4,6 +4,7 @@
 export type NodeType = 'section' | 'series' | 'category' | 'collection';
 export type Channel = 'web' | 'app' | 'both';
 export type BooksSort = 'manual' | 'newest' | 'title' | 'sales';
+export type PageLayout = 'auto' | 'strips' | 'grid';
 
 export const NODE_TYPES: NodeType[] = ['section', 'series', 'category', 'collection'];
 
@@ -19,6 +20,12 @@ export const NODE_TYPE_HINTS: Record<NodeType, string> = {
   series: 'سلسلة كتب (كروت «أقسام المتجر» في الرئيسية وقائمة الموقع).',
   category: 'تصنيف للكتب (شريط التصنيفات وفلتر الكتب).',
   collection: 'مجموعة موضوعية تتكرر عبر الكتب، تتعامل كتصنيف إضافي.',
+};
+
+export const PAGE_LAYOUT_LABELS: Record<PageLayout, string> = {
+  auto: 'تلقائي (أشرطة لو فيه عناصر تحته، وإلا شبكة)',
+  strips: 'أشرطة (شريط لكل عنصر تحته، بيتسحب يمين وشمال)',
+  grid: 'شبكة كتب واحدة',
 };
 
 export const BOOKS_SORT_LABELS: Record<BooksSort, string> = {
@@ -56,6 +63,14 @@ export interface CatalogNode {
   ends_at: string | null;
   seo_title: string | null;
   seo_description: string | null;
+  /** the welcome text and the video at the top of the node's own page */
+  intro_ar: string | null;
+  intro_en: string | null;
+  video_url: string | null;
+  page_layout: PageLayout;
+  strips_limit: number;
+  /** shown as a strip on its parent's page */
+  show_as_strip: boolean;
   legacy_table: 'book_series' | 'categories' | null;
   legacy_id: string | null;
   created_at: string;

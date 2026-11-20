@@ -17,9 +17,8 @@ const TABS = [
 export default function AdsAndStrips() {
   const [params, setParams] = useSearchParams();
   // the top menu and the category bar moved to «السلاسل والتصنيفات»
-  if (params.get('tab') === 'menu' || params.get('tab') === 'categories') {
-    return <Navigate to="/catalog?tab=menus" replace />;
-  }
+  if (params.get('tab') === 'menu') return <Navigate to="/catalog?tab=map" replace />;
+  if (params.get('tab') === 'categories') return <Navigate to="/catalog?tab=menus" replace />;
   const active = TABS.find((t) => t.key === params.get('tab')) ?? TABS[0];
   const { Section } = active;
 

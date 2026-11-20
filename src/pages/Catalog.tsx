@@ -1,18 +1,19 @@
 import { useCallback } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
-import { BookOpen, FolderTree, HeartPulse, Home, Menu } from 'lucide-react';
+import { BookOpen, FolderTree, HeartPulse, Home, Map as MapIcon, Rows3 } from 'lucide-react';
 import Layout from '@/components/layout/Layout';
 import TreeTab from '@/components/catalog/TreeTab';
 import BooksTab from '@/components/catalog/BooksTab';
 import HealthTab from '@/components/catalog/HealthTab';
-import HeaderNavSection from '@/components/ads/HeaderNavSection';
+import DisplayMapTab from '@/components/catalog/DisplayMapTab';
 import CategoryBarSection from '@/components/ads/CategoryBarSection';
 import AppStripsSection from '@/components/ads/AppStripsSection';
 
 const TABS = [
   { key: 'tree', label: 'الشجرة', hint: 'كل الأقسام والسلاسل والتصنيفات في مكان واحد: التنظيم، الظهور، الترتيب، والكتب.', icon: FolderTree },
   { key: 'books', label: 'الكتب', hint: 'كل كتاب بسلاسله وتصنيفاته. عدّل التنظيم أو دوّر على الكتب اللي مش تابعة لأي حاجة.', icon: BookOpen },
-  { key: 'menus', label: 'القوائم والأشرطة', hint: 'قايمة الموقع العلوية (الرئيسية، الكتب، السلاسل، تواصل معنا) وشريط التصنيفات.', icon: Menu },
+  { key: 'map', label: 'خريطة العرض', hint: 'الشكل الكامل من فوق لتحت: القايمة العلوية (رئيسي وفرعي)، شريط التصنيفات، وأقسام الرئيسية.', icon: MapIcon },
+  { key: 'menus', label: 'شريط التصنيفات', hint: 'التصنيفات اللي بتظهر في الشريط تحت الهيدر، وترتيبها.', icon: Rows3 },
   { key: 'home', label: 'الصفحة الرئيسية', hint: 'أقسام الرئيسية في الموقع والتطبيق.', icon: Home },
   { key: 'health', label: 'فحص وتنظيف', hint: 'ملاحظات على التنظيم: عناصر فاضية، أسماء مكررة، كتب بلا تصنيف.', icon: HeartPulse },
 ] as const;
@@ -80,18 +81,8 @@ export default function Catalog() {
         <div role="tabpanel" aria-label={active.label}>
           {active.key === 'tree' && <TreeTab openNodeId={openNode} onOpened={clearNode} />}
           {active.key === 'books' && <BooksTab openProductId={openProduct} onOpened={clearProduct} />}
-          {active.key === 'menus' && (
-            <div className="space-y-8">
-              <section>
-                <h2 className="text-lg font-bold text-gray-800 mb-3">قايمة الموقع العلوية</h2>
-                <HeaderNavSection />
-              </section>
-              <section>
-                <h2 className="text-lg font-bold text-gray-800 mb-3">شريط التصنيفات</h2>
-                <CategoryBarSection />
-              </section>
-            </div>
-          )}
+          {active.key === 'map' && <DisplayMapTab />}
+          {active.key === 'menus' && <CategoryBarSection />}
           {active.key === 'home' && (
             <div className="space-y-8">
               <section className="bg-white rounded-2xl shadow-sm p-5 flex flex-col md:flex-row md:items-center gap-3 justify-between">

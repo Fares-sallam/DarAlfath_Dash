@@ -1,4 +1,5 @@
 import AuthorField from '@/components/books/AuthorField';
+import NamesManagerDialog from '@/components/books/NamesManagerDialog';
 import PublisherField from '@/components/books/PublisherField';
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { SALE_CHANNEL_LABELS, isSaleChannel, type SaleChannel } from '@/lib/saleChannel';
@@ -38,7 +39,7 @@ import {
   type HideBookPlan,
 } from '@/lib/bundles';
 import {
-  Search, Plus, Edit, Trash2, BookOpen, Copy, ToggleLeft,
+  Search, Plus, Edit, Trash2, BookOpen, Copy, ToggleLeft, Users,
   ToggleRight, X, Upload, Tag, DollarSign, Package, ExternalLink,
   FileText, Loader2, AlertCircle, ImageIcon, Star,
   Filter, Globe2, Eye, Layers, Tablet
@@ -708,6 +709,7 @@ export default function Books() {
   const [filterCategory, setFilterCategory] = useState('الكل');
   const [sortBy, setSortBy] = useState('created_at');
   const [showFilters, setShowFilters] = useState(false);
+  const [showNames, setShowNames] = useState(false);
 
   const [showModal, setShowModal] = useState(false);
   const [editProduct, setEditProduct] = useState<Product | null>(null);
@@ -1416,6 +1418,7 @@ export default function Books() {
 
   return (
     <Layout>
+      {showNames && <NamesManagerDialog onClose={() => setShowNames(false)} />}
       <div className="fade-in" dir="rtl">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
           <div>
@@ -1463,6 +1466,11 @@ export default function Books() {
                 )
               }
             />
+
+            <button onClick={() => setShowNames(true)} className="btn-secondary flex items-center gap-2 text-sm" data-testid="open-names-manager">
+              <Users size={14} />
+              المؤلفون والناشرون
+            </button>
 
             <button onClick={openAdd} className="btn-primary flex items-center gap-2">
               <Plus size={16} />

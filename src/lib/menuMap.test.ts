@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { CatalogNode } from './catalogTree';
-import { itemLabel, moveWithinParent, nextMenuSort, placementProblem, placementText, resolveMenu, validMenuUrl, type MenuItem } from './menuMap';
+import {
+  flattenMenu, itemLabel, menuDescendantIds, menuHeight, menuLevel, moveWithinParent, nextMenuSort, parentOptions,
+  placementProblem, placementText, resolveMenu, validMenuUrl, type MenuItem,
+} from './menuMap';
 
 function node(id: string, over: Partial<CatalogNode> = {}): CatalogNode {
   return {
@@ -75,14 +78,82 @@ describe('labels', () => {
   });
 });
 
-describe('placement', () => {
-  const items = [item('a'), item('b'), item('sub', { parent_id: 'a' })];
-  it('a main item can go inside another main item', () => expect(placementProblem(items, 'b', 'a')).toBeNull());
-  it('can always become main', () => expect(placementProblem(items, 'sub', null)).toBeNull());
-  it('not inside itself, not inside a sub-item, not when it holds sub-items', () => {
+describe('placement and depth', () => {
+  const items = [
+    item('a'), item('b'),
+    item('sub', { parent_id: 'a' }),
+    item('deep', { parent_id: 'sub' }),
+    item('deeper', { parent_id: 'deep' }),
+  ];
+  it('can always become main', () => expect(placementProblem(items, 'deep', null)).toBeNull());
+  it('a main item can go inside another one, and a sub-item inside a sub-item', () => {
+    expect(placementProblem(items, 'b', 'a')).toBeNull();
+    expect(placementProblem(items, 'b', 'sub')).toBeNull();
+  });
+  it('not inside itself or inside something that is inside it', () => {
     expect(placementProblem(items, 'a', 'a')).toMatch(/نفسه/);
-    expect(placementProblem(items, 'b', 'sub')).toMatch(/مستويين/);
-    expect(placementProblem(items, 'a', 'b')).toMatch(/جواه فروع/);
+    expect(placementProblem(items, 'a', 'sub')).toMatch(/جواه/);
+    expect(placementProblem(items, 'sub', 'deeper')).toMatch(/جواه/);
+  });
+  it('never deeper than four levels, counting what the item itself holds', () => {
+    // a > sub > deep > deeper is four levels already
+    expect(placementProblem(items, 'b', 'deeper')).toMatch(/4 مستويات/);
+    expect(placementProblem(items, 'b', 'deep')).toBeNull(); // b would be level 4
+    // a group holding one level cannot go under level 3
+    const withGroup = [...items, item('g'), item('inner', { parent_id: 'g' })];
+    expect(placementProblem(withGroup, 'g', 'deep')).toMatch(/4 مستويات/);
+    expect(placementProblem(withGroup, 'g', 'sub')).toBeNull();
+  });
+  it('measures level and height', () => {
+    expect(menuLevel(items, 'a')).toBe(1);
+    expect(menuLevel(items, 'deeper')).toBe(4);
+    expect(menuHeight(items, 'a')).toBe(3);
+    expect(menuHeight(items, 'deeper')).toBe(0);
+    expect([...menuDescendantIds(items, 'a')].sort()).toEqual(['deep', 'deeper', 'sub']);
+  });
+});
+
+describe('nested menu', () => {
+  const items = [
+    item('main', { kind: 'node', node_id: 's1', label_ar: null, auto_children: true }),
+    item('group', { parent_id: 'main', kind: 'group', label_ar: 'المواد', sort_order: 0 }),
+    item('w', { parent_id: 'group', kind: 'node', node_id: 'c1', label_ar: null, sort_order: 0 }),
+  ];
+  it('holds groups, and a child moved into a group is not repeated as an automatic one', () => {
+    const menu = resolveMenu(items, nodes);
+    const kids = menu[0].children;
+    expect(kids.map((k) => [k.label, k.auto])).toEqual([['المواد', false], ['الحساب', true]]);
+    expect(kids[0].children.map((k) => k.label)).toEqual(['الكتابة']);
+    expect(kids[0].children[0].level).toBe(3);
+  });
+  it('says exactly where each item sits', () => {
+    const menu = resolveMenu(items, nodes);
+    expect(placementText(menu[0])).toBe('رئيسي');
+    expect(placementText(menu[0].children[0])).toBe('فرعي داخل: الفتح');
+    expect(placementText(menu[0].children[0].children[0])).toBe('فرعي داخل: الفتح ‹ المواد');
+    expect(flattenMenu(menu).map((e) => e.label)).toEqual(['الفتح', 'المواد', 'الكتابة', 'الحساب']);
+  });
+  it('lists where an item can be moved, with the path', () => {
+    const menu = resolveMenu([...items, item('other', { kind: 'contact', label_ar: null, sort_order: 5 })], nodes);
+    const options = parentOptions(menu, [...items, item('other', { kind: 'contact', label_ar: null, sort_order: 5 })], 'other');
+    expect(options.map((o) => o.label)).toEqual(['الفتح', 'الفتح ‹ المواد', 'الفتح ‹ المواد ‹ الكتابة']);
+  });
+  it('an automatic item can itself fill its own sub-items from the tree', () => {
+    const deeper = [
+      node('s1', { type: 'series', name_ar: 'الفتح' }),
+      node('c1', { parent_id: 's1', name_ar: 'الكتابة' }),
+      node('c1a', { parent_id: 'c1', name_ar: 'خط الرقعة', sort_web: 0 }),
+    ];
+    const menu = resolveMenu([
+      item('main', { kind: 'node', node_id: 's1', label_ar: null, auto_children: true }),
+      item('child', { parent_id: 'main', kind: 'node', node_id: 'c1', label_ar: null, auto_children: true }),
+    ], deeper);
+    expect(menu[0].children[0].children.map((c) => [c.label, c.auto])).toEqual([['خط الرقعة', true]]);
+  });
+  it('stops at four levels', () => {
+    const chain = [item('l1'), item('l2', { parent_id: 'l1' }), item('l3', { parent_id: 'l2' }), item('l4', { parent_id: 'l3' }), item('l5', { parent_id: 'l4' })];
+    const flat = flattenMenu(resolveMenu(chain, nodes)).map((e) => e.label);
+    expect(flat).toEqual(['l1', 'l2', 'l3', 'l4']);
   });
 });
 

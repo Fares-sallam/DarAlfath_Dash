@@ -1,11 +1,15 @@
-// The website's top menu as the dashboard edits it: main items and sub-items (two levels), each linked to a page,
-// a catalog node, a custom link, or a heading that groups sub-items. A main item linked to a node can fill its
-// sub-items automatically from the node's children; a manual row for the same child (hidden, re-ordered)
-// wins over the automatic one. Pure helpers; no React, no Supabase.
+// The website's top menu as the dashboard edits it: a main item can hold sub-items, which can hold further
+// sub-items, up to MAX_MENU_DEPTH levels (main + 3 levels). An item is linked to a page, a catalog node, a custom
+// link, or is a group (a heading that gathers sub-items, e.g. «المواد» holding reading, writing and maths).
+// A node item can fill its sub-items automatically from the node's children; a manual row for the same child
+// anywhere under that item (hidden, moved into a group) wins over the automatic one. Pure helpers.
 import type { CatalogNode } from '@/lib/catalogTree';
 
 export type MenuKind = 'home' | 'books' | 'contact' | 'node' | 'link' | 'group';
 export type MenuChannel = 'web' | 'app';
+
+/** Main item (level 1) plus three levels of sub-items. */
+export const MAX_MENU_DEPTH = 4;
 
 export interface MenuItem {
   id: string;
@@ -29,7 +33,7 @@ export const MENU_KIND_LABELS: Record<MenuKind, string> = {
   contact: 'تواصل معنا',
   node: 'من السلاسل والتصنيفات',
   link: 'رابط',
-  group: 'عنوان يجمّع فروع',
+  group: 'مجموعة (عنوان يجمّع عناصر)',
 };
 
 const FIXED_LABELS: Partial<Record<MenuKind, string>> = { home: 'الرئيسية', books: 'الكتب', contact: 'تواصل معنا' };
@@ -44,7 +48,9 @@ export interface ResolvedMenuItem {
   label: string;
   visible: boolean;
   auto: boolean;
-  /** the main item this one sits inside (null for a main item) */
+  /** 1 for a main item, 2 for its sub-items, and so on */
+  level: number;
+  /** the item this one sits inside (null for a main item) */
   parent: ResolvedMenuItem | null;
   children: ResolvedMenuItem[];
 }
@@ -58,48 +64,118 @@ export function itemLabel(item: Pick<MenuItem, 'kind' | 'node_id' | 'label_ar'>,
 
 const bySort = (a: MenuItem, b: MenuItem) => a.sort_order - b.sort_order || a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id);
 
-/** The menu as the website draws it: main items, each with its sub-items (manual first, then the automatic ones). */
+/** The menu as the website draws it: main items, each with its sub-items (manual first, then the automatic ones), at every level. */
 export function resolveMenu(items: readonly MenuItem[], nodes: readonly CatalogNode[], channel: MenuChannel = 'web'): ResolvedMenuItem[] {
   const inChannel = items.filter((i) => i.channel === channel);
-  const mains = inChannel.filter((i) => i.parent_id === null).sort(bySort);
+  const children = new Map<string | null, MenuItem[]>();
+  for (const item of inChannel) {
+    const list = children.get(item.parent_id) ?? [];
+    list.push(item);
+    children.set(item.parent_id, list);
+  }
+  for (const list of children.values()) list.sort(bySort);
 
-  return mains.map((main) => {
-    const resolvedMain: ResolvedMenuItem = {
-      item: main, key: main.id, kind: main.kind, nodeId: main.node_id, label: itemLabel(main, nodes),
-      visible: main.visible, auto: false, parent: null, children: [],
+  /** every catalog node a manual row under `id` points at, at any depth */
+  const nodesUnder = (id: string, seen: Set<string>): Set<string> => {
+    const out = new Set<string>();
+    for (const child of children.get(id) ?? []) {
+      if (seen.has(child.id)) continue;
+      seen.add(child.id);
+      if (child.node_id) out.add(child.node_id);
+      for (const nodeId of nodesUnder(child.id, seen)) out.add(nodeId);
+    }
+    return out;
+  };
+
+  const build = (item: MenuItem, parent: ResolvedMenuItem | null, level: number, seen: Set<string>): ResolvedMenuItem => {
+    const resolved: ResolvedMenuItem = {
+      item, key: item.id, kind: item.kind, nodeId: item.node_id, label: itemLabel(item, nodes),
+      visible: item.visible, auto: false, level, parent, children: [],
     };
+    const nextSeen = new Set(seen).add(item.id);
+    const subs = level >= MAX_MENU_DEPTH
+      ? []
+      : (children.get(item.id) ?? []).filter((c) => !nextSeen.has(c.id)).map((c) => build(c, resolved, level + 1, nextSeen));
 
-    const manual = inChannel.filter((i) => i.parent_id === main.id).sort(bySort);
-    const subs: ResolvedMenuItem[] = manual.map((sub) => ({
-      item: sub, key: sub.id, kind: sub.kind, nodeId: sub.node_id, label: itemLabel(sub, nodes),
-      visible: sub.visible, auto: false, parent: resolvedMain, children: [],
-    }));
-
-    if (main.auto_children && main.node_id) {
-      const represented = new Set(manual.map((m) => m.node_id).filter(Boolean));
-      const autoChildren = nodes
-        .filter((n) => n.parent_id === main.node_id && n.is_active && !represented.has(n.id))
+    if (item.auto_children && item.node_id && level < MAX_MENU_DEPTH) {
+      const represented = nodesUnder(item.id, new Set([item.id]));
+      const auto = nodes
+        .filter((n) => n.parent_id === item.node_id && n.is_active && !represented.has(n.id))
         .sort((a, b) => a.sort_web - b.sort_web || a.name_ar.localeCompare(b.name_ar, 'ar'));
-      for (const child of autoChildren) {
+      for (const child of auto) {
         subs.push({
-          item: null, key: `auto-${main.id}-${child.id}`, kind: 'node', nodeId: child.id, label: child.name_ar,
-          visible: true, auto: true, parent: resolvedMain, children: [],
+          item: null, key: `auto-${item.id}-${child.id}`, kind: 'node', nodeId: child.id, label: child.name_ar,
+          visible: true, auto: true, level: level + 1, parent: resolved, children: [],
         });
       }
     }
-    resolvedMain.children = subs;
-    return resolvedMain;
-  });
+    resolved.children = subs;
+    return resolved;
+  };
+
+  return (children.get(null) ?? []).map((main) => build(main, null, 1, new Set()));
+}
+
+/** Every item of the resolved tree, in drawing order. */
+export function flattenMenu(menu: readonly ResolvedMenuItem[]): ResolvedMenuItem[] {
+  return menu.flatMap((entry) => [entry, ...flattenMenu(entry.children)]);
+}
+
+/** 1 for a main item, 2 for a sub-item of a main item, … (0 when the id is unknown). */
+export function menuLevel(items: readonly MenuItem[], id: string): number {
+  const byId = new Map(items.map((i) => [i.id, i]));
+  let level = 0;
+  let cursor: string | null = id;
+  const seen = new Set<string>();
+  while (cursor && byId.has(cursor) && !seen.has(cursor)) {
+    seen.add(cursor);
+    level += 1;
+    cursor = byId.get(cursor)!.parent_id;
+  }
+  return level;
+}
+
+/** How many levels sit below an item (0 when it holds nothing). */
+export function menuHeight(items: readonly MenuItem[], id: string): number {
+  const byParent = new Map<string, MenuItem[]>();
+  for (const item of items) {
+    if (!item.parent_id) continue;
+    byParent.set(item.parent_id, [...(byParent.get(item.parent_id) ?? []), item]);
+  }
+  const walk = (current: string, seen: Set<string>): number => {
+    let deepest = 0;
+    for (const child of byParent.get(current) ?? []) {
+      if (seen.has(child.id)) continue;
+      deepest = Math.max(deepest, 1 + walk(child.id, new Set(seen).add(child.id)));
+    }
+    return deepest;
+  };
+  return walk(id, new Set([id]));
+}
+
+/** Every item inside `id`, at any depth. */
+export function menuDescendantIds(items: readonly MenuItem[], id: string): Set<string> {
+  const out = new Set<string>();
+  const walk = (current: string) => {
+    for (const child of items.filter((i) => i.parent_id === current)) {
+      if (out.has(child.id)) continue;
+      out.add(child.id);
+      walk(child.id);
+    }
+  };
+  walk(id);
+  return out;
 }
 
 /** Why an item cannot be placed inside `parentId`, or null when it can (null parent = make it a main item). */
 export function placementProblem(items: readonly MenuItem[], id: string, parentId: string | null): string | null {
   if (parentId === null) return null;
   if (parentId === id) return 'مينفعش العنصر يبقى جوه نفسه.';
-  const parent = items.find((i) => i.id === parentId);
-  if (!parent) return 'العنصر الرئيسي مش موجود.';
-  if (parent.parent_id !== null) return 'القايمة مستويين بس (رئيسي وفرعي): مينفعش فرعي جوه فرعي.';
-  if (items.some((i) => i.parent_id === id)) return 'العنصر ده جواه فروع. انقل فروعه الأول، القايمة مستويين بس.';
+  if (!items.some((i) => i.id === parentId)) return 'العنصر اللي هتحط جواه مش موجود.';
+  if (menuDescendantIds(items, id).has(parentId)) return 'مينفعش تحط العنصر جوه واحد من اللي جواه.';
+  if (menuLevel(items, parentId) + 1 + menuHeight(items, id) > MAX_MENU_DEPTH) {
+    return `القايمة لحد ${MAX_MENU_DEPTH} مستويات (رئيسي + 3 مستويات فرعية).`;
+  }
   return null;
 }
 
@@ -116,9 +192,28 @@ export function moveWithinParent(items: readonly MenuItem[], id: string, directi
   return ids;
 }
 
-/** Where an item sits, in words: "رئيسي" or "فرعي داخل: X". */
+/** The names from the main item down to this item's parent, e.g. ["الفتح الرباني", "المواد"]. */
+export function placementPath(entry: ResolvedMenuItem): string[] {
+  const names: string[] = [];
+  let cursor = entry.parent;
+  while (cursor) {
+    names.unshift(cursor.label);
+    cursor = cursor.parent;
+  }
+  return names;
+}
+
+/** Where an item sits, in words: "رئيسي" or "فرعي داخل: الفتح الرباني ‹ المواد". */
 export function placementText(entry: ResolvedMenuItem): string {
-  return entry.parent ? `فرعي داخل: ${entry.parent.label}` : 'رئيسي';
+  const path = placementPath(entry);
+  return path.length === 0 ? 'رئيسي' : `فرعي داخل: ${path.join(' ‹ ')}`;
+}
+
+/** The items an item may be placed inside (for a "move to" list), with their path, in drawing order. */
+export function parentOptions(menu: readonly ResolvedMenuItem[], items: readonly MenuItem[], id: string): { id: string; label: string; level: number }[] {
+  return flattenMenu(menu)
+    .filter((entry) => entry.item && !entry.auto && placementProblem(items, id, entry.item.id) === null)
+    .map((entry) => ({ id: entry.item!.id, label: [...placementPath(entry), entry.label].join(' ‹ '), level: entry.level }));
 }
 
 /** The next free position inside a parent (or among the main items). */

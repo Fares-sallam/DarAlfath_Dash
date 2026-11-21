@@ -5,7 +5,8 @@ import { Switch } from '@/components/ads/CategoryBarSection';
 import { useCreateMenuItem, useMoveMenuItem, useUpdateMenuItem } from '@/hooks/useMenuItems';
 import { NODE_TYPE_LABELS, buildTree, type CatalogNode } from '@/lib/catalogTree';
 import {
-  MENU_KIND_LABELS, itemLabel, nextMenuSort, placementProblem, validMenuUrl, type MenuItem, type MenuKind,
+  MAX_MENU_DEPTH, MENU_KIND_LABELS, flattenMenu, itemLabel, nextMenuSort, parentOptions, placementPath, placementProblem, validMenuUrl,
+  type MenuItem, type MenuKind, type ResolvedMenuItem,
 } from '@/lib/menuMap';
 
 export interface MenuDialogTarget {
@@ -18,7 +19,7 @@ export interface MenuDialogTarget {
 const KINDS: MenuKind[] = ['node', 'group', 'link', 'home', 'books', 'contact'];
 
 /** Add or edit one menu entry, with an explicit "inside what" choice. */
-export default function MenuItemDialog({ target, items, nodes, onClose }: { target: MenuDialogTarget; items: MenuItem[]; nodes: CatalogNode[]; onClose: () => void }) {
+export default function MenuItemDialog({ target, items, menu, nodes, onClose }: { target: MenuDialogTarget; items: MenuItem[]; menu: ResolvedMenuItem[]; nodes: CatalogNode[]; onClose: () => void }) {
   const existing = target.item;
   const create = useCreateMenuItem();
   const update = useUpdateMenuItem();
@@ -33,10 +34,19 @@ export default function MenuItemDialog({ target, items, nodes, onClose }: { targ
   const [visible, setVisible] = useState(existing?.visible ?? true);
   const [autoChildren, setAutoChildren] = useState(existing?.auto_children ?? (existing === null && kind === 'node'));
 
-  const mains = items.filter((i) => i.parent_id === null && i.id !== existing?.id);
+  // where it may go: for a new item, any stored item that can still hold one more level; for an edit, only valid places
+  const parents = useMemo(
+    () =>
+      existing
+        ? parentOptions(menu, items, existing.id)
+        : flattenMenu(menu)
+            .filter((e) => e.item && !e.auto && e.level < MAX_MENU_DEPTH)
+            .map((e) => ({ id: e.item!.id, label: [...placementPath(e), e.label].join(' ‹ '), level: e.level })),
+    [menu, items, existing],
+  );
+  const currentParent = existing?.parent_id ?? null;
   const nodeOptions = useMemo(() => buildTree(nodes, 'web', new Set(nodes.map((n) => n.id))), [nodes]);
   const busy = create.isPending || update.isPending || move.isPending;
-  const isMain = parentId === '';
 
   const save = async () => {
     if (kind === 'node' && !nodeId) { toast.error('اختار العنصر من السلاسل والتصنيفات'); return; }
@@ -53,7 +63,7 @@ export default function MenuItemDialog({ target, items, nodes, onClose }: { targ
       label_en: labelEn.trim() || null,
       url: kind === 'link' ? url.trim() : null,
       visible,
-      auto_children: kind === 'node' && isMain ? autoChildren : false,
+      auto_children: kind === 'node' ? autoChildren : false,
     };
 
     if (existing) {
@@ -120,16 +130,19 @@ export default function MenuItemDialog({ target, items, nodes, onClose }: { targ
             <span className="block text-sm font-semibold text-gray-700 mb-1.5">مكانه في القايمة</span>
             <select value={parentId} onChange={(e) => setParentId(e.target.value)} className="input-field" data-testid="menu-parent">
               <option value="">رئيسي (على الشريط نفسه)</option>
-              {mains.map((m) => <option key={m.id} value={m.id}>{`فرعي داخل: ${itemLabel(m, nodes)}`}</option>)}
+              {currentParent && !parents.some((p) => p.id === currentParent) && (
+                <option value={currentParent}>{`فرعي داخل: ${itemLabel(items.find((i) => i.id === currentParent)!, nodes)}`}</option>
+              )}
+              {parents.map((p) => <option key={p.id} value={p.id}>{`فرعي داخل: ${p.label}`}</option>)}
             </select>
-            <span className="block text-xs text-gray-500 mt-1">القايمة مستويين: رئيسي، أو فرعي جوه رئيسي معيّن (بيظهر كسهم ▾ جنب الرئيسي).</span>
+            <span className="block text-xs text-gray-500 mt-1">رئيسي، أو فرعي جوه أي عنصر تاني (لحد {MAX_MENU_DEPTH} مستويات). العنصر اللي جواه فروع بيظهر جنبه سهم ▾.</span>
           </label>
 
           <div className="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-3">
             <span className="text-sm font-semibold text-gray-700">ظاهر في القايمة</span>
             <Switch checked={visible} onChange={setVisible} label="ظاهر في القايمة" />
           </div>
-          {kind === 'node' && isMain && (
+          {kind === 'node' && (
             <div className="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-3">
               <div>
                 <span className="text-sm font-semibold text-gray-700">ملء الفروع تلقائيًا من الشجرة</span>

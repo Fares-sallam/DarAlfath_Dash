@@ -12,9 +12,9 @@ import AppStripsSection from '@/components/ads/AppStripsSection';
 const TABS = [
   { key: 'tree', label: 'الشجرة', hint: 'كل الأقسام والسلاسل والتصنيفات في مكان واحد: التنظيم، الظهور، الترتيب، والكتب.', icon: FolderTree },
   { key: 'books', label: 'الكتب', hint: 'كل كتاب بسلاسله وتصنيفاته. عدّل التنظيم أو دوّر على الكتب اللي مش تابعة لأي حاجة.', icon: BookOpen },
-  { key: 'map', label: 'خريطة العرض', hint: 'الشكل الكامل من فوق لتحت: القايمة العلوية (رئيسي وفرعي)، شريط التصنيفات، وأقسام الرئيسية.', icon: MapIcon },
+  { key: 'map', label: 'خريطة العرض', hint: 'الشكل الكامل من فوق لتحت: القايمة العلوية (رئيسي وفرعي ومجموعات)، شريط التصنيفات، ورفوف الصفحة الرئيسية.', icon: MapIcon },
   { key: 'menus', label: 'شريط التصنيفات', hint: 'التصنيفات اللي بتظهر في الشريط تحت الهيدر، وترتيبها.', icon: Rows3 },
-  { key: 'home', label: 'الصفحة الرئيسية', hint: 'أقسام الرئيسية في الموقع والتطبيق.', icon: Home },
+  { key: 'home', label: 'الصفحة الرئيسية', hint: 'رفوف الصفحة الرئيسية في الموقع والتطبيق.', icon: Home },
   { key: 'health', label: 'فحص وتنظيف', hint: 'ملاحظات على التنظيم: عناصر فاضية، أسماء مكررة، كتب بلا تصنيف.', icon: HeartPulse },
 ] as const;
 
@@ -87,13 +87,13 @@ export default function Catalog() {
             <div className="space-y-8">
               <section className="bg-white rounded-2xl shadow-sm p-5 flex flex-col md:flex-row md:items-center gap-3 justify-between">
                 <div>
-                  <h2 className="text-lg font-bold text-gray-800">أقسام الرئيسية في الموقع</h2>
-                  <p className="text-sm text-gray-500 mt-1">ترتيب وإخفاء أقسام الصفحة الرئيسية (كروت أقسام المتجر، الأكثر مبيعًا، رفوف التصنيفات…).</p>
+                  <h2 className="text-lg font-bold text-gray-800">رفوف الصفحة الرئيسية في الموقع</h2>
+                  <p className="text-sm text-gray-500 mt-1">ترتيب وإخفاء رفوف الصفحة الرئيسية (كروت أقسام المتجر، الأكثر مبيعًا، رفوف التصنيفات…).</p>
                 </div>
                 <Link to="/appearance" className="btn-primary self-start whitespace-nowrap">فتح «مظهر المتجر»</Link>
               </section>
               <section>
-                <h2 className="text-lg font-bold text-gray-800 mb-3">أقسام الرئيسية في التطبيق</h2>
+                <h2 className="text-lg font-bold text-gray-800 mb-3">رفوف الصفحة الرئيسية في التطبيق</h2>
                 <AppStripsSection />
               </section>
             </div>

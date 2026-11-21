@@ -4,14 +4,16 @@ import { supabase } from '@/lib/supabase';
 import { friendlyCatalogError } from '@/hooks/useCatalog';
 import type { MenuItem } from '@/lib/menuMap';
 
-/** The menu's own message in plain Arabic (the two-level rule), then the shared catalog ones. */
+/** The menu's own messages in plain Arabic (depth, cycles, names), then the shared catalog ones. */
 function friendlyMenuError(message: string): string {
   const m = message.toLowerCase();
-  if (m.includes('two levels')) return 'القايمة مستويين بس (رئيسي وفرعي). انقل الفروع الأول، ومينفعش فرعي جوه فرعي.';
-  if (m.includes('fill its sub-items automatically')) return 'الفروع التلقائية للعناصر الرئيسية بس.';
+  if (m.includes('at most 4 levels') || m.includes('too deep')) return 'القايمة لحد 4 مستويات (رئيسي + 3 مستويات فرعية). فك مجموعة أو انقل عنصر لمستوى أعلى.';
+  if (m.includes('inside itself')) return 'مينفعش تحط العنصر جوه نفسه أو جوه واحد من اللي جواه.';
   if (m.includes('menu_items_link_url')) return 'اكتب رابط للعنصر.';
-  if (m.includes('menu_items_label')) return 'اكتب اسم للعنصر.';
-  if (m.includes('only a main item linked')) return 'تثبيت الفروع متاح للعناصر الرئيسية المربوطة بسلسلة أو قسم أو تصنيف.';
+  if (m.includes('menu_items_label')) return 'اكتب اسم للعنصر أو المجموعة.';
+  if (m.includes('only an item linked')) return 'تثبيت الفروع متاح للعناصر المربوطة بسلسلة أو قسم أو تصنيف.';
+  if (m.includes('only a group')) return 'فك التجميع متاح للمجموعات بس.';
+  if (m.includes('nothing to group')) return 'اختار عنصرين أو أكتر الأول.';
   return friendlyCatalogError(message);
 }
 
@@ -122,6 +124,30 @@ export function useMaterializeMenuChildren() {
       return Number(data ?? 0);
     },
     onSuccess: (count) => { refresh(qc); toast.success(count > 0 ? `تم تثبيت ${count} فرع، تقدر تتحكم فيهم دلوقتي` : 'مفيش فروع جديدة تتثبّت'); },
+    onError: (e: Error) => toast.error(friendlyMenuError(e.message)),
+  });
+}
+
+export function useGroupMenuItems() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ parentId, label, itemIds, nodeIds }: { parentId: string; label: string; itemIds: string[]; nodeIds: string[] }) => {
+      const { error } = await supabase.rpc('menu_group_items', { p_parent: parentId, p_label_ar: label, p_item_ids: itemIds, p_node_ids: nodeIds });
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: () => { refresh(qc); toast.success('تم التجميع في مجموعة'); },
+    onError: (e: Error) => toast.error(friendlyMenuError(e.message)),
+  });
+}
+
+export function useUngroupMenuItem() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (groupId: string) => {
+      const { error } = await supabase.rpc('menu_ungroup', { p_group: groupId });
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: () => { refresh(qc); toast.success('تم فك المجموعة'); },
     onError: (e: Error) => toast.error(friendlyMenuError(e.message)),
   });
 }

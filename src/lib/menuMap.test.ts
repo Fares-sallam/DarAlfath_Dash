@@ -150,6 +150,28 @@ describe('nested menu', () => {
     ], deeper);
     expect(menu[0].children[0].children.map((c) => [c.label, c.auto])).toEqual([['خط الرقعة', true]]);
   });
+  it('automatic sub-items follow the tree all the way down, until a manual row stands for them', () => {
+    const tree = [
+      node('s1', { type: 'series', name_ar: 'الفتح' }),
+      node('c1', { parent_id: 's1', name_ar: 'الكتابة', sort_web: 0 }),
+      node('c1a', { parent_id: 'c1', name_ar: 'حروفنا العربية', sort_web: 0 }),
+      node('c1b', { parent_id: 'c1', name_ar: 'علم بالقلم', sort_web: 1 }),
+      node('c2', { parent_id: 's1', name_ar: 'الحساب', sort_web: 1 }),
+    ];
+    const main = item('main', { kind: 'node', node_id: 's1', label_ar: null, auto_children: true });
+    const menu = resolveMenu([main], tree);
+    const writing = menu[0].children[0];
+    expect(writing.children.map((c) => [c.label, c.auto, c.level])).toEqual([['حروفنا العربية', true, 3], ['علم بالقلم', true, 3]]);
+    expect(writing.children[0].parent).toBe(writing);
+    expect(placementText(writing.children[0])).toBe('فرعي داخل: الفتح ‹ الكتابة');
+    // hiding the parent (a manual hidden row for it) takes its automatic kids with it
+    const hidden = resolveMenu([main, item('h', { parent_id: 'main', kind: 'node', node_id: 'c1', label_ar: null, visible: false })], tree);
+    expect(flattenMenu(hidden).map((e) => e.label)).toEqual(['الفتح', 'الكتابة', 'الحساب']);
+    // a manual row for a grandchild (here moved to the top of the item) wins over its automatic copy
+    const pinned = resolveMenu([main, item('p', { parent_id: 'main', kind: 'node', node_id: 'c1b', label_ar: null, sort_order: 0 })], tree);
+    expect(pinned[0].children.map((c) => [c.label, c.auto])).toEqual([['علم بالقلم', false], ['الكتابة', true], ['الحساب', true]]);
+    expect(pinned[0].children[1].children.map((c) => c.label)).toEqual(['حروفنا العربية']);
+  });
   it('stops at four levels', () => {
     const chain = [item('l1'), item('l2', { parent_id: 'l1' }), item('l3', { parent_id: 'l2' }), item('l4', { parent_id: 'l3' }), item('l5', { parent_id: 'l4' })];
     const flat = flattenMenu(resolveMenu(chain, nodes)).map((e) => e.label);

@@ -122,10 +122,14 @@ export default function DisplayMapTab() {
 
   /** A sub-item that is filled automatically can be hidden: that stores a hidden row for the same child. */
   const hideAuto = (entry: ResolvedMenuItem) => {
-    if (!entry.parent?.item || !entry.nodeId) return;
+    // An automatic row below another automatic row has no stored parent: the hidden row goes under the nearest
+    // stored item above (a manual row for a node anywhere under an item is what stands in for its automatic copy).
+    let holder: ResolvedMenuItem | null = entry.parent;
+    while (holder && !holder.item) holder = holder.parent;
+    if (!holder?.item || !entry.nodeId) return;
     create.mutate({
-      kind: 'node', node_id: entry.nodeId, parent_id: entry.parent.item.id, visible: false,
-      sort_order: nextMenuSort(items, 'web', entry.parent.item.id),
+      kind: 'node', node_id: entry.nodeId, parent_id: holder.item.id, visible: false,
+      sort_order: nextMenuSort(items, 'web', holder.item.id),
     });
   };
 

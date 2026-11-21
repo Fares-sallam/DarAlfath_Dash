@@ -279,7 +279,7 @@ export default function NodeEditor({ target, nodes, onClose }: Props) {
           {tab === 'visibility' && (
             <>
               <p className="text-xs text-amber-700 bg-amber-50 rounded-xl px-3 py-2">
-                لحد ما الموقع يتحدّث ليقرأ الشجرة مباشرة، الموقع والتطبيق الاتنين بيتبعوا إعدادات «التطبيق» في الظهور والترتيب. الفصل بينهم بيشتغل للموقع بعد التحديث الجاي.
+                الموقع بيتبع إعدادات «الموقع» (الظهور والترتيب وترتيب الكتب)، والنسخة المنشورة من التطبيق لسه بتتبع إعدادات «التطبيق». الجدولة (يبدأ/ينتهي) بتشتغل على الموقع بس. «مميّز» محفوظ ومفيش مكان بيستخدمه لسه.
               </p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {[
@@ -297,7 +297,7 @@ export default function NodeEditor({ target, nodes, onClose }: Props) {
                   </div>
                 ))}
               </div>
-              {type === 'series' && <p className="text-xs text-gray-500">ظهور السلسلة في قايمة الموقع العلوية وترتيبها فيها من تاب «القوائم والأشرطة».</p>}
+              {type === 'series' && <p className="text-xs text-gray-500">ظهور السلسلة في قايمة الموقع العلوية وترتيبها فيها من تاب «خريطة العرض».</p>}
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <label className="block">
@@ -336,7 +336,7 @@ export default function NodeEditor({ target, nodes, onClose }: Props) {
           {tab === 'page' && (
             <>
               <p className="text-xs text-gray-500 bg-gray-50 rounded-xl px-3 py-2">
-                صفحة «{nameAr || 'العنصر'}» نفسها: اسمه فوق، وتحته كلمة تعريفية وفيديو (اختياريين)، وبعدهم أشرطة كتب. بيطبّقها الموقع في التحديث الجاي.
+                صفحة «{nameAr || 'العنصر'}» نفسها: اسمه فوق، وتحته كلمة تعريفية وفيديو (اختياريين)، وبعدهم أشرطة كتب. بتظهر على الموقع دلوقتي (التطبيق في نسخته الجاية).
               </p>
               <label className="block">
                 <span className="block text-sm font-semibold text-gray-700 mb-1.5">كلمة تعريفية (بالعربي)</span>
@@ -378,7 +378,7 @@ export default function NodeEditor({ target, nodes, onClose }: Props) {
                 <span className="block text-sm font-semibold text-gray-700 mb-1.5">وصف الصفحة (SEO)</span>
                 <textarea value={seoDescription} onChange={(e) => setSeoDescription(e.target.value)} rows={3} className="input-field" placeholder="لو فاضي بنستخدم الوصف" />
               </label>
-              <p className="text-xs text-gray-500">بيطبّقها الموقع في التحديث الجاي.</p>
+              <p className="text-xs text-gray-500">بتظهر على الموقع في نتايج جوجل ومعاينة الروابط المتشاركة.</p>
             </>
           )}
         </div>

@@ -1,16 +1,24 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Loader2, Pencil, Plus, Trash2 } from 'lucide-react';
+import { toast } from 'sonner';
+import { Copy, Loader2, Pencil, Plus, Trash2 } from 'lucide-react';
 import { Switch } from '@/components/ads/CategoryBarSection';
 import { useCatalogCounts, useCatalogNodes } from '@/hooks/useCatalog';
-import { pageStripRow, useDeleteHomeRow, useHomeLayoutRows, useSaveHomeRows } from '@/hooks/useHomeShelves';
+import { pageStripRow, useApplyHomeLayout, useDeleteHomeRow, useHomeLayoutRows, useSaveHomeRows } from '@/hooks/useHomeShelves';
+import { useCountries } from '@/hooks/useSettings';
 import { ancestorsOf, NODE_TYPE_LABELS, type CatalogNode } from '@/lib/catalogTree';
 import { reorderRelative, stepInList } from '@/lib/dragSort';
+import { blockFromDraft, draftFromBlock, newDraft, type BlockDraft } from '@/lib/homeBlockDraft';
 import {
-  BLOCK_META, BOOK_RELATED_KEY, blockDefaults, pageStripOf, resolveHomeBlocks, rowsFor, type HomeBlock, type HomeChannel,
+  BLOCK_META, BOOK_RELATED_KEY, BOOK_SHELF_KIND, CUSTOM_META, FILTER_SHELF_KIND, FILTER_SOURCES, PROMO_KIND, blockDefaults, bookShelfIds,
+  copyLayout, filterSourceOf, newBlockKey, pageStripOf, promoOf, resolveHomeBlocks, rowsFor, scheduleState, type HomeBlock, type HomeChannel,
 } from '@/lib/homeBlocks';
-import { parseShelfLimit, shelfKeyFor } from '@/lib/homeShelves';
+import { SHELF_KIND, parseShelfLimit, shelfKeyFor } from '@/lib/homeShelves';
+import HomeBlockForm from './HomeBlockForm';
 import { Grip, gripButtonClass, useDragRows } from './useDragRows';
+
+const DEVICE_SHORT = { mobile: 'الموبايل بس', desktop: 'الكمبيوتر بس' } as const;
+const dayOf = (iso: string) => new Date(iso).toLocaleDateString('ar-EG', { day: 'numeric', month: 'short', year: 'numeric' });
 
 const BOOK_RELATED_DEFAULT = { title: 'كتب قد تعجبك', limit: 4 };
 
@@ -27,16 +35,18 @@ export default function HomeBlocksEditor({ channel }: { channel: HomeChannel }) 
   const { data: counts } = useCatalogCounts();
   const save = useSaveHomeRows(channel);
   const remove = useDeleteHomeRow(channel);
+  const apply = useApplyHomeLayout();
+  const other: HomeChannel = isApp ? 'web' : 'app';
+  const { data: otherRows = [] } = useHomeLayoutRows(other);
+  const { data: countries = [] } = useCountries();
+  const countryName = (code: string) => countries.find((c) => c.code.toUpperCase() === code)?.name ?? code;
 
   const blocks = useMemo(() => resolveHomeBlocks(rows, channel), [rows, channel]);
-  const shelfCount = blocks.filter((b) => b.std === null).length;
+  const shelfCount = blocks.filter((b) => b.kind === SHELF_KIND).length;
+  const now = new Date();
 
-  /** null = nothing open, 'new' = adding a shelf, otherwise the key of the block being edited */
-  const [editing, setEditing] = useState<string | null>(null);
-  const [nodeId, setNodeId] = useState('');
-  const [title, setTitle] = useState('');
-  const [subtitle, setSubtitle] = useState('');
-  const [limit, setLimit] = useState('');
+  /** null = nothing open, otherwise the form (a new block when its key is null) */
+  const [draft, setDraft] = useState<BlockDraft | null>(null);
   const [problem, setProblem] = useState('');
 
   const byId = useMemo(() => new Map(nodes.map((n) => [n.id, n])), [nodes]);
@@ -44,23 +54,15 @@ export default function HomeBlocksEditor({ channel }: { channel: HomeChannel }) 
     const path = ancestorsOf(nodes, node.id).map((a) => a.name_ar);
     return `${NODE_TYPE_LABELS[node.type]}: ${[...path, node.name_ar].join(' ‹ ')}`;
   };
-  const taken = new Set(blocks.map((b) => b.nodeId));
-  const choices = nodes
-    .filter((n) => n.is_active && n.show_web && (!taken.has(n.id) || shelfKeyFor(n.id) === editing))
-    .sort((a, b) => labelOf(a).localeCompare(labelOf(b), 'ar'));
+  const taken = new Set(blocks.filter((b) => b.kind === SHELF_KIND).map((b) => b.nodeId));
+  const webNodes = nodes.filter((n) => n.is_active && n.show_web).sort((a, b) => labelOf(a).localeCompare(labelOf(b), 'ar'));
+  const shelfChoices = webNodes.filter((n) => !taken.has(n.id)).map((n) => ({ id: n.id, label: labelOf(n) }));
+  const scopeChoices = webNodes.map((n) => ({ id: n.id, label: labelOf(n) }));
 
-  const editingBlock = blocks.find((b) => b.key === editing) ?? null;
-  const fields = editingBlock?.std ? blockDefaults(editingBlock.std, channel).editable : ['title', 'subtitle', 'limit'];
-
-  const open = (block: HomeBlock | null) => {
-    setEditing(block ? block.key : 'new');
-    setNodeId(block?.nodeId ?? '');
-    setTitle(block?.title ?? '');
-    setSubtitle(block?.subtitle ?? '');
-    setLimit(block?.limit != null ? String(block.limit) : '');
-    setProblem('');
-  };
-  const close = () => { setEditing(null); setProblem(''); };
+  const editingBlock = draft?.key ? blocks.find((b) => b.key === draft.key) ?? null : null;
+  const open = (block: HomeBlock) => { setDraft(draftFromBlock(block)); setProblem(''); };
+  const openNew = (kind: 'category-shelf' | 'book-shelf' | 'filter-shelf' | 'promo') => { setDraft(newDraft(kind)); setProblem(''); };
+  const close = () => { setDraft(null); setProblem(''); };
 
   const saveBlocks = (next: HomeBlock[]) => save.mutateAsync(rowsFor(next));
   const move = (keys: string[] | null) => {
@@ -71,23 +73,15 @@ export default function HomeBlocksEditor({ channel }: { channel: HomeChannel }) 
   const dnd = useDragRows({ onDrop: (dragId, targetId, zone) => move(reorderRelative(keys, dragId, targetId, zone === 'after' ? 'after' : 'before')) });
 
   const submit = async () => {
-    const parsed = parseShelfLimit(limit);
-    if (editing === 'new' && !nodeId) { setProblem('اختار التصنيف أو السلسلة الأول.'); return; }
-    if (parsed === 'invalid') { setProblem('العدد رقم من 1 لـ60، أو سيبه فاضي.'); return; }
+    if (!draft) return;
+    const result = blockFromDraft(draft, editingBlock, channel, blocks.length);
+    if ('problem' in result) { setProblem(result.problem); return; }
     try {
-      if (editing === 'new') {
-        const shelf: HomeBlock = {
-          key: shelfKeyFor(nodeId), std: null, nodeId, title: title.trim() || null, subtitle: subtitle.trim() || null,
-          limit: parsed, visible: true, sortOrder: blocks.length, saved: false,
-        };
-        await saveBlocks([...blocks, shelf]);
-      } else if (editingBlock) {
-        await saveBlocks(blocks.map((b) => (b.key !== editingBlock.key ? b : {
-          ...b,
-          title: fields.includes('title') ? title.trim() || null : b.title,
-          subtitle: fields.includes('subtitle') ? subtitle.trim() || null : b.subtitle,
-          limit: fields.includes('limit') ? parsed : b.limit,
-        })));
+      if (draft.key === null) {
+        const key = draft.kind === SHELF_KIND ? shelfKeyFor(draft.nodeId) : newBlockKey(crypto.randomUUID());
+        await saveBlocks([...blocks, { ...result.block, key }]);
+      } else {
+        await saveBlocks(blocks.map((b) => (b.key === draft.key ? { ...result.block, key: b.key } : b)));
       }
       close();
     } catch {
@@ -95,13 +89,53 @@ export default function HomeBlocksEditor({ channel }: { channel: HomeChannel }) 
     }
   };
 
-  const nameOf = (b: HomeBlock) => (b.std ? (b.title ?? BLOCK_META[b.std].label) : b.title || byId.get(b.nodeId ?? '')?.name_ar || 'عنصر محذوف أو مخفي');
+  /** Makes the OTHER channel's home page follow this one (one request: the old blocks that are not in it go, the rest is written). */
+  const copyToOther = async () => {
+    const { rows: nextRows, remove: removed } = copyLayout(rows, otherRows, channel, other);
+    const target = other === 'app' ? 'التطبيق' : 'الموقع';
+    const lines = [
+      `ترتيب ${target} هيبقى زي ترتيب ${isApp ? 'التطبيق' : 'الموقع'} بالظبط: نفس الأقسام والرفوف والعناوين والتواريخ.`,
+      removed.length > 0 ? `${removed.length} عنصر من عناصر ${target} الحالية مش موجودين هنا هيتشالوا.` : null,
+      other === 'app' ? 'إظهار وإخفاء الأقسام الأربعة الرئيسية هيتطبق على التطبيق الحالي فورًا.' : null,
+      'متأكد؟',
+    ].filter(Boolean);
+    if (!window.confirm(lines.join('\n'))) return;
+    try {
+      await apply.mutateAsync({ channel: other, rows: nextRows, remove: removed });
+      toast.success(`اتنسخ الترتيب لـ${target}`);
+    } catch {
+      // the message is already shown
+    }
+  };
+
+  const customName = (b: HomeBlock) => {
+    if (b.kind === BOOK_SHELF_KIND) return b.title || CUSTOM_META[BOOK_SHELF_KIND].label;
+    if (b.kind === FILTER_SHELF_KIND) return b.title || FILTER_SOURCES[filterSourceOf(b.config)].title;
+    return b.title || promoOf(b.config).buttonLabel || CUSTOM_META[PROMO_KIND].label;
+  };
+  const nameOf = (b: HomeBlock) => {
+    if (b.std) return b.title ?? BLOCK_META[b.std].label;
+    if (b.kind === SHELF_KIND) return b.title || byId.get(b.nodeId ?? '')?.name_ar || 'عنصر محذوف أو مخفي';
+    return customName(b);
+  };
   const hintOf = (b: HomeBlock) => {
     if (b.std) {
       const d = blockDefaults(b.std, channel);
       const bits = [BLOCK_META[b.std].hint];
       if (b.limit != null && d.editable.includes('limit')) bits.push(`${d.limitLabel ?? 'العدد'}: ${b.limit}`);
       return bits.join(' · ');
+    }
+    if (b.kind === BOOK_SHELF_KIND) {
+      const n = bookShelfIds(b.config).length;
+      return [CUSTOM_META[BOOK_SHELF_KIND].label, `${n} كتاب مختار`, b.limit != null ? `أول ${b.limit}` : null].filter(Boolean).join(' · ');
+    }
+    if (b.kind === FILTER_SHELF_KIND) {
+      const scope = b.nodeId ? byId.get(b.nodeId)?.name_ar ?? 'جزء مش ظاهر للموقع (الرف هيعرض المتجر كله)' : 'المتجر كله';
+      return [FILTER_SOURCES[filterSourceOf(b.config)].label, scope, b.limit != null ? `أول ${b.limit}` : null].filter(Boolean).join(' · ');
+    }
+    if (b.kind === PROMO_KIND) {
+      const promo = promoOf(b.config);
+      return [CUSTOM_META[PROMO_KIND].label, promo.imageUrl ? 'بصورة' : null, promo.linkUrl ? 'بزر' : null].filter(Boolean).join(' · ');
     }
     const node = byId.get(b.nodeId ?? '');
     const total = b.nodeId ? counts?.get(b.nodeId)?.total : undefined;
@@ -110,6 +144,17 @@ export default function HomeBlocksEditor({ channel }: { channel: HomeChannel }) 
       total != null ? `${total} كتاب` : null,
       b.limit != null ? `أول ${b.limit}` : null,
     ].filter(Boolean).join(' · ');
+  };
+  /** the dates, countries and devices a block is limited to, as short chips */
+  const chipsOf = (b: HomeBlock): { text: string; tone: 'info' | 'warn' | 'bad'; id: string }[] => {
+    const out: { text: string; tone: 'info' | 'warn' | 'bad'; id: string }[] = [];
+    const state = scheduleState(b.window, now);
+    if (state === 'upcoming') out.push({ id: 'upcoming', tone: 'warn', text: `يبدأ ${dayOf(b.window.startsAt!)}` });
+    else if (state === 'ended') out.push({ id: 'ended', tone: 'bad', text: `انتهى ${dayOf(b.window.endsAt!)}` });
+    else if (state === 'running' && b.window.endsAt) out.push({ id: 'running', tone: 'info', text: `لحد ${dayOf(b.window.endsAt)}` });
+    if (b.window.countries) out.push({ id: 'countries', tone: 'info', text: b.window.countries.map(countryName).join('، ') });
+    if (b.window.devices !== 'all') out.push({ id: 'devices', tone: 'info', text: DEVICE_SHORT[b.window.devices] });
+    return out;
   };
 
   // the strip on a book's page
@@ -143,54 +188,39 @@ export default function HomeBlocksEditor({ channel }: { channel: HomeChannel }) 
               </p>
             )}
           </div>
-          <div className="flex items-center gap-2 flex-shrink-0">
+          <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
             {!isApp && <Link to="/appearance" className="text-sm font-semibold text-blue-600 hover:underline whitespace-nowrap">«مظهر المتجر»</Link>}
-            <button type="button" onClick={() => open(null)} className="btn-primary flex items-center gap-1.5 whitespace-nowrap" data-testid="shelf-add">
-              <Plus size={15} /> إضافة رف تصنيف
+            <button
+              type="button"
+              onClick={() => void copyToOther()}
+              disabled={apply.isPending || isLoading}
+              className="btn-secondary flex items-center gap-1.5 whitespace-nowrap disabled:opacity-50"
+              data-testid="copy-layout"
+            >
+              {apply.isPending ? <Loader2 size={14} className="animate-spin" /> : <Copy size={14} />} {isApp ? 'انسخ الترتيب للموقع' : 'انسخ الترتيب للتطبيق'}
             </button>
           </div>
         </div>
 
-        {editing !== null && (
-          <div className="p-5 bg-gray-50 border-b border-gray-100 grid grid-cols-1 md:grid-cols-3 gap-3" data-testid="shelf-form">
-            {editing === 'new' && (
-              <label className="block md:col-span-3">
-                <span className="block text-sm font-semibold text-gray-700 mb-1.5">التصنيف / السلسلة</span>
-                <select value={nodeId} onChange={(e) => { setNodeId(e.target.value); setProblem(''); }} className="input-field" data-testid="shelf-node">
-                  <option value="">— اختار —</option>
-                  {choices.map((n) => <option key={n.id} value={n.id}>{labelOf(n)}</option>)}
-                </select>
-              </label>
-            )}
-            {fields.includes('title') && (
-              <label className={`block ${fields.includes('subtitle') ? '' : 'md:col-span-2'}`}>
-                <span className="block text-sm font-semibold text-gray-700 mb-1.5">العنوان (اختياري)</span>
-                <input value={title} onChange={(e) => setTitle(e.target.value)} className="input-field" maxLength={80}
-                  placeholder={editingBlock?.std ? blockDefaults(editingBlock.std, channel).title : byId.get(nodeId)?.name_ar ?? 'لو فاضي بنكتب اسم التصنيف'} data-testid="shelf-title" />
-              </label>
-            )}
-            {fields.includes('subtitle') && (
-              <label className="block">
-                <span className="block text-sm font-semibold text-gray-700 mb-1.5">السطر تحت العنوان (اختياري)</span>
-                <input value={subtitle} onChange={(e) => setSubtitle(e.target.value)} className="input-field" maxLength={120}
-                  placeholder={editingBlock?.std ? blockDefaults(editingBlock.std, channel).subtitle ?? '' : 'لو فاضي بنكتب سطر جاهز'} data-testid="shelf-subtitle" />
-              </label>
-            )}
-            {fields.includes('limit') && (
-              <label className="block">
-                <span className="block text-sm font-semibold text-gray-700 mb-1.5">{editingBlock?.std ? blockDefaults(editingBlock.std, channel).limitLabel ?? 'العدد' : 'عدد الكتب'} (اختياري)</span>
-                <input value={limit} onChange={(e) => setLimit(e.target.value)} inputMode="numeric" className="input-field"
-                  placeholder={editingBlock?.std && blockDefaults(editingBlock.std, channel).limit != null ? String(blockDefaults(editingBlock.std, channel).limit) : 'الكل'} data-testid="shelf-limit" />
-              </label>
-            )}
-            {problem && <p className="md:col-span-3 text-sm text-red-600" data-testid="shelf-problem">{problem}</p>}
-            <div className="md:col-span-3 flex items-center gap-2">
-              <button type="button" onClick={() => void submit()} disabled={save.isPending} className="btn-primary flex items-center gap-1.5 disabled:opacity-50" data-testid="shelf-save">
-                {save.isPending && <Loader2 size={14} className="animate-spin" />} {editing === 'new' ? 'إضافة الرف' : 'حفظ'}
-              </button>
-              <button type="button" onClick={close} className="btn-secondary">إلغاء</button>
-            </div>
-          </div>
+        <div className="px-5 py-3 border-b border-gray-50 flex flex-wrap items-center gap-2" data-testid="add-bar">
+          <span className="text-sm font-semibold text-gray-600">إضافة:</span>
+          <button type="button" onClick={() => openNew('category-shelf')} className="btn-primary flex items-center gap-1.5 whitespace-nowrap" data-testid="shelf-add"><Plus size={15} /> رف تصنيف</button>
+          <button type="button" onClick={() => openNew('book-shelf')} className="btn-secondary flex items-center gap-1.5 whitespace-nowrap" data-testid="add-book-shelf"><Plus size={15} /> {CUSTOM_META[BOOK_SHELF_KIND].label}</button>
+          <button type="button" onClick={() => openNew('filter-shelf')} className="btn-secondary flex items-center gap-1.5 whitespace-nowrap" data-testid="add-filter-shelf"><Plus size={15} /> {CUSTOM_META[FILTER_SHELF_KIND].label}</button>
+          <button type="button" onClick={() => openNew('promo')} className="btn-secondary flex items-center gap-1.5 whitespace-nowrap" data-testid="add-promo"><Plus size={15} /> {CUSTOM_META[PROMO_KIND].label}</button>
+        </div>
+
+        {draft && (
+          <HomeBlockForm
+            channel={channel}
+            draft={draft}
+            onChange={(next) => { setDraft(next); setProblem(''); }}
+            nodes={draft.kind === SHELF_KIND ? shelfChoices : scopeChoices}
+            problem={problem}
+            saving={save.isPending}
+            onSubmit={() => void submit()}
+            onCancel={close}
+          />
         )}
 
         {isLoading ? (
@@ -200,33 +230,49 @@ export default function HomeBlocksEditor({ channel }: { channel: HomeChannel }) 
             {blocks.map((block, i) => {
               const name = nameOf(block);
               const replaced = block.std === 'categories' && shelfCount > 0;
-              const canEdit = block.std === null || blockDefaults(block.std, channel).editable.length > 0;
+              const ended = scheduleState(block.window, now) === 'ended';
+              const dim = !block.visible || replaced || ended;
+              const chips = chipsOf(block);
+              const kindBadge = block.std ? null : block.kind === SHELF_KIND ? 'رف تصنيف' : CUSTOM_META[block.kind as 'book-shelf'].label;
               return (
                 <li
                   key={block.key}
                   className={`flex items-center gap-3 px-4 py-3 ${dnd.rowClass(block.key)}`}
-                  data-testid={block.std ? `home-block-${block.std}` : 'shelf-row'}
-                  data-kind={block.std ? 'standard' : 'shelf'}
+                  data-testid={block.std ? `home-block-${block.std}` : block.kind === SHELF_KIND ? 'shelf-row' : 'block-row'}
+                  data-kind={block.std ? 'standard' : block.kind === SHELF_KIND ? 'shelf' : block.kind}
+                  data-key={block.key}
                   {...dnd.rowProps(block.key)}
                 >
                   <button type="button" className={gripButtonClass} data-testid="drag-handle" {...dnd.handleProps(block.key, name, (dir) => move(stepInList(keys, block.key, dir)))}><Grip /></button>
                   <span className="w-6 text-xs text-gray-400 text-center">{i + 1}</span>
                   <div className="flex-1 min-w-0">
-                    <p className={`text-sm font-semibold truncate ${block.visible && !replaced ? 'text-gray-800' : 'text-gray-400 line-through'}`}>
+                    <p className={`text-sm font-semibold truncate ${dim ? 'text-gray-400 line-through' : 'text-gray-800'}`}>
                       {name}
-                      {block.std === null && <span className="mr-2 text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-emerald-100 text-emerald-700 no-underline">رف تصنيف</span>}
+                      {kindBadge && <span className="mr-2 text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-emerald-100 text-emerald-700 no-underline" data-testid="kind-badge">{kindBadge}</span>}
                       {replaced && <span className="mr-2 text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-700">بدلها الرفوف المختارة</span>}
                     </p>
                     <p className="text-xs text-gray-400 truncate">{hintOf(block)}</p>
+                    {chips.length > 0 && (
+                      <p className="mt-1 flex flex-wrap gap-1.5" data-testid="window-chips">
+                        {chips.map((chip) => (
+                          <span
+                            key={chip.id}
+                            data-chip={chip.id}
+                            className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${chip.tone === 'bad' ? 'bg-red-100 text-red-700' : chip.tone === 'warn' ? 'bg-amber-100 text-amber-700' : 'bg-sky-100 text-sky-700'}`}
+                          >{chip.text}</span>
+                        ))}
+                      </p>
+                    )}
                   </div>
                   <Switch checked={block.visible} label={`إظهار ${name}`} onChange={(v) => void saveBlocks(blocks.map((b) => (b.key === block.key ? { ...b, visible: v } : b)))} />
-                  {canEdit ? (
-                    <button type="button" onClick={() => open(block)} className="p-1.5 rounded-lg hover:bg-blue-100 text-blue-600" aria-label={`تعديل ${name}`}><Pencil size={14} /></button>
-                  ) : <span className="w-[30px]" />}
+                  <button type="button" onClick={() => open(block)} className="p-1.5 rounded-lg hover:bg-blue-100 text-blue-600" aria-label={`تعديل ${name}`}><Pencil size={14} /></button>
                   {block.std === null ? (
                     <button
                       type="button"
-                      onClick={() => { if (window.confirm(`حذف رف «${name}» من الصفحة الرئيسية؟ (التصنيف نفسه وكتبه مش بيتأثروا)`)) remove.mutate(block.key); }}
+                      onClick={() => {
+                        const detail = block.kind === SHELF_KIND ? ' (التصنيف نفسه وكتبه مش بيتأثروا)' : block.kind === BOOK_SHELF_KIND ? ' (الكتب نفسها مش بتتأثر)' : '';
+                        if (window.confirm(`حذف «${name}» من الصفحة الرئيسية؟${detail}`)) remove.mutate(block.key);
+                      }}
                       className="p-1.5 rounded-lg hover:bg-red-100 text-red-500"
                       aria-label={`حذف رف ${name}`}
                     ><Trash2 size={14} /></button>

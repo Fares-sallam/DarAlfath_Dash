@@ -114,6 +114,16 @@ export async function uploadPromoImage(original: File): Promise<string> {
   return supabase.storage.from('site-assets').getPublicUrl(path).data.publicUrl;
 }
 
+/** The picture of a home-page promo strip: wider than a card's (it spans the page on a computer), so up to 1600px. */
+export async function uploadHomeBlockImage(original: File): Promise<string> {
+  const file = await compressImage(original, { maxSize: 1600, keepIfSmallerThan: 250 * 1024 });
+  const ext = file.type === 'image/webp' ? 'webp' : file.type === 'image/png' ? 'png' : 'jpg';
+  const path = `home-blocks/${crypto.randomUUID()}.${ext}`;
+  const { error } = await supabase.storage.from('site-assets').upload(path, file, { upsert: false, contentType: file.type });
+  if (error) throw error;
+  return supabase.storage.from('site-assets').getPublicUrl(path).data.publicUrl;
+}
+
 /* What the link chooser lists. */
 export interface SeriesOption { id: string; name: string }
 

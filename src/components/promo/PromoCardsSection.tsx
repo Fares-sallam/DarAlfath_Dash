@@ -243,7 +243,7 @@ function CardEditor({
   );
 }
 
-function ImageSlot({ label, value, onChange }: { label: string; value: string | null; onChange: (url: string | null) => void }) {
+export function ImageSlot({ label, value, onChange, upload = uploadPromoImage }: { label: string; value: string | null; onChange: (url: string | null) => void; upload?: (file: File) => Promise<string> }) {
   const [busy, setBusy] = useState(false);
   const ref = useRef<HTMLInputElement>(null);
 
@@ -253,7 +253,7 @@ function ImageSlot({ label, value, onChange }: { label: string; value: string | 
     if (file.size > 5 * 1024 * 1024) { toast.error('الصورة أكبر من 5MB.'); return; }
     setBusy(true);
     try {
-      onChange(await uploadPromoImage(file));
+      onChange(await upload(file));
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'تعذّر رفع الصورة');
     } finally {

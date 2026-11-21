@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { BLOCK_DEFAULTS, BLOCK_KEYS, BOOK_RELATED_KEY, blockDefaults, blockText, hasHomeLayout, pageStripOf, resolveHomeBlocks, rowsFor, type HomeLayoutRow } from './homeBlocks';
+import {
+  ALWAYS, BLOCK_DEFAULTS, BLOCK_KEYS, BOOK_RELATED_KEY, blockDefaults, blockProblem, blockStatus, blockText, bookShelfIds, configFor, copyLayout,
+  filterSourceOf, hasHomeLayout, pageStripOf, promoOf, resolveHomeBlocks, rowsFor, scheduleState, windowOf, type HomeBlock, type HomeLayoutRow, type LiveContext,
+} from './homeBlocks';
 
 const row = (key: string, order: number, over: Partial<HomeLayoutRow> = {}): HomeLayoutRow => ({
   section_key: key, kind: key.startsWith('shelf:') ? 'category-shelf' : key, node_id: key.startsWith('shelf:') ? key.slice(6) : null,
@@ -42,7 +45,10 @@ describe('home blocks', () => {
   it('numbers a new order and writes every block as a row', () => {
     const blocks = resolveHomeBlocks([row('departments', 0), row('shelf:a', 1, { title_ar: 'رف أ', item_limit: 6 })]);
     const rows = rowsFor([blocks[1], blocks[0], ...blocks.slice(2)]);
-    expect(rows[0]).toEqual({ section_key: 'shelf:a', kind: 'category-shelf', node_id: 'a', title_ar: 'رف أ', subtitle_ar: null, item_limit: 6, visible: true, sort_order: 0 });
+    expect(rows[0]).toEqual({
+      section_key: 'shelf:a', kind: 'category-shelf', node_id: 'a', title_ar: 'رف أ', subtitle_ar: null, item_limit: 6, visible: true, sort_order: 0,
+      starts_at: null, ends_at: null, countries: null, devices: 'all', config: {},
+    });
     expect(rows[1]).toMatchObject({ section_key: 'departments', kind: 'departments', sort_order: 1 });
     expect(rows.map((r) => r.sort_order)).toEqual(rows.map((_, i) => i));
   });
@@ -79,5 +85,147 @@ describe('app blocks', () => {
     expect(blockDefaults('categories', 'web').limit).toBe(3);
     expect(blockText(undefined, 'categories', 'app').limit).toBe(4);
     expect(BLOCK_DEFAULTS['ebook-library'].editable).toEqual(['title', 'subtitle']);
+  });
+});
+
+const ctx = (over: Partial<LiveContext> = {}): LiveContext => ({ now: new Date('2026-12-10T12:00:00Z'), country: 'EG', device: 'desktop', ...over });
+const block = (over: Partial<HomeBlock> = {}): HomeBlock => ({
+  key: 'block:x', std: null, kind: 'promo', config: {}, window: ALWAYS, nodeId: null, title: 'عرض', subtitle: null, limit: null, visible: true, sortOrder: 0, saved: true, ...over,
+});
+const ID1 = '11111111-1111-1111-1111-111111111111';
+const ID2 = '22222222-2222-2222-2222-222222222222';
+
+describe('when a block shows', () => {
+  it('is live with no limits, and says why when it is switched off', () => {
+    expect(blockStatus(block(), ctx())).toEqual({ live: true, reason: null });
+    expect(blockStatus(block({ visible: false }), ctx())).toEqual({ live: false, reason: 'switched-off' });
+  });
+
+  it('follows its dates: not before it starts, not once it has ended', () => {
+    const win = { ...ALWAYS, startsAt: '2026-12-11T00:00:00Z', endsAt: '2026-12-20T00:00:00Z' };
+    expect(blockStatus(block({ window: win }), ctx()).reason).toBe('not-started');
+    expect(blockStatus(block({ window: win }), ctx({ now: new Date('2026-12-15T00:00:00Z') })).live).toBe(true);
+    expect(blockStatus(block({ window: win }), ctx({ now: new Date('2026-12-20T00:00:00Z') })).reason).toBe('ended');
+    // only an end, only a start
+    expect(blockStatus(block({ window: { ...ALWAYS, endsAt: '2026-12-09T00:00:00Z' } }), ctx()).reason).toBe('ended');
+    expect(blockStatus(block({ window: { ...ALWAYS, startsAt: '2026-12-01T00:00:00Z' } }), ctx()).live).toBe(true);
+  });
+
+  it('limits to countries (an unknown country hides a limited block) and to a device (an unknown device is ignored)', () => {
+    const eg = block({ window: { ...ALWAYS, countries: ['EG'] } });
+    expect(blockStatus(eg, ctx({ country: 'EG' })).live).toBe(true);
+    expect(blockStatus(eg, ctx({ country: 'eg' })).live).toBe(true);
+    expect(blockStatus(eg, ctx({ country: 'SA' })).reason).toBe('country');
+    expect(blockStatus(eg, ctx({ country: null })).reason).toBe('country');
+    const phone = block({ window: { ...ALWAYS, devices: 'mobile' } });
+    expect(blockStatus(phone, ctx({ device: 'mobile' })).live).toBe(true);
+    expect(blockStatus(phone, ctx({ device: 'desktop' })).reason).toBe('device');
+    expect(blockStatus(phone, ctx({ device: null })).live).toBe(true);
+    // a block with no limits shows to someone whose country is unknown
+    expect(blockStatus(block(), ctx({ country: null })).live).toBe(true);
+  });
+
+  it('names where the dates stand', () => {
+    const now = new Date('2026-12-10T12:00:00Z');
+    expect(scheduleState(ALWAYS, now)).toBe('always');
+    expect(scheduleState({ startsAt: '2026-12-11T00:00:00Z', endsAt: null }, now)).toBe('upcoming');
+    expect(scheduleState({ startsAt: '2026-12-01T00:00:00Z', endsAt: '2026-12-20T00:00:00Z' }, now)).toBe('running');
+    expect(scheduleState({ startsAt: null, endsAt: '2026-12-10T12:00:00Z' }, now)).toBe('ended');
+  });
+
+  it('reads a saved window safely', () => {
+    expect(windowOf({})).toEqual(ALWAYS);
+    expect(windowOf({ starts_at: 'not a date', ends_at: '', countries: ['eg', 'EG', 'sa', 'xyz', ''], devices: 'tablet' }))
+      .toEqual({ startsAt: null, endsAt: null, countries: ['EG', 'SA'], devices: 'all' });
+    expect(windowOf({ starts_at: '2026-12-01T00:00:00Z', countries: [], devices: 'mobile' }))
+      .toEqual({ startsAt: '2026-12-01T00:00:00Z', endsAt: null, countries: null, devices: 'mobile' });
+  });
+});
+
+describe('owner-added blocks', () => {
+  it('keeps them in the one order with their settings, and writes them back whole', () => {
+    const rows: HomeLayoutRow[] = [
+      row('departments', 0),
+      row('block:a', 1, { kind: 'book-shelf', title_ar: 'مختارات', config: { product_ids: [ID1, ID2] }, countries: ['EG'], devices: 'mobile', starts_at: '2026-12-01T00:00:00Z' }),
+      row('block:b', 2, { kind: 'promo', title_ar: 'خصم', config: { tone: 'brand', link_url: '/search' } }),
+      row('block:c', 3, { kind: 'filter-shelf', config: { source: 'offers' }, node_id: 'n1' }),
+      row('block:d', 4, { kind: 'mystery' }),
+    ];
+    const blocks = resolveHomeBlocks(rows);
+    expect(blocks.slice(0, 4).map((b) => [b.key, b.kind, b.std])).toEqual([
+      ['departments', 'standard', 'departments'], ['block:a', 'book-shelf', null], ['block:b', 'promo', null], ['block:c', 'filter-shelf', null],
+    ]);
+    expect(blocks.some((b) => b.key === 'block:d')).toBe(false);
+    expect(blocks[1].window).toEqual({ startsAt: '2026-12-01T00:00:00Z', endsAt: null, countries: ['EG'], devices: 'mobile' });
+    const back = rowsFor(blocks);
+    expect(back[1]).toMatchObject({ section_key: 'block:a', kind: 'book-shelf', countries: ['EG'], devices: 'mobile', config: { product_ids: [ID1, ID2] } });
+    expect(back[3]).toMatchObject({ kind: 'filter-shelf', node_id: 'n1', config: { source: 'offers' } });
+  });
+
+  it('reads the books, the rule and the promo from the config safely', () => {
+    expect(bookShelfIds({ product_ids: [ID1.toUpperCase(), 'nope', ID2, ID1, 5] })).toEqual([ID1, ID2]);
+    expect(bookShelfIds(null)).toEqual([]);
+    expect(bookShelfIds({ product_ids: 'x' })).toEqual([]);
+    expect(filterSourceOf({ source: 'ebooks' })).toBe('ebooks');
+    expect(filterSourceOf({ source: 'bogus' })).toBe('newest');
+    expect(promoOf({ image_url: ' https://a/b.png ', link_url: '', button_label: 'تصفح', tone: 'dark' }))
+      .toEqual({ imageUrl: 'https://a/b.png', linkUrl: null, buttonLabel: 'تصفح', tone: 'dark' });
+    expect(promoOf(undefined).tone).toBe('light');
+  });
+
+  it('builds the config to save', () => {
+    expect(configFor('book-shelf', { productIds: [ID1, ID1, 'x'] })).toEqual({ product_ids: [ID1] });
+    expect(configFor('filter-shelf', { source: 'ebooks' })).toEqual({ source: 'ebooks' });
+    expect(configFor('promo', { promo: { tone: 'brand', linkUrl: '/search', buttonLabel: '', imageUrl: null } })).toEqual({ tone: 'brand', link_url: '/search' });
+    expect(configFor('category-shelf', {})).toEqual({});
+  });
+
+  it('says what is wrong before saving', () => {
+    expect(blockProblem(block({ kind: 'book-shelf', config: {} }))).toMatch(/كتاب واحد/);
+    expect(blockProblem(block({ kind: 'book-shelf', config: { product_ids: [ID1] } }))).toBeNull();
+    expect(blockProblem(block({ kind: 'promo', title: null, config: {} }))).toMatch(/عنوان/);
+    expect(blockProblem(block({ kind: 'promo', title: 'x', config: { button_label: 'اضغط' } }))).toMatch(/وجهة/);
+    expect(blockProblem(block({ kind: 'promo', title: 'x', config: { link_url: 'https://evil.example' } }))).toMatch(/جوه التطبيق/);
+    expect(blockProblem(block({ kind: 'promo', title: 'x', config: { link_url: '//evil.example' } }))).toMatch(/جوه التطبيق/);
+    expect(blockProblem(block({ kind: 'promo', title: 'x', window: { ...ALWAYS, startsAt: '2026-12-10T00:00:00Z', endsAt: '2026-12-09T00:00:00Z' } }))).toMatch(/بعد تاريخ البداية/);
+    expect(blockProblem(block({ kind: 'filter-shelf', config: { source: 'offers' } }))).toBeNull();
+  });
+});
+
+describe('copying a layout to the other channel', () => {
+  const web: HomeLayoutRow[] = [
+    row('offers', 0, { title_ar: 'عروض الموقع', item_limit: 6 }),
+    row('block:p', 1, { kind: 'promo', title_ar: 'خصم', config: { tone: 'brand' }, countries: ['EG'], devices: 'mobile', starts_at: '2026-12-01T00:00:00Z' }),
+    row('departments', 2, { visible: false }),
+    row('shelf:n1', 3, { title_ar: 'نحو' }),
+    row('page:book-related', 4, { kind: 'page-strip' }),
+  ];
+  const app: HomeLayoutRow[] = [
+    row('departments', 0), row('ebook-library', 1, { title_ar: 'مكتبتي' }), row('shelf:old', 2), row('best-sellers', 3), row('offers', 4),
+  ];
+
+  it('makes the app follow the website: same blocks and order, the app\'s own e-book card kept at the end, old shelves removed', () => {
+    const { rows, remove } = copyLayout(web, app, 'web', 'app');
+    expect(rows.map((r) => r.section_key).slice(0, 4)).toEqual(['offers', 'block:p', 'departments', 'shelf:n1']);
+    expect(rows.find((r) => r.section_key === 'offers')).toMatchObject({ title_ar: 'عروض الموقع', item_limit: 6, sort_order: 0 });
+    expect(rows.find((r) => r.section_key === 'departments')!.visible).toBe(false);
+    // the e-book card stays, after the copied blocks, with its own settings
+    const ebook = rows.find((r) => r.section_key === 'ebook-library')!;
+    expect(ebook.title_ar).toBe('مكتبتي');
+    expect(ebook.sort_order).toBeGreaterThan(3);
+    // blocks only the website has a place for (every standard block exists in both here), the promo goes with no country and no device
+    expect(rows.find((r) => r.section_key === 'block:p')).toMatchObject({ countries: null, devices: 'all', starts_at: '2026-12-01T00:00:00Z', config: { tone: 'brand' } });
+    expect(remove).toEqual(['shelf:old']);
+    // the strip of another page is not part of it
+    expect(rows.some((r) => r.section_key === 'page:book-related')).toBe(false);
+    expect(remove).not.toContain('page:book-related');
+  });
+
+  it('makes the website follow the app: the app-only e-book card is left out', () => {
+    const { rows, remove } = copyLayout(app, web, 'app', 'web');
+    expect(rows.some((r) => r.section_key === 'ebook-library')).toBe(false);
+    expect(rows.slice(0, 4).map((r) => r.section_key)).toEqual(['departments', 'shelf:old', 'best-sellers', 'offers']);
+    // the website's own promo and shelf are not in the app's list, so they go
+    expect(remove.sort()).toEqual(['block:p', 'shelf:n1']);
   });
 });

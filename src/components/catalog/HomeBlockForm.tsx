@@ -7,8 +7,9 @@ import { useBookSearch, uploadHomeBlockImage } from '@/hooks/usePromoCards';
 import { useCountries } from '@/hooks/useSettings';
 import { fieldsFor, type BlockDraft } from '@/lib/homeBlockDraft';
 import {
-  BOOK_SHELF_KIND, CUSTOM_META, FILTER_SHELF_KIND, FILTER_SOURCES, MAX_PICKED_BOOKS, PROMO_KIND, PROMO_TONES, blockDefaults,
-  type Devices, type FilterSource, type HomeChannel, type PromoTone,
+  BACKGROUND_LABELS, BOOK_SHELF_KIND, CUSTOM_META, DIVIDER_LABELS, FILTER_SHELF_KIND, FILTER_SOURCES, LAYOUT_LABELS, MAX_LINK_LABEL, MAX_PICKED_BOOKS,
+  PROMO_KIND, PROMO_TONES, blockDefaults, lookFieldsFor,
+  type BlockBackground, type BlockLook, type Devices, type DividerMode, type FilterSource, type HomeChannel, type PromoTone, type ShelfLayout,
 } from '@/lib/homeBlocks';
 import { reorderRelative, stepInList } from '@/lib/dragSort';
 import { SHELF_KIND } from '@/lib/homeShelves';
@@ -144,6 +145,8 @@ export default function HomeBlockForm({ channel, draft, onChange, nodes, problem
         </div>
       )}
 
+      <LookFields channel={channel} draft={draft} onChange={(look) => set({ look })} />
+
       <WindowFields channel={channel} draft={draft} onChange={set} />
 
       {problem && <p className="text-sm text-red-600" data-testid="shelf-problem">{problem}</p>}
@@ -259,5 +262,70 @@ function BookPicker({ ids, onChange }: { ids: string[]; onChange: (ids: string[]
         </ol>
       )}
     </div>
+  );
+}
+
+/** How the block looks: the layout of a shelf, the band behind it, the divider above it and the words / destination of its link. */
+function LookFields({ channel, draft, onChange }: { channel: HomeChannel; draft: BlockDraft; onChange: (look: BlockLook) => void }) {
+  const fields = lookFieldsFor({ std: draft.std, kind: draft.kind }, channel);
+  if (fields.length === 0) return null;
+  const look = draft.look;
+  const set = (patch: Partial<BlockLook>) => onChange({ ...look, ...patch });
+  const hasLink = fields.includes('link') || fields.includes('linkText');
+  return (
+    <fieldset className="rounded-xl border border-gray-200 bg-white p-4 space-y-3" data-testid="block-look">
+      <legend className="px-2 text-sm font-bold text-gray-700">الشكل</legend>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        {fields.includes('layout') && (
+          <label className="block">
+            <span className="block text-xs font-semibold text-gray-600 mb-1">طريقة عرض الكتب</span>
+            <select value={look.layout} onChange={(e) => set({ layout: e.target.value as ShelfLayout })} className="input-field" data-testid="look-layout">
+              {(Object.keys(LAYOUT_LABELS) as ShelfLayout[]).map((k) => <option key={k} value={k}>{LAYOUT_LABELS[k]}</option>)}
+            </select>
+          </label>
+        )}
+        {fields.includes('background') && (
+          <label className="block">
+            <span className="block text-xs font-semibold text-gray-600 mb-1">الخلفية</span>
+            <select value={look.background} onChange={(e) => set({ background: e.target.value as BlockBackground })} className="input-field" data-testid="look-background">
+              {(Object.keys(BACKGROUND_LABELS) as BlockBackground[]).map((k) => <option key={k} value={k}>{BACKGROUND_LABELS[k]}</option>)}
+            </select>
+          </label>
+        )}
+        {fields.includes('divider') && (
+          <label className="block">
+            <span className="block text-xs font-semibold text-gray-600 mb-1">الزخرفة اللي فوقه</span>
+            <select value={look.divider} onChange={(e) => set({ divider: e.target.value as DividerMode })} className="input-field" data-testid="look-divider">
+              {(Object.keys(DIVIDER_LABELS) as DividerMode[]).map((k) => <option key={k} value={k}>{DIVIDER_LABELS[k]}</option>)}
+            </select>
+          </label>
+        )}
+      </div>
+      {hasLink && (
+        <div className="space-y-2" data-testid="look-link">
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-xs font-semibold text-gray-600">الرابط اللي جنب العنوان («عرض الكل»)</span>
+            <label className="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer">
+              <input type="checkbox" className="accent-blue-600" checked={look.linkHidden} onChange={(e) => set({ linkHidden: e.target.checked })} data-testid="look-link-hidden" />
+              إخفاء الرابط
+            </label>
+          </div>
+          {!look.linkHidden && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <label className="block">
+                <span className="block text-xs font-semibold text-gray-600 mb-1">كلمة الرابط</span>
+                <input value={look.linkLabel ?? ''} onChange={(e) => set({ linkLabel: e.target.value || null })} maxLength={MAX_LINK_LABEL} className="input-field" placeholder="عرض الكل" data-testid="look-link-label" />
+              </label>
+              {fields.includes('link') && (
+                <div className="md:col-span-2" data-testid="look-link-destination">
+                  <span className="block text-xs font-semibold text-gray-600 mb-1">بيفتح إيه؟ (سيبه فاضي = صفحة الرف نفسه)</span>
+                  <LinkPicker value={look.linkUrl} onChange={(linkUrl) => set({ linkUrl })} />
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </fieldset>
   );
 }

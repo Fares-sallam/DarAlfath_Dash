@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ALWAYS, type HomeBlock } from './homeBlocks';
-import { blockFromDraft, draftFromBlock, fieldsFor, fromLocalInput, newDraft, toLocalInput } from './homeBlockDraft';
+import { DRAFT_KEY, blockFromDraft, blocksWithDraft, draftFromBlock, fieldsFor, fromLocalInput, newDraft, toLocalInput } from './homeBlockDraft';
 
 const ID1 = '11111111-1111-1111-1111-111111111111';
 const ID2 = '22222222-2222-2222-2222-222222222222';
@@ -64,5 +64,45 @@ describe('the block form', () => {
     const draft = draftFromBlock(block);
     expect(draft).toMatchObject({ key: 'block:a', kind: 'book-shelf', productIds: [ID1, ID2], limit: '6', countries: ['EG'], devices: 'mobile', endsAt: '' });
     expect(draft.startsAt).toMatch(/^2026-12-01T\d\d:\d\d$/);
+  });
+});
+
+describe('the look in the form', () => {
+  const offers = saved({ key: 'offers', std: 'offers', kind: 'standard', title: null, config: {}, visible: true, sortOrder: 3 });
+
+  it('saves the look the block can have, and ignores the rest', () => {
+    const draft = { ...draftFromBlock(offers), look: { layout: 'grid' as const, background: 'mint' as const, divider: 'none' as const, linkLabel: 'شوف الكل', linkHidden: false, linkUrl: '/search' } };
+    const made = blockFromDraft(draft, offers, 'web', 0);
+    expect(made).toMatchObject({ ok: true, block: { config: { look: { layout: 'grid', background: 'mint', divider: 'none', link_label: 'شوف الكل', link_url: '/search' } } } });
+    // the app has no dividers
+    const app = blockFromDraft(draft, offers, 'app', 0);
+    if ('block' in app) expect((app.block.config.look as Record<string, unknown>).divider).toBeUndefined();
+    // the series strip has no look at all
+    const departments = saved({ key: 'departments', std: 'departments', kind: 'standard', title: null, config: {} });
+    const none = blockFromDraft({ ...draftFromBlock(departments), look: draft.look }, departments, 'web', 0);
+    expect(none).toMatchObject({ ok: true, block: { config: {} } });
+  });
+
+  it('keeps a promo strip\'s own settings next to its look, and refuses a bad link', () => {
+    const d = { ...newDraft('promo'), title: 'خصم', look: { ...newDraft('promo').look, divider: 'none' as const } };
+    expect(blockFromDraft(d, null, 'web', 1)).toMatchObject({ ok: true, block: { config: { tone: 'light', look: { divider: 'none' } } } });
+    const bad = { ...newDraft('book-shelf'), productIds: [ID1], look: { ...newDraft('book-shelf').look, linkUrl: 'https://evil.example' } };
+    expect(blockFromDraft(bad, null, 'web', 1)).toMatchObject({ ok: false });
+    const longLabel = { ...newDraft('book-shelf'), productIds: [ID1], look: { ...newDraft('book-shelf').look, linkLabel: 'ا'.repeat(30) } };
+    expect(blockFromDraft(longLabel, null, 'web', 1)).toEqual({ ok: false, problem: 'كلمة الرابط أطول من 24 حرف.' });
+  });
+
+  it('shows the blocks as they would be with the open form: edited in place, or a new one at the end', () => {
+    const a = saved({ key: 'block:a', kind: 'promo', title: 'قديم', visible: true, sortOrder: 0 });
+    const b = saved({ key: 'block:b', kind: 'promo', title: 'ب', visible: true, sortOrder: 1 });
+    const edited = blocksWithDraft([a, b], { ...draftFromBlock(a), title: 'جديد' }, 'web');
+    expect(edited.blocks.map((x) => x.title)).toEqual(['جديد', 'ب']);
+    expect(edited.focus).toBe('block:a');
+    const added = blocksWithDraft([a, b], { ...newDraft('promo'), title: 'مضاف' }, 'web');
+    expect(added.blocks.map((x) => x.key)).toEqual(['block:a', 'block:b', DRAFT_KEY]);
+    expect(added.focus).toBe(DRAFT_KEY);
+    // a form with a problem leaves the blocks alone
+    expect(blocksWithDraft([a, b], newDraft('promo'), 'web').blocks.map((x) => x.key)).toEqual(['block:a', 'block:b']);
+    expect(blocksWithDraft([a, b], null, 'web')).toEqual({ blocks: [a, b], focus: null });
   });
 });

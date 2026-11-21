@@ -1,10 +1,11 @@
 // The form for adding or editing a block of the home page, as plain data: what is typed (strings, lists) turned into a
 // block (and back), with the checks that stop a bad one being saved. Pure, so it is tested without a screen.
 import {
-  BOOK_SHELF_KIND, FILTER_SHELF_KIND, PROMO_KIND, blockDefaults, blockProblem, bookShelfIds, configFor, filterSourceOf, promoOf,
-  type BlockKind, type Devices, type FilterSource, type HomeBlock, type HomeBlockKey, type HomeChannel, type PromoTone,
+  BOOK_SHELF_KIND, DEFAULT_LOOK, FILTER_SHELF_KIND, PROMO_KIND, blockDefaults, blockProblem, bookShelfIds, configFor, filterSourceOf, lookFieldsFor, lookOf,
+  normalizeLook, promoOf, withLook,
+  type BlockKind, type BlockLook, type Devices, type FilterSource, type HomeBlock, type HomeBlockKey, type HomeChannel, type PromoTone,
 } from '@/lib/homeBlocks';
-import { SHELF_KIND, parseShelfLimit } from '@/lib/homeShelves';
+import { SHELF_KIND, parseShelfLimit, shelfKeyFor } from '@/lib/homeShelves';
 
 export interface BlockDraft {
   /** the saved block's key; null while it is being added */
@@ -26,6 +27,8 @@ export interface BlockDraft {
   linkUrl: string | null;
   buttonLabel: string;
   tone: PromoTone;
+  /** the block's look (layout, band, divider, link) */
+  look: BlockLook;
 }
 
 const pad = (n: number) => String(n).padStart(2, '0');
@@ -50,7 +53,7 @@ export function fromLocalInput(value: string): string | null {
 export function newDraft(kind: Exclude<BlockKind, 'standard'>): BlockDraft {
   return {
     key: null, kind, std: null, nodeId: '', title: '', subtitle: '', limit: '', startsAt: '', endsAt: '', countries: [], devices: 'all',
-    productIds: [], source: 'newest', imageUrl: null, linkUrl: null, buttonLabel: '', tone: 'light',
+    productIds: [], source: 'newest', imageUrl: null, linkUrl: null, buttonLabel: '', tone: 'light', look: DEFAULT_LOOK,
   };
 }
 
@@ -61,7 +64,7 @@ export function draftFromBlock(block: HomeBlock): BlockDraft {
     limit: block.limit != null ? String(block.limit) : '',
     startsAt: toLocalInput(block.window.startsAt), endsAt: toLocalInput(block.window.endsAt), countries: block.window.countries ?? [], devices: block.window.devices,
     productIds: bookShelfIds(block.config), source: filterSourceOf(block.config),
-    imageUrl: promo.imageUrl, linkUrl: promo.linkUrl, buttonLabel: promo.buttonLabel ?? '', tone: promo.tone,
+    imageUrl: promo.imageUrl, linkUrl: promo.linkUrl, buttonLabel: promo.buttonLabel ?? '', tone: promo.tone, look: lookOf(block.config),
   };
 }
 
@@ -88,13 +91,19 @@ export function blockFromDraft(draft: BlockDraft, base: HomeBlock | null, channe
   if (draft.kind === BOOK_SHELF_KIND && draft.productIds.length > 0 && picked.length === 0) return { ok: false, problem: 'الكتب المختارة مش مقروءة، اختارها تاني.' };
 
   const isCustom = draft.kind === BOOK_SHELF_KIND || draft.kind === FILTER_SHELF_KIND || draft.kind === PROMO_KIND;
-  const config = isCustom
-    ? configFor(draft.kind, {
-        productIds: picked,
-        source: draft.source,
-        promo: { imageUrl: draft.imageUrl, linkUrl: draft.linkUrl, buttonLabel: draft.buttonLabel, tone: draft.tone },
-      })
-    : base?.config ?? {};
+  const look = normalizeLook(draft.look, lookFieldsFor({ std: draft.std, kind: draft.kind }, channel));
+  if (look.linkLabel && look.linkLabel.length > 24) return { ok: false, problem: 'كلمة الرابط أطول من 24 حرف.' };
+  if (look.linkUrl && !(look.linkUrl.startsWith('/') && !look.linkUrl.startsWith('//'))) return { ok: false, problem: 'وجهة الرابط لازم تكون صفحة جوه التطبيق (تبدأ بـ / ).' };
+  const config = withLook(
+    isCustom
+      ? configFor(draft.kind, {
+          productIds: picked,
+          source: draft.source,
+          promo: { imageUrl: draft.imageUrl, linkUrl: draft.linkUrl, buttonLabel: draft.buttonLabel, tone: draft.tone },
+        })
+      : base?.config ?? {},
+    look,
+  );
   const block: HomeBlock = {
     key: draft.key ?? '',
     std: draft.std,
@@ -118,4 +127,21 @@ export function blockFromDraft(draft: BlockDraft, base: HomeBlock | null, channe
   if (draft.endsAt && !block.window.endsAt) return { ok: false, problem: 'تاريخ النهاية مش مفهوم.' };
   const problem = blockProblem(block);
   return problem ? { ok: false, problem } : { ok: true, block };
+}
+
+/** The key a block gets while it is only a draft in the preview (a category shelf's is its own, the others get a placeholder). */
+export const DRAFT_KEY = 'block:draft-preview';
+
+/**
+ * The blocks as they would be if the open form were saved: the block being edited replaced, or a new one added at the end.
+ * A form that can't be saved yet (a problem) leaves the blocks as they are. `focus` is the key the preview should scroll to.
+ */
+export function blocksWithDraft(blocks: readonly HomeBlock[], draft: BlockDraft | null, channel: HomeChannel): { blocks: HomeBlock[]; focus: string | null } {
+  if (!draft) return { blocks: [...blocks], focus: null };
+  const base = draft.key ? blocks.find((b) => b.key === draft.key) ?? null : null;
+  const made = blockFromDraft(draft, base, channel, blocks.length);
+  if ('problem' in made) return { blocks: [...blocks], focus: draft.key };
+  if (draft.key !== null) return { blocks: blocks.map((b) => (b.key === draft.key ? { ...made.block, key: b.key } : b)), focus: draft.key };
+  const key = draft.kind === SHELF_KIND ? shelfKeyFor(draft.nodeId) : DRAFT_KEY;
+  return { blocks: [...blocks, { ...made.block, key }], focus: key };
 }

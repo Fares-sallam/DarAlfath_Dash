@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   ALWAYS, BLOCK_DEFAULTS, BLOCK_KEYS, BOOK_RELATED_KEY, blockDefaults, blockProblem, blockStatus, blockText, bookShelfIds, configFor, copyLayout,
-  filterSourceOf, hasHomeLayout, pageStripOf, promoOf, resolveHomeBlocks, rowsFor, scheduleState, windowOf, type HomeBlock, type HomeLayoutRow, type LiveContext,
+  DEFAULT_LOOK, filterSourceOf, hasCustomLook, hasHomeLayout, lookFieldsFor, lookOf, normalizeLook, withLook, pageStripOf, promoOf, resolveHomeBlocks, rowsFor, scheduleState, windowOf, type HomeBlock, type HomeLayoutRow, type LiveContext,
 } from './homeBlocks';
 
 const row = (key: string, order: number, over: Partial<HomeLayoutRow> = {}): HomeLayoutRow => ({
@@ -227,5 +227,69 @@ describe('copying a layout to the other channel', () => {
     expect(rows.slice(0, 4).map((r) => r.section_key)).toEqual(['departments', 'shelf:old', 'best-sellers', 'offers']);
     // the website's own promo and shelf are not in the app's list, so they go
     expect(remove.sort()).toEqual(['block:p', 'shelf:n1']);
+  });
+});
+
+describe('the look of a block', () => {
+  it('reads a saved look safely, and the standard one when there is none', () => {
+    expect(lookOf(undefined)).toEqual(DEFAULT_LOOK);
+    expect(lookOf({})).toEqual(DEFAULT_LOOK);
+    expect(lookOf({ look: 'x' })).toEqual(DEFAULT_LOOK);
+    expect(lookOf({ look: [1] })).toEqual(DEFAULT_LOOK);
+    expect(lookOf({ look: { layout: 'grid', background: 'mint', divider: 'none', link_label: '  شوف المزيد ', link_hidden: true, link_url: '/search?sort=newest' } }))
+      .toEqual({ layout: 'grid', background: 'mint', divider: 'none', linkLabel: 'شوف المزيد', linkHidden: true, linkUrl: '/search?sort=newest' });
+    // anything unknown or unsafe counts as the standard
+    expect(lookOf({ look: { layout: 'masonry', background: 'red', divider: 'fancy', link_label: '   ', link_hidden: 'yes', link_url: 'https://evil.example' } })).toEqual(DEFAULT_LOOK);
+    expect(lookOf({ look: { link_url: '//evil.example' } }).linkUrl).toBeNull();
+    expect(lookOf({ look: { link_label: 'ا'.repeat(40) } }).linkLabel).toHaveLength(24);
+  });
+
+  it('writes only what differs from the standard, keeps the other settings, and drops a look that is all standard', () => {
+    expect(withLook({ source: 'offers' }, DEFAULT_LOOK)).toEqual({ source: 'offers' });
+    expect(withLook({ source: 'offers', look: { layout: 'grid' } }, DEFAULT_LOOK)).toEqual({ source: 'offers' });
+    expect(withLook({ source: 'offers' }, { ...DEFAULT_LOOK, layout: 'grid', linkLabel: ' الكل ', linkUrl: '/search' }))
+      .toEqual({ source: 'offers', look: { layout: 'grid', link_label: 'الكل', link_url: '/search' } });
+    expect(withLook(null, { ...DEFAULT_LOOK, linkHidden: true, divider: 'none' })).toEqual({ look: { divider: 'none', link_hidden: true } });
+    // an address that is not a page inside the app is never written
+    expect(withLook({}, { ...DEFAULT_LOOK, linkUrl: 'https://evil.example' })).toEqual({});
+    // what it writes reads back the same
+    const look = { layout: 'grid' as const, background: 'soft' as const, divider: 'none' as const, linkLabel: 'المزيد', linkHidden: false, linkUrl: '/cart' };
+    expect(lookOf(withLook({}, look))).toEqual(look);
+  });
+
+  it('knows which parts of the look a block has', () => {
+    const web = (std: string | null, kind: string) => lookFieldsFor({ std: std as never, kind: kind as never }, 'web');
+    expect(web('departments', 'standard')).toEqual([]);
+    expect(web('best-sellers', 'standard')).toEqual(['layout', 'background', 'divider', 'link']);
+    expect(web('categories', 'standard')).toEqual(['layout', 'background', 'divider', 'linkText']);
+    expect(web('features', 'standard')).toEqual(['background', 'divider']);
+    expect(web(null, 'category-shelf')).toContain('link');
+    expect(web(null, 'book-shelf')).toContain('layout');
+    expect(web(null, 'promo')).toEqual(['divider']);
+    // the app draws no dividers
+    expect(lookFieldsFor({ std: 'new-arrivals', kind: 'standard' }, 'app')).toEqual(['layout', 'background', 'link']);
+    expect(lookFieldsFor({ std: null, kind: 'promo' }, 'app')).toEqual([]);
+  });
+
+  it('puts back to the standard what a block has no use for', () => {
+    const everything = { layout: 'grid' as const, background: 'mint' as const, divider: 'none' as const, linkLabel: 'x', linkHidden: true, linkUrl: '/search' };
+    expect(normalizeLook(everything, [])).toEqual(DEFAULT_LOOK);
+    expect(normalizeLook(everything, ['layout', 'linkText'])).toEqual({ ...DEFAULT_LOOK, layout: 'grid', linkHidden: true }); // hidden: no words, no destination
+    expect(normalizeLook({ ...everything, linkHidden: false }, ['layout', 'linkText'])).toEqual({ ...DEFAULT_LOOK, layout: 'grid', linkLabel: 'x' });
+    expect(normalizeLook({ ...everything, linkHidden: false }, ['background', 'divider', 'link', 'layout'])).toEqual({ ...everything, linkHidden: false });
+  });
+
+  it('marks a block with a non-standard look', () => {
+    expect(hasCustomLook({})).toBe(false);
+    expect(hasCustomLook({ look: { layout: 'rail' } })).toBe(false);
+    expect(hasCustomLook({ look: { layout: 'grid' } })).toBe(true);
+    expect(hasCustomLook({ look: { link_hidden: true } })).toBe(true);
+  });
+
+  it('survives a trip through the rows and the copy button', () => {
+    const rows: HomeLayoutRow[] = [row('offers', 0, { config: { look: { layout: 'grid', background: 'soft' } } }), row('departments', 1)];
+    const blocks = resolveHomeBlocks(rows);
+    expect(rowsFor(blocks)[0].config).toEqual({ look: { layout: 'grid', background: 'soft' } });
+    expect(copyLayout(rows, [], 'web', 'app').rows.find((r) => r.section_key === 'offers')!.config).toEqual({ look: { layout: 'grid', background: 'soft' } });
   });
 });

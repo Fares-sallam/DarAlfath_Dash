@@ -1,20 +1,21 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
-import { Copy, Loader2, Pencil, Plus, Trash2 } from 'lucide-react';
+import { Copy, Eye, Loader2, Pencil, Plus, Trash2 } from 'lucide-react';
 import { Switch } from '@/components/ads/CategoryBarSection';
 import { useCatalogCounts, useCatalogNodes } from '@/hooks/useCatalog';
 import { pageStripRow, useApplyHomeLayout, useDeleteHomeRow, useHomeLayoutRows, useSaveHomeRows } from '@/hooks/useHomeShelves';
 import { useCountries } from '@/hooks/useSettings';
 import { ancestorsOf, NODE_TYPE_LABELS, type CatalogNode } from '@/lib/catalogTree';
 import { reorderRelative, stepInList } from '@/lib/dragSort';
-import { blockFromDraft, draftFromBlock, newDraft, type BlockDraft } from '@/lib/homeBlockDraft';
+import { blockFromDraft, blocksWithDraft, draftFromBlock, newDraft, type BlockDraft } from '@/lib/homeBlockDraft';
 import {
-  BLOCK_META, BOOK_RELATED_KEY, BOOK_SHELF_KIND, CUSTOM_META, FILTER_SHELF_KIND, FILTER_SOURCES, PROMO_KIND, blockDefaults, bookShelfIds,
-  copyLayout, filterSourceOf, newBlockKey, pageStripOf, promoOf, resolveHomeBlocks, rowsFor, scheduleState, type HomeBlock, type HomeChannel,
+  BLOCK_META, BOOK_RELATED_KEY, BOOK_SHELF_KIND, CUSTOM_META, FILTER_SHELF_KIND, FILTER_SOURCES, PAGE_STRIP_KIND, PROMO_KIND, blockDefaults, bookShelfIds,
+  copyLayout, filterSourceOf, hasCustomLook, newBlockKey, pageStripOf, promoOf, resolveHomeBlocks, rowsFor, scheduleState, type HomeBlock, type HomeChannel,
 } from '@/lib/homeBlocks';
 import { SHELF_KIND, parseShelfLimit, shelfKeyFor } from '@/lib/homeShelves';
 import HomeBlockForm from './HomeBlockForm';
+import HomePreview from './HomePreview';
 import { Grip, gripButtonClass, useDragRows } from './useDragRows';
 
 const DEVICE_SHORT = { mobile: 'الموبايل بس', desktop: 'الكمبيوتر بس' } as const;
@@ -48,6 +49,18 @@ export default function HomeBlocksEditor({ channel }: { channel: HomeChannel }) 
   /** null = nothing open, otherwise the form (a new block when its key is null) */
   const [draft, setDraft] = useState<BlockDraft | null>(null);
   const [problem, setProblem] = useState('');
+
+  // the preview beside the list: the page as it would be with the open form saved (it remembers whether it was open)
+  const [previewOpen, setPreviewOpen] = useState(() => {
+    try { return window.localStorage.getItem('home-preview-open') === '1'; } catch { return false; }
+  });
+  const [previewDevice, setPreviewDevice] = useState<'mobile' | 'desktop'>('mobile');
+  const togglePreview = () => {
+    setPreviewOpen((open) => {
+      try { window.localStorage.setItem('home-preview-open', open ? '0' : '1'); } catch { /* not remembered */ }
+      return !open;
+    });
+  };
 
   const byId = useMemo(() => new Map(nodes.map((n) => [n.id, n])), [nodes]);
   const labelOf = (node: CatalogNode) => {
@@ -157,6 +170,9 @@ export default function HomeBlocksEditor({ channel }: { channel: HomeChannel }) 
     return out;
   };
 
+  const draftView = useMemo(() => blocksWithDraft(blocks, draft, channel), [blocks, draft, channel]);
+  const stripRows = useMemo(() => rows.filter((r) => r.kind === PAGE_STRIP_KIND), [rows]);
+
   // the strip on a book's page
   const related = pageStripOf(rows, BOOK_RELATED_KEY) ?? { visible: true, title: null, limit: null };
   const [relTitle, setRelTitle] = useState<string | null>(null);
@@ -173,7 +189,10 @@ export default function HomeBlocksEditor({ channel }: { channel: HomeChannel }) 
   };
 
   return (
-    <div className="space-y-6" data-testid="home-blocks">
+    <div
+      className={previewOpen ? `xl:grid xl:gap-6 xl:items-start ${previewDevice === 'desktop' && !isApp ? 'xl:grid-cols-[minmax(0,1fr)_640px]' : 'xl:grid-cols-[minmax(0,1fr)_440px]'}` : ''}
+    >
+    <div className="space-y-6 min-w-0" data-testid="home-blocks">
       <section className="bg-white rounded-2xl shadow-sm overflow-hidden">
         <div className="p-5 flex flex-col md:flex-row md:items-center gap-3 justify-between border-b border-gray-50">
           <div>
@@ -190,6 +209,15 @@ export default function HomeBlocksEditor({ channel }: { channel: HomeChannel }) 
           </div>
           <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
             {!isApp && <Link to="/appearance" className="text-sm font-semibold text-blue-600 hover:underline whitespace-nowrap">«مظهر المتجر»</Link>}
+            <button
+              type="button"
+              onClick={togglePreview}
+              aria-pressed={previewOpen}
+              className={`flex items-center gap-1.5 whitespace-nowrap ${previewOpen ? 'btn-primary' : 'btn-secondary'}`}
+              data-testid="preview-toggle"
+            >
+              <Eye size={14} /> معاينة
+            </button>
             <button
               type="button"
               onClick={() => void copyToOther()}
@@ -249,6 +277,7 @@ export default function HomeBlocksEditor({ channel }: { channel: HomeChannel }) 
                     <p className={`text-sm font-semibold truncate ${dim ? 'text-gray-400 line-through' : 'text-gray-800'}`}>
                       {name}
                       {kindBadge && <span className="mr-2 text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-emerald-100 text-emerald-700 no-underline" data-testid="kind-badge">{kindBadge}</span>}
+                      {hasCustomLook(block.config) && <span className="mr-2 text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-violet-100 text-violet-700 no-underline" data-testid="look-badge">شكل مخصص</span>}
                       {replaced && <span className="mr-2 text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-700">بدلها الرفوف المختارة</span>}
                     </p>
                     <p className="text-xs text-gray-400 truncate">{hintOf(block)}</p>
@@ -312,6 +341,12 @@ export default function HomeBlocksEditor({ channel }: { channel: HomeChannel }) 
         </div>
       </section>
       )}
+    </div>
+    {previewOpen && (
+      <div className="mt-6 xl:mt-0 xl:sticky xl:top-4">
+        <HomePreview channel={channel} blocks={draftView.blocks} extraRows={stripRows} focus={draftView.focus} nameOf={nameOf} device={previewDevice} onDeviceChange={setPreviewDevice} />
+      </div>
+    )}
     </div>
   );
 }

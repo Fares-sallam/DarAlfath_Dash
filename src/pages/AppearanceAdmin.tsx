@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, ArrowDown, ArrowUp, ExternalLink, Loader2, Moon, Palette, RotateCcw, Save, Sun, Undo2 } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { AlertTriangle, ExternalLink, Loader2, Moon, Palette, RotateCcw, Save, Sun, Undo2 } from 'lucide-react';
 import Layout from '@/components/layout/Layout';
 import { Switch } from '@/components/ads/CategoryBarSection';
 import StrengthSlider from '@/components/appearance/StrengthSlider';
@@ -7,7 +8,7 @@ import StripSample from '@/components/appearance/StripSample';
 import { Segmented } from '@/components/links/admin/ui';
 import { useSaveStorefrontAppearance, useStorefrontAppearanceAdmin } from '@/hooks/useStorefrontAppearance';
 import {
-  BRAND_COLORS, BUTTON_COLORS, BUTTON_KEYS, BUTTON_META, DEFAULT_APPEARANCE, HOME_SECTION_META, NIGHT_COLORS, PREVIEW_PARAM,
+  BRAND_COLORS, BUTTON_COLORS, BUTTON_KEYS, BUTTON_META, DEFAULT_APPEARANCE, NIGHT_COLORS, PREVIEW_PARAM,
   STRIP_ARRANGEMENTS, STRIP_ARRANGEMENT_LABEL, TONES, TONE_LABELS, buttonPaint, encodePreview, resolveAppearance,
   type ButtonColor, type ButtonKey, type NightColor, type StoreTheme, type StorefrontAppearance, type StripArrangement, type Tone,
 } from '@/lib/appearance';
@@ -80,14 +81,6 @@ export default function AppearanceAdmin() {
   }, [dirty]);
 
   const patch = (next: Partial<StorefrontAppearance>) => setDraft((d) => ({ ...d, ...next }));
-
-  const moveSection = (index: number, by: -1 | 1) => {
-    const list = [...draft.home_sections];
-    const target = index + by;
-    if (target < 0 || target >= list.length) return;
-    [list[index], list[target]] = [list[target], list[index]];
-    patch({ home_sections: list });
-  };
 
   const setButton = (key: ButtonKey, change: Partial<{ color: NightColor; tone: Tone }>) => {
     const current = draft.button_styles[key];
@@ -217,57 +210,15 @@ export default function AppearanceAdmin() {
               </div>
             </section>
 
-            {/* ── home sections ── */}
-            <section className="bg-white rounded-2xl border border-gray-100 p-5 space-y-4" data-testid="appearance-sections">
+            {/* ── home sections: moved ── */}
+            <section className="bg-white rounded-2xl border border-gray-100 p-5 flex flex-col md:flex-row md:items-center gap-3 justify-between" data-testid="appearance-sections">
               <div>
                 <h2 className="text-sm font-bold text-gray-700">أقسام الصفحة الرئيسية</h2>
                 <p className="text-[11px] text-gray-400 mt-1">
-                  رتّب الأقسام بالأسهم، واقفل اللي مش عايزه يظهر. البانر في الأعلى ثابت. قسم ملوش محتوى في المتجر بيختفي لوحده.
+                  ترتيب الأقسام وإخفاؤها وعناوينها وعدد كتبها، مع رفوف التصنيفات، بقوا في مكان واحد: «السلاسل والتصنيفات ← الصفحة الرئيسية».
                 </p>
               </div>
-              <ol className="space-y-2">
-                {draft.home_sections.map((section, index) => {
-                  const meta = HOME_SECTION_META[section.key];
-                  return (
-                    <li
-                      key={section.key}
-                      data-testid={`home-section-${section.key}`}
-                      className={`flex items-center gap-3 rounded-xl border px-3 py-2.5 ${section.visible ? 'border-gray-100 bg-gray-50' : 'border-gray-100 bg-white opacity-60'}`}
-                    >
-                      <span className="w-6 text-center text-xs font-bold text-gray-400 tabular-nums" aria-hidden="true">{index + 1}</span>
-                      <span className="flex-1 min-w-0">
-                        <span className="block text-sm font-semibold text-gray-700">{meta.label}</span>
-                        <span className="block text-[11px] text-gray-400 truncate">{meta.hint}</span>
-                      </span>
-                      <div className="flex items-center gap-1">
-                        <button
-                          type="button"
-                          onClick={() => moveSection(index, -1)}
-                          disabled={index === 0}
-                          aria-label={`حرّك ${meta.label} لأعلى`}
-                          className="p-1.5 rounded-lg text-gray-500 hover:bg-white disabled:opacity-30"
-                        >
-                          <ArrowUp size={15} />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => moveSection(index, 1)}
-                          disabled={index === draft.home_sections.length - 1}
-                          aria-label={`حرّك ${meta.label} لأسفل`}
-                          className="p-1.5 rounded-lg text-gray-500 hover:bg-white disabled:opacity-30"
-                        >
-                          <ArrowDown size={15} />
-                        </button>
-                      </div>
-                      <Switch
-                        checked={section.visible}
-                        label={`إظهار ${meta.label}`}
-                        onChange={(visible) => patch({ home_sections: draft.home_sections.map((s) => (s.key === section.key ? { ...s, visible } : s)) })}
-                      />
-                    </li>
-                  );
-                })}
-              </ol>
+              <Link to="/catalog?tab=home" className="btn-primary self-start whitespace-nowrap" data-testid="home-blocks-link">فتح «الصفحة الرئيسية»</Link>
             </section>
 
             {/* ── buttons ── */}

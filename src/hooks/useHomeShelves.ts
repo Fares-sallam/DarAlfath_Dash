@@ -1,9 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
-import { SHELF_KIND, shelfKeyFor, type HomeShelf } from '@/lib/homeShelves';
+import { PAGE_STRIP_KIND, type HomeLayoutRow } from '@/lib/homeBlocks';
 
-const COLUMNS = 'section_key, node_id, title_ar, item_limit, visible, sort_order';
+const COLUMNS = 'section_key, kind, node_id, title_ar, subtitle_ar, item_limit, visible, sort_order';
 
 function friendly(message: string): string {
   const m = message.toLowerCase();
@@ -12,91 +12,56 @@ function friendly(message: string): string {
   return message;
 }
 
-/** The category shelves of the website's home page, in their order. */
-export function useHomeShelves() {
+/** Every saved row of the website's home page layout (the blocks, the category shelves and the other pages' strips). */
+export function useWebHomeLayout() {
   return useQuery({
-    queryKey: ['home-shelves'],
-    queryFn: async (): Promise<HomeShelf[]> => {
-      const { data, error } = await supabase
-        .from('home_layout').select(COLUMNS).eq('channel', 'web').eq('kind', SHELF_KIND).order('sort_order', { ascending: true });
+    queryKey: ['home-layout-web'],
+    queryFn: async (): Promise<HomeLayoutRow[]> => {
+      const { data, error } = await supabase.from('home_layout').select(COLUMNS).eq('channel', 'web').order('sort_order', { ascending: true });
       if (error) throw new Error(error.message);
-      return (data ?? []) as HomeShelf[];
+      return (data ?? []) as HomeLayoutRow[];
     },
   });
 }
 
-export interface ShelfInput {
-  nodeId: string;
-  title: string | null;
-  limit: number | null;
-  visible: boolean;
-  /** only for a new shelf: it goes after the others */
-  sortOrder: number;
-}
-
-function refresh(qc: ReturnType<typeof useQueryClient>) {
-  void qc.invalidateQueries({ queryKey: ['home-shelves'] });
-  void qc.invalidateQueries({ queryKey: ['home-layout'] });
-}
-
-/** Adds a shelf, or changes the one that already exists for that node (the key is the node). */
-export function useSaveShelf() {
+function useRefresh() {
   const qc = useQueryClient();
+  return () => {
+    void qc.invalidateQueries({ queryKey: ['home-layout-web'] });
+    void qc.invalidateQueries({ queryKey: ['home-layout'] });
+  };
+}
+
+/** Saves rows (adds the ones that are new, changes the others) in one request. */
+export function useSaveHomeRows() {
+  const refresh = useRefresh();
   return useMutation({
-    mutationFn: async (input: ShelfInput) => {
+    mutationFn: async (rows: readonly HomeLayoutRow[]) => {
+      const now = new Date().toISOString();
       const { error } = await supabase.from('home_layout').upsert(
-        {
-          channel: 'web', section_key: shelfKeyFor(input.nodeId), kind: SHELF_KIND, node_id: input.nodeId,
-          title_ar: input.title?.trim() || null, item_limit: input.limit, visible: input.visible, sort_order: input.sortOrder,
-          updated_at: new Date().toISOString(),
-        },
+        rows.map((r) => ({ ...r, channel: 'web', updated_at: now })),
         { onConflict: 'channel,section_key' },
       );
       if (error) throw new Error(error.message);
     },
-    onSuccess: () => refresh(qc),
+    onSuccess: refresh,
     onError: (e: Error) => toast.error(friendly(e.message)),
   });
 }
 
-export function useSetShelfVisible() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async ({ key, visible }: { key: string; visible: boolean }) => {
-      const { error } = await supabase.from('home_layout').update({ visible, updated_at: new Date().toISOString() }).eq('channel', 'web').eq('section_key', key);
-      if (error) throw new Error(error.message);
-    },
-    onSuccess: () => refresh(qc),
-    onError: (e: Error) => toast.error(friendly(e.message)),
-  });
-}
-
-export function useDeleteShelf() {
-  const qc = useQueryClient();
+export function useDeleteHomeRow() {
+  const refresh = useRefresh();
   return useMutation({
     mutationFn: async (key: string) => {
       const { error } = await supabase.from('home_layout').delete().eq('channel', 'web').eq('section_key', key);
       if (error) throw new Error(error.message);
     },
-    onSuccess: () => refresh(qc),
+    onSuccess: refresh,
     onError: (e: Error) => toast.error(friendly(e.message)),
   });
 }
 
-/** Saves a new order: the shelves' keys in the order they should have. */
-export function useReorderShelves() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (keys: string[]) => {
-      const results = await Promise.all(
-        keys.map((key, index) =>
-          supabase.from('home_layout').update({ sort_order: index, updated_at: new Date().toISOString() }).eq('channel', 'web').eq('section_key', key),
-        ),
-      );
-      const failed = results.find((r) => r.error);
-      if (failed?.error) throw new Error(failed.error.message);
-    },
-    onSuccess: () => refresh(qc),
-    onError: (e: Error) => toast.error(friendly(e.message)),
-  });
+/** One page strip (e.g. «كتب قد تعجبك») as a row. */
+export function pageStripRow(key: string, strip: { visible: boolean; title: string | null; limit: number | null }): HomeLayoutRow {
+  return { section_key: key, kind: PAGE_STRIP_KIND, node_id: null, title_ar: strip.title, subtitle_ar: null, item_limit: strip.limit, visible: strip.visible, sort_order: 0 };
 }

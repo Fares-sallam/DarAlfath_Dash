@@ -6,7 +6,7 @@ import TreeTab from '@/components/catalog/TreeTab';
 import BooksTab from '@/components/catalog/BooksTab';
 import HealthTab from '@/components/catalog/HealthTab';
 import DisplayMapTab from '@/components/catalog/DisplayMapTab';
-import HomeShelvesSection from '@/components/catalog/HomeShelvesSection';
+import HomeBlocksEditor from '@/components/catalog/HomeBlocksEditor';
 import CategoryBarSection from '@/components/ads/CategoryBarSection';
 import AppStripsSection from '@/components/ads/AppStripsSection';
 
@@ -86,7 +86,7 @@ export default function Catalog() {
           {active.key === 'menus' && <CategoryBarSection />}
           {active.key === 'home' && (
             <div className="space-y-8">
-              <HomeShelvesSection />
+              <HomeBlocksEditor />
               <section>
                 <h2 className="text-lg font-bold text-gray-800 mb-3">رفوف الصفحة الرئيسية في التطبيق</h2>
                 <AppStripsSection />

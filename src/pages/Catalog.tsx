@@ -1,11 +1,12 @@
 import { useCallback } from 'react';
-import { useSearchParams, Link } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { BookOpen, FolderTree, HeartPulse, Home, Map as MapIcon, Rows3 } from 'lucide-react';
 import Layout from '@/components/layout/Layout';
 import TreeTab from '@/components/catalog/TreeTab';
 import BooksTab from '@/components/catalog/BooksTab';
 import HealthTab from '@/components/catalog/HealthTab';
 import DisplayMapTab from '@/components/catalog/DisplayMapTab';
+import HomeShelvesSection from '@/components/catalog/HomeShelvesSection';
 import CategoryBarSection from '@/components/ads/CategoryBarSection';
 import AppStripsSection from '@/components/ads/AppStripsSection';
 
@@ -85,13 +86,7 @@ export default function Catalog() {
           {active.key === 'menus' && <CategoryBarSection />}
           {active.key === 'home' && (
             <div className="space-y-8">
-              <section className="bg-white rounded-2xl shadow-sm p-5 flex flex-col md:flex-row md:items-center gap-3 justify-between">
-                <div>
-                  <h2 className="text-lg font-bold text-gray-800">رفوف الصفحة الرئيسية في الموقع</h2>
-                  <p className="text-sm text-gray-500 mt-1">ترتيب وإخفاء رفوف الصفحة الرئيسية (كروت أقسام المتجر، الأكثر مبيعًا، رفوف التصنيفات…).</p>
-                </div>
-                <Link to="/appearance" className="btn-primary self-start whitespace-nowrap">فتح «مظهر المتجر»</Link>
-              </section>
+              <HomeShelvesSection />
               <section>
                 <h2 className="text-lg font-bold text-gray-800 mb-3">رفوف الصفحة الرئيسية في التطبيق</h2>
                 <AppStripsSection />

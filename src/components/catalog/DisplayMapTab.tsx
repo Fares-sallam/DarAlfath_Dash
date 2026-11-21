@@ -66,7 +66,9 @@ export default function DisplayMapTab() {
         .sort((a, b) => a.sort_app - b.sort_app || a.name_ar.localeCompare(b.name_ar, 'ar')),
     [nodes],
   );
-  const shelves = layout.filter((l) => l.channel === channel).sort((a, b) => a.sort_order - b.sort_order);
+  // the chosen category shelves are managed in «الصفحة الرئيسية» and drawn inside the «صفوف التصنيفات» block
+  const shelves = layout.filter((l) => l.channel === channel && l.kind !== 'category-shelf').sort((a, b) => a.sort_order - b.sort_order);
+  const chosenShelves = layout.filter((l) => l.channel === 'web' && l.kind === 'category-shelf').length;
 
   /** The stored items of a parent (or the main items) in the order they are drawn. */
   const orderOf = (parentId: string | null): string[] =>
@@ -337,13 +339,19 @@ export default function DisplayMapTab() {
       <section className="space-y-2">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-bold text-gray-800" data-testid="shelves-title">رفوف الصفحة الرئيسية ({channel === 'web' ? 'الموقع' : 'التطبيق'})</h2>
-          <Link to={channel === 'web' ? '/appearance' : '/catalog?tab=home'} className="text-sm font-semibold text-blue-600 hover:underline">{channel === 'web' ? 'تعديل من «مظهر المتجر»' : 'تعديل من «الصفحة الرئيسية»'}</Link>
+          <div className="flex items-center gap-4">
+            {channel === 'web' && <Link to="/catalog?tab=home" className="text-sm font-semibold text-blue-600 hover:underline">اختيار رفوف التصنيفات</Link>}
+            <Link to={channel === 'web' ? '/appearance' : '/catalog?tab=home'} className="text-sm font-semibold text-blue-600 hover:underline">{channel === 'web' ? 'ترتيب الأقسام من «مظهر المتجر»' : 'تعديل من «الصفحة الرئيسية»'}</Link>
+          </div>
         </div>
         <ol className="bg-white rounded-2xl shadow-sm divide-y divide-gray-50" data-testid="map-sections">
           {shelves.map((s, i) => (
             <li key={s.section_key} className="flex items-center gap-3 px-4 py-2.5 text-sm">
               <span className="w-6 text-center text-xs font-bold text-blue-700">{i + 1}</span>
-              <span className={`flex-1 ${s.visible ? 'text-gray-800' : 'text-gray-400 line-through'}`}>{SHELF_LABELS[s.section_key] ?? s.section_key}</span>
+              <span className={`flex-1 ${s.visible ? 'text-gray-800' : 'text-gray-400 line-through'}`}>
+                {SHELF_LABELS[s.section_key] ?? s.section_key}
+                {channel === 'web' && s.section_key === 'categories' && chosenShelves > 0 && <span className="text-xs text-emerald-700 mr-2" data-testid="chosen-shelves">({chosenShelves} رف مختار)</span>}
+              </span>
               {s.item_limit != null && <span className="text-xs text-gray-400">{s.item_limit} رف</span>}
               <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${s.visible ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-600'}`}>{s.visible ? 'ظاهر' : 'مخفي'}</span>
             </li>

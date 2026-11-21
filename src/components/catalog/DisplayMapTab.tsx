@@ -1,14 +1,16 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowDown, ArrowUp, ChevronDown, EyeOff, Loader2, Pencil, Pin, Plus, Smartphone, Trash2 } from 'lucide-react';
+import { ChevronDown, EyeOff, Loader2, Pencil, Pin, Plus, Smartphone, Trash2 } from 'lucide-react';
 import { Switch } from '@/components/ads/CategoryBarSection';
 import { useCatalogNodes } from '@/hooks/useCatalog';
 import {
   useCreateMenuItem, useDeleteMenuItem, useHomeLayout, useMaterializeMenuChildren, useMenuItems, useMoveMenuItem,
   useReorderMenuItems, useUpdateMenuItem,
 } from '@/hooks/useMenuItems';
-import { MENU_KIND_LABELS, moveWithinParent, nextMenuSort, placementText, resolveMenu, type ResolvedMenuItem } from '@/lib/menuMap';
+import { MENU_KIND_LABELS, nextMenuSort, placementProblem, placementText, resolveMenu, type ResolvedMenuItem } from '@/lib/menuMap';
+import { stepInList, type DropZone } from '@/lib/dragSort';
 import MenuItemDialog, { type MenuDialogTarget } from './MenuItemDialog';
+import { Grip, gripButtonClass, useDragRows } from './useDragRows';
 
 const SECTION_LABELS: Record<string, string> = {
   departments: 'كروت «أقسام المتجر» (السلاسل)',
@@ -51,10 +53,51 @@ export default function DisplayMapTab() {
   );
   const sections = layout.filter((l) => l.channel === channel).sort((a, b) => a.sort_order - b.sort_order);
 
+  /** The stored sub-items (or the main items) of a parent, in the order they are drawn. */
+  const orderOf = (parentId: string | null): string[] =>
+    parentId === null
+      ? menu.map((m) => m.item!.id)
+      : (menu.find((m) => m.item!.id === parentId)?.children ?? []).filter((c) => c.item).map((c) => c.item!.id);
+
+  /** One step with the keyboard (the grip focused, then the up and down arrows). */
   const step = (id: string, dir: -1 | 1) => {
-    const ids = moveWithinParent(items, id, dir);
+    const item = items.find((i) => i.id === id);
+    const ids = item ? stepInList(orderOf(item.parent_id), id, dir) : null;
     if (ids) reorder.mutate(ids);
   };
+
+  /**
+   * Dropped above or below an item = placed next to it, at its level (a sub-item dropped beside a main item becomes
+   * main; a main item dropped beside a sub-item becomes a sub-item); dropped in the middle of a main item = placed inside it.
+   */
+  const dropItem = async (dragId: string, targetId: string, zone: DropZone) => {
+    const dragged = items.find((i) => i.id === dragId);
+    const target = items.find((i) => i.id === targetId);
+    if (!dragged || !target) return;
+    const newParent = zone === 'inside' ? target.id : target.parent_id;
+    const siblings = orderOf(newParent).filter((id) => id !== dragId);
+    const index = zone === 'inside' ? siblings.length : siblings.indexOf(target.id) + (zone === 'after' ? 1 : 0);
+    const order = [...siblings.slice(0, index), dragId, ...siblings.slice(index)];
+    const sameParent = dragged.parent_id === newParent;
+    if (sameParent && order.join() === orderOf(newParent).join()) return;
+    try {
+      if (!sameParent) await move.mutateAsync({ id: dragId, parentId: newParent });
+      await reorder.mutateAsync(order);
+    } catch {
+      // the failure is already shown as a message
+    }
+  };
+
+  const dnd = useDragRows({
+    allowInside: (id) => items.find((i) => i.id === id)?.parent_id === null,
+    canDrop: (dragId, targetId, zone) => {
+      const target = items.find((i) => i.id === targetId);
+      if (!target || dragId === targetId) return false;
+      if (zone === 'inside' && target.parent_id !== null) return false;
+      return placementProblem(items, dragId, zone === 'inside' ? target.id : target.parent_id) === null;
+    },
+    onDrop: (dragId, targetId, zone) => void dropItem(dragId, targetId, zone),
+  });
 
   const confirmDelete = (entry: ResolvedMenuItem) => {
     if (!entry.item) return;
@@ -87,7 +130,7 @@ export default function DisplayMapTab() {
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <div>
               <h2 className="text-lg font-bold text-gray-800">القايمة العلوية</h2>
-              <p className="text-xs text-gray-500">الأسهم ▾ اللي في الهيدر: كل عنصر إما رئيسي أو فرعي جوه رئيسي معيّن. الفرعي بيتكتب جنبه «داخل: …».</p>
+              <p className="text-xs text-gray-500">الأسهم ▾ اللي في الهيدر: كل عنصر إما رئيسي أو فرعي جوه رئيسي معيّن. اسحب أي عنصر من المقبض: فوق/تحت عنصر عشان ترتّبه، وفي نص عنصر رئيسي عشان يبقى فرعي جواه، وجنب رئيسي عشان يبقى رئيسي.</p>
             </div>
             <button type="button" onClick={() => setDialog({ item: null, parentId: null })} className="btn-primary flex items-center gap-2" data-testid="menu-add">
               <Plus size={16} /> إضافة عنصر
@@ -112,16 +155,11 @@ export default function DisplayMapTab() {
             {isLoading && <div className="flex items-center justify-center gap-2 py-10 text-gray-400"><Loader2 size={18} className="animate-spin" /> جارٍ التحميل...</div>}
             {menu.map((main) => {
               const subs = main.children;
-              const stored = subs.filter((s) => s.item).length;
               const autoCount = subs.filter((s) => s.auto).length;
-              const mainIndex = menu.indexOf(main);
               return (
                 <div key={main.key} data-testid="menu-main" data-id={main.item!.id}>
-                  <div className="flex items-center gap-2 px-4 py-3 flex-wrap">
-                    <div className="flex">
-                      <button type="button" onClick={() => step(main.item!.id, -1)} disabled={busy || mainIndex === 0} title="لأعلى" aria-label={`تقديم ${main.label}`} className={`${iconBtn} hover:bg-blue-100 text-blue-600`}><ArrowUp size={14} /></button>
-                      <button type="button" onClick={() => step(main.item!.id, 1)} disabled={busy || mainIndex === menu.length - 1} title="لأسفل" aria-label={`تأخير ${main.label}`} className={`${iconBtn} hover:bg-blue-100 text-blue-600`}><ArrowDown size={14} /></button>
-                    </div>
+                  <div className={`flex items-center gap-2 px-4 py-3 flex-wrap ${dnd.rowClass(main.item!.id)}`} data-testid="menu-main-row" {...dnd.rowProps(main.item!.id)}>
+                    <button type="button" className={gripButtonClass} data-testid="drag-handle" {...dnd.handleProps(main.item!.id, main.label, (dir) => step(main.item!.id, dir))}><Grip /></button>
                     <div className="flex-1 min-w-[160px]">
                       <p className={`text-sm font-bold ${main.visible ? 'text-gray-800' : 'text-gray-400 line-through'}`}>{main.label}</p>
                       <div className="flex flex-wrap gap-1 mt-1">
@@ -141,14 +179,11 @@ export default function DisplayMapTab() {
 
                   {subs.length > 0 && (
                     <div className="bg-gray-50/60 border-t border-gray-50" data-testid="menu-subs">
-                      {subs.map((sub, subIndex) => (
-                        <div key={sub.key} className="flex items-center gap-2 px-4 py-2 pr-12 flex-wrap" data-testid="menu-sub" data-auto={sub.auto ? 'true' : 'false'}>
+                      {subs.map((sub) => (
+                        <div key={sub.key} className={`flex items-center gap-2 px-4 py-2 pr-12 flex-wrap ${sub.item ? dnd.rowClass(sub.item.id) : ''}`} data-testid="menu-sub" data-auto={sub.auto ? 'true' : 'false'} {...(sub.item ? dnd.rowProps(sub.item.id) : {})}>
                           {sub.item ? (
-                            <div className="flex">
-                              <button type="button" onClick={() => step(sub.item!.id, -1)} disabled={busy || subIndex === 0 || !subs[subIndex - 1].item} title="لأعلى" aria-label={`تقديم ${sub.label}`} className={`${iconBtn} hover:bg-blue-100 text-blue-600`}><ArrowUp size={13} /></button>
-                              <button type="button" onClick={() => step(sub.item!.id, 1)} disabled={busy || subIndex >= stored - 1} title="لأسفل" aria-label={`تأخير ${sub.label}`} className={`${iconBtn} hover:bg-blue-100 text-blue-600`}><ArrowDown size={13} /></button>
-                            </div>
-                          ) : <span className="w-[54px]" />}
+                            <button type="button" className={gripButtonClass} data-testid="drag-handle" {...dnd.handleProps(sub.item.id, sub.label, (dir) => step(sub.item!.id, dir))}><Grip /></button>
+                          ) : <span className="w-[32px]" />}
                           <div className="flex-1 min-w-[150px]">
                             <p className={`text-sm ${sub.visible ? 'text-gray-700' : 'text-gray-400 line-through'} ${sub.auto ? 'italic' : 'font-semibold'}`}>{sub.label}</p>
                             <div className="flex flex-wrap gap-1 mt-0.5">

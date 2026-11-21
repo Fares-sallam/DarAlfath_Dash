@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowDown, ArrowUp, ChevronDown, ChevronLeft, Eye, EyeOff, FolderTree, Layers, Library, Loader2, Pencil, Plus, Search, Tag } from 'lucide-react';
+import { ChevronDown, ChevronLeft, Eye, EyeOff, FolderTree, Layers, Library, Loader2, Pencil, Plus, Search, Tag } from 'lucide-react';
 import { useCatalogCounts, useCatalogNodes, useReorderNodes, useUpdateNode } from '@/hooks/useCatalog';
 import {
-  NODE_TYPE_LABELS, STATUS_LABELS, buildTree, childrenOf, moveWithinSiblings, nodeFlags, nodeStatus,
+  NODE_TYPE_LABELS, STATUS_LABELS, buildTree, childrenOf, descendantIds, nodeFlags, nodeStatus,
   type CatalogNode, type Channel, type NodeType,
 } from '@/lib/catalogTree';
 import NodeEditor, { type EditorTarget } from './NodeEditor';
+import { Grip, gripButtonClass, useDragRows } from './useDragRows';
+import { stepInList, type DropZone } from '@/lib/dragSort';
 
 const CHANNELS: { key: Channel; label: string }[] = [
   { key: 'web', label: 'الموقع' },
@@ -60,11 +62,37 @@ export default function TreeTab({ openNodeId, onOpened }: { openNodeId?: string 
   const expandAll = () => setExpanded(new Set(nodes.filter((n) => nodes.some((c) => c.parent_id === n.id)).map((n) => n.id)));
   const collapseAll = () => setExpanded(new Set());
 
-  const move = (node: CatalogNode, dir: -1 | 1) => {
-    const siblings = childrenOf(nodes, node.parent_id, channel);
-    const ids = moveWithinSiblings(siblings, node.id, dir);
+  /** One step with the keyboard (the grip focused, then the up and down arrows). */
+  const step = (node: CatalogNode, dir: -1 | 1) => {
+    const ids = stepInList(childrenOf(nodes, node.parent_id, channel).map((n) => n.id), node.id, dir);
     if (ids) reorder.mutate({ ids, channel });
   };
+
+  /** Dropped above or below a row = placed next to it (under its parent); dropped in its middle = placed inside it. */
+  const dropNode = async (dragId: string, targetId: string, zone: DropZone) => {
+    const dragged = nodes.find((n) => n.id === dragId);
+    const target = nodes.find((n) => n.id === targetId);
+    if (!dragged || !target) return;
+    const newParent = zone === 'inside' ? target.id : target.parent_id;
+    const siblings = childrenOf(nodes, newParent, channel).map((n) => n.id).filter((id) => id !== dragId);
+    const index = zone === 'inside' ? siblings.length : siblings.indexOf(target.id) + (zone === 'after' ? 1 : 0);
+    const order = [...siblings.slice(0, index), dragId, ...siblings.slice(index)];
+    const sameParent = dragged.parent_id === newParent;
+    if (sameParent && order.join() === childrenOf(nodes, newParent, channel).map((n) => n.id).join()) return;
+    try {
+      if (!sameParent) await update.mutateAsync({ id: dragId, patch: { parent_id: newParent } });
+      await reorder.mutateAsync({ ids: order, channel });
+      if (zone === 'inside') setExpanded((current) => new Set(current).add(target.id));
+    } catch {
+      // the failure is already shown as a message
+    }
+  };
+
+  const dnd = useDragRows({
+    allowInside: () => true,
+    canDrop: (dragId, targetId) => dragId !== targetId && !descendantIds(nodes, dragId).has(targetId),
+    onDrop: (dragId, targetId, zone) => void dropNode(dragId, targetId, zone),
+  });
 
   const totals = useMemo(() => {
     const count = (t: NodeType) => nodes.filter((n) => n.type === t).length;
@@ -109,8 +137,8 @@ export default function TreeTab({ openNodeId, onOpened }: { openNodeId?: string 
           <button type="button" onClick={collapseAll} className="text-blue-600 hover:underline">طي الكل</button>
         </div>
       </div>
-      <p className="text-xs text-gray-400 -mt-2">
-        الأسهم بتغيّر ترتيب {channel === 'both' ? 'الموقع والتطبيق معًا' : channel === 'web' ? 'الموقع' : 'التطبيق'}.
+      <p className="text-xs text-gray-400 -mt-2" data-testid="tree-drag-hint">
+        اسحب أي صف من المقبض: فوق أو تحت صف تاني عشان ترتّبه، أو في نص الصف عشان تحطه <b>جواه</b>. الترتيب بيتغيّر لـ{channel === 'both' ? 'الموقع والتطبيق معًا' : channel === 'web' ? 'الموقع' : 'التطبيق'}.
         {channel === 'both' ? ' (الترتيب المعروض هو ترتيب الموقع)' : ''}
       </p>
 
@@ -126,18 +154,18 @@ export default function TreeTab({ openNodeId, onOpened }: { openNodeId?: string 
           const status = nodeStatus(node);
           const flags = nodeFlags(node);
           const count = counts?.get(node.id);
-          const siblings = childrenOf(nodes, node.parent_id, channel);
-          const index = siblings.findIndex((n) => n.id === node.id);
           const open = !!query || expanded.has(node.id);
           return (
             <div
               key={node.id}
-              className={`flex items-center gap-2 px-3 py-2.5 hover:bg-blue-50/30 ${status !== 'visible' ? 'opacity-70' : ''}`}
+              className={`flex items-center gap-2 px-3 py-2.5 hover:bg-blue-50/30 ${status !== 'visible' ? 'opacity-70' : ''} ${dnd.rowClass(node.id)}`}
               style={{ paddingRight: 12 + depth * 22 }}
               data-testid="tree-row"
               data-node-id={node.id}
               data-depth={depth}
+              {...dnd.rowProps(node.id)}
             >
+              <button type="button" className={gripButtonClass} data-testid="drag-handle" {...dnd.handleProps(node.id, node.name_ar, (dir) => step(node, dir))}><Grip /></button>
               {hasChildren ? (
                 <button type="button" onClick={() => toggle(node.id)} className="p-1 rounded-lg hover:bg-gray-100 text-gray-500" aria-label={open ? 'طي' : 'فتح'} aria-expanded={open}>
                   {open ? <ChevronDown size={15} /> : <ChevronLeft size={15} />}
@@ -161,8 +189,6 @@ export default function TreeTab({ openNodeId, onOpened }: { openNodeId?: string 
               </div>
 
               <div className="flex items-center">
-                <button type="button" onClick={() => move(node, -1)} disabled={index <= 0 || reorder.isPending} title="لأعلى" aria-label={`تقديم ${node.name_ar}`} className="p-1.5 rounded-lg hover:bg-blue-100 disabled:opacity-30 text-blue-600"><ArrowUp size={14} /></button>
-                <button type="button" onClick={() => move(node, 1)} disabled={index < 0 || index >= siblings.length - 1 || reorder.isPending} title="لأسفل" aria-label={`تأخير ${node.name_ar}`} className="p-1.5 rounded-lg hover:bg-blue-100 disabled:opacity-30 text-blue-600"><ArrowDown size={14} /></button>
                 <button
                   type="button"
                   onClick={() => update.mutate({ id: node.id, patch: { is_active: !node.is_active } })}

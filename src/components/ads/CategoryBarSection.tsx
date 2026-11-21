@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowDown, ArrowUp, Loader2, Save } from 'lucide-react';
+import { Loader2, Save } from 'lucide-react';
+import { Grip, gripButtonClass, useDragRows } from '@/components/catalog/useDragRows';
+import { reorderRelative, stepInList } from '@/lib/dragSort';
 import {
   useCategoryBarRows, useSaveCategoryBar, useSiteContentSettings, useUpdateSiteContentSettings, type CategoryBarRow,
 } from '@/hooks/useAdsStrips';
@@ -32,14 +34,13 @@ export default function CategoryBarSection() {
     [draft, rows],
   );
 
-  const move = (index: number, dir: -1 | 1) =>
-    setDraft((list) => {
-      const next = [...list];
-      const target = index + dir;
-      if (target < 0 || target >= next.length) return list;
-      [next[index], next[target]] = [next[target], next[index]];
-      return next;
-    });
+  const applyOrder = (list: CategoryBarRow[], ids: string[] | null) =>
+    ids ? ids.map((id) => list.find((r) => r.id === id)!) : list;
+  const step = (id: string, dir: -1 | 1) => setDraft((list) => applyOrder(list, stepInList(list.map((r) => r.id), id, dir)));
+  const dnd = useDragRows({
+    onDrop: (dragId, targetId, zone) =>
+      setDraft((list) => applyOrder(list, reorderRelative(list.map((r) => r.id), dragId, targetId, zone === 'after' ? 'after' : 'before'))),
+  });
 
   const shown = draft.filter((r) => r.is_visible && r.books > 0);
   const allBooks = content?.all_books_in_bar ?? true;
@@ -67,7 +68,7 @@ export default function CategoryBarSection() {
 
       <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
         <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-gray-50">
-          <p className="text-xs text-gray-500">رتّب التصنيفات بالأسهم، وشغّل أو اقفل كل واحد. التصنيف اللي مفيهوش كتب مش بيظهر حتى لو مفعّل.</p>
+          <p className="text-xs text-gray-500">رتّب التصنيفات بالسحب من المقبض، وشغّل أو اقفل كل واحد. التصنيف اللي مفيهوش كتب مش بيظهر حتى لو مفعّل.</p>
           <button onClick={() => saveBar.mutate(draft)} disabled={!dirty || saveBar.isPending} className="btn-primary flex items-center gap-2 disabled:opacity-40 flex-shrink-0">
             {saveBar.isPending ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
             حفظ الترتيب والظهور
@@ -78,11 +79,8 @@ export default function CategoryBarSection() {
         ) : (
           <ul className="divide-y divide-gray-50">
             {draft.map((row, i) => (
-              <li key={row.id} className="flex items-center gap-3 px-4 py-2.5" data-testid="category-bar-row">
-                <div className="flex flex-col">
-                  <button onClick={() => move(i, -1)} disabled={i === 0} aria-label={`نقل ${row.name} لأعلى`} className="p-0.5 rounded text-gray-400 hover:text-indigo-600 disabled:opacity-20"><ArrowUp size={14} /></button>
-                  <button onClick={() => move(i, 1)} disabled={i === draft.length - 1} aria-label={`نقل ${row.name} لأسفل`} className="p-0.5 rounded text-gray-400 hover:text-indigo-600 disabled:opacity-20"><ArrowDown size={14} /></button>
-                </div>
+              <li key={row.id} className={`flex items-center gap-3 px-4 py-2.5 ${dnd.rowClass(row.id)}`} data-testid="category-bar-row" {...dnd.rowProps(row.id)}>
+                <button type="button" className={gripButtonClass} data-testid="drag-handle" {...dnd.handleProps(row.id, row.name, (dir) => step(row.id, dir))}><Grip /></button>
                 <span className="w-6 text-xs text-gray-400 text-center">{i + 1}</span>
                 <div className="flex-1 min-w-0">
                   <p className={`text-sm font-semibold truncate ${row.is_visible ? 'text-gray-800' : 'text-gray-400 line-through'}`}>{row.name}</p>

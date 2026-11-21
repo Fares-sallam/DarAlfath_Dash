@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react';
-import { ArrowDown, ArrowUp, BookOpen, Loader2, Plus, Search, Trash2 } from 'lucide-react';
+import { BookOpen, Loader2, Plus, Search, Trash2 } from 'lucide-react';
 import {
   useAssignProduct, useCatalogLinks, useCatalogNodes, useCatalogProducts, useNodeBooks, useRemoveBookFromNode, useReorderNodeBooks,
 } from '@/hooks/useCatalog';
-import { moveItem } from '@/lib/seriesOrder';
+import { reorderRelative, stepInList } from '@/lib/dragSort';
 import type { CatalogNode } from '@/lib/catalogTree';
+import { Grip, gripButtonClass, useDragRows } from './useDragRows';
 
 /** The books linked to one node: order, removal, and adding more. */
 export default function NodeBooksPanel({ node }: { node: CatalogNode }) {
@@ -30,10 +31,17 @@ export default function NodeBooksPanel({ node }: { node: CatalogNode }) {
       .slice(0, 30);
   }, [allProducts, linkedIds, query]);
 
-  const move = (index: number, dir: -1 | 1) => {
-    const moved = moveItem(books, index, dir);
-    if (!moved) return;
-    reorder.mutate({ nodeId: node.id, productIds: moved.map((b) => b.product_id) });
+  const ids = books.map((b) => b.product_id);
+  const dnd = useDragRows({
+    onDrop: (dragId, targetId, zone) => {
+      const next = reorderRelative(ids, dragId, targetId, zone === 'after' ? 'after' : 'before');
+      if (next) reorder.mutate({ nodeId: node.id, productIds: next });
+    },
+  });
+  /** One step with the keyboard (the grip focused, then the up and down arrows). */
+  const step = (productId: string, dir: -1 | 1) => {
+    const next = stepInList(ids, productId, dir);
+    if (next) reorder.mutate({ nodeId: node.id, productIds: next });
   };
 
   /** Adds a book through the same call the books table uses, so the book's other links stay as they are. */
@@ -67,7 +75,8 @@ export default function NodeBooksPanel({ node }: { node: CatalogNode }) {
         {!isLoading && books.length === 0 && <p className="text-sm text-gray-400 py-4 text-center">مفيش كتب هنا لسه.</p>}
         <div className="space-y-1.5 max-h-72 overflow-y-auto">
           {books.map((b, index) => (
-            <div key={b.product_id} className="flex items-center gap-2 bg-gray-50 rounded-xl px-3 py-2" data-testid="node-book-row">
+            <div key={b.product_id} className={`flex items-center gap-2 bg-gray-50 rounded-xl px-3 py-2 ${dnd.rowClass(b.product_id)}`} data-testid="node-book-row" {...dnd.rowProps(b.product_id)}>
+              <button type="button" className={gripButtonClass} data-testid="drag-handle" {...dnd.handleProps(b.product_id, b.products?.title ?? 'الكتاب', (dir) => step(b.product_id, dir))}><Grip /></button>
               <span className="w-6 text-center text-xs font-bold text-blue-700">{index + 1}</span>
               <BookOpen size={14} className="text-gray-400 flex-shrink-0" />
               <div className="flex-1 min-w-0">
@@ -78,8 +87,6 @@ export default function NodeBooksPanel({ node }: { node: CatalogNode }) {
                   {b.products && !b.products.is_active ? ' · غير مفعّل' : ''}
                 </p>
               </div>
-              <button type="button" onClick={() => move(index, -1)} disabled={index === 0 || reorder.isPending} title="لأعلى" className="p-1 rounded-lg hover:bg-blue-100 disabled:opacity-30 text-blue-600"><ArrowUp size={13} /></button>
-              <button type="button" onClick={() => move(index, 1)} disabled={index >= books.length - 1 || reorder.isPending} title="لأسفل" className="p-1 rounded-lg hover:bg-blue-100 disabled:opacity-30 text-blue-600"><ArrowDown size={13} /></button>
               <button
                 type="button"
                 onClick={() => remove.mutate({ nodeId: node.id, productId: b.product_id })}

@@ -1,3 +1,4 @@
+import AuthorField from '@/components/books/AuthorField';
 import PublisherField from '@/components/books/PublisherField';
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { SALE_CHANNEL_LABELS, isSaleChannel, type SaleChannel } from '@/lib/saleChannel';
@@ -1872,17 +1873,7 @@ export default function Books() {
                       />
                     </div>
 
-                    <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                        المؤلف <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        value={form.author}
-                        onChange={(e) => setForm((f) => ({ ...f, author: e.target.value }))}
-                        className="input-field"
-                        placeholder="اسم المؤلف"
-                      />
-                    </div>
+                    <AuthorField value={form.author} onChange={(name) => setForm((f) => ({ ...f, author: name }))} />
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

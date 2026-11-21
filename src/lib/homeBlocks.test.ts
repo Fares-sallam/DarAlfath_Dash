@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BLOCK_DEFAULTS, BOOK_RELATED_KEY, blockText, hasHomeLayout, pageStripOf, resolveHomeBlocks, rowsFor, type HomeLayoutRow } from './homeBlocks';
+import { BLOCK_DEFAULTS, BLOCK_KEYS, BOOK_RELATED_KEY, blockDefaults, blockText, hasHomeLayout, pageStripOf, resolveHomeBlocks, rowsFor, type HomeLayoutRow } from './homeBlocks';
 
 const row = (key: string, order: number, over: Partial<HomeLayoutRow> = {}): HomeLayoutRow => ({
   section_key: key, kind: key.startsWith('shelf:') ? 'category-shelf' : key, node_id: key.startsWith('shelf:') ? key.slice(6) : null,
@@ -58,5 +58,26 @@ describe('home blocks', () => {
     expect(pageStripOf([], BOOK_RELATED_KEY)).toBeNull();
     expect(pageStripOf([row(BOOK_RELATED_KEY, 0, { kind: 'page-strip', title_ar: ' ممكن يعجبك ', item_limit: 6, visible: false })], BOOK_RELATED_KEY))
       .toEqual({ visible: false, title: 'ممكن يعجبك', limit: 6 });
+  });
+});
+
+describe('app blocks', () => {
+  it('has its own set: the e-book card in, the same order the app always had', () => {
+    expect(BLOCK_KEYS.app).toEqual(['departments', 'best-sellers', 'new-arrivals', 'offers', 'ebook-library', 'categories', 'intro-videos', 'features']);
+    expect(resolveHomeBlocks([], 'app').map((b) => b.key)).toEqual(BLOCK_KEYS.app);
+    expect(resolveHomeBlocks([], 'web').map((b) => b.key)).not.toContain('ebook-library');
+  });
+  it('only reads a block that belongs to the channel', () => {
+    const rows = [row('ebook-library', 0), row('offers', 1)];
+    expect(hasHomeLayout([row('ebook-library', 0)], 'web')).toBe(false);
+    expect(hasHomeLayout([row('ebook-library', 0)], 'app')).toBe(true);
+    expect(resolveHomeBlocks(rows, 'web').some((b) => b.key === 'ebook-library' && b.saved)).toBe(false);
+    expect(resolveHomeBlocks(rows, 'app').find((b) => b.key === 'ebook-library')!.saved).toBe(true);
+  });
+  it('draws four automatic category shelves in the app, three on the website', () => {
+    expect(blockDefaults('categories', 'app').limit).toBe(4);
+    expect(blockDefaults('categories', 'web').limit).toBe(3);
+    expect(blockText(undefined, 'categories', 'app').limit).toBe(4);
+    expect(BLOCK_DEFAULTS['ebook-library'].editable).toEqual(['title', 'subtitle']);
   });
 });

@@ -24,6 +24,7 @@ export default function Catalog() {
   const [params, setParams] = useSearchParams();
   const active = TABS.find((t) => t.key === params.get('tab')) ?? TABS[0];
   const openNode = params.get('node');
+  const homeChannel: 'web' | 'app' = params.get('channel') === 'app' ? 'app' : 'web';
   const openProduct = params.get('product');
 
   const clearParam = useCallback(
@@ -85,12 +86,28 @@ export default function Catalog() {
           {active.key === 'map' && <DisplayMapTab />}
           {active.key === 'menus' && <CategoryBarSection />}
           {active.key === 'home' && (
-            <div className="space-y-8">
-              <HomeBlocksEditor />
-              <section>
-                <h2 className="text-lg font-bold text-gray-800 mb-3">رفوف الصفحة الرئيسية في التطبيق</h2>
-                <AppStripsSection />
-              </section>
+            <div className="space-y-6">
+              <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1 w-fit" role="group" aria-label="القناة" data-testid="home-channel">
+                {(['web', 'app'] as const).map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => setParams({ tab: 'home', channel: c }, { replace: true })}
+                    aria-pressed={homeChannel === c}
+                    data-testid={`home-channel-${c}`}
+                    className={`px-4 py-1.5 rounded-lg text-sm font-semibold ${homeChannel === c ? 'bg-white shadow-sm text-blue-700' : 'text-gray-500'}`}
+                  >
+                    {c === 'web' ? 'الموقع' : 'التطبيق'}
+                  </button>
+                ))}
+              </div>
+              <HomeBlocksEditor key={homeChannel} channel={homeChannel} />
+              {homeChannel === 'app' && (
+                <section>
+                  <h2 className="text-lg font-bold text-gray-800 mb-3">إعدادات تانية للتطبيق</h2>
+                  <AppStripsSection inHub />
+                </section>
+              )}
             </div>
           )}
           {active.key === 'health' && (

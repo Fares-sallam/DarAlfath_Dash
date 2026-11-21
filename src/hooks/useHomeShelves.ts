@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
-import { PAGE_STRIP_KIND, type HomeLayoutRow } from '@/lib/homeBlocks';
+import { PAGE_STRIP_KIND, type HomeChannel, type HomeLayoutRow } from '@/lib/homeBlocks';
 
 const COLUMNS = 'section_key, kind, node_id, title_ar, subtitle_ar, item_limit, visible, sort_order';
 
@@ -12,12 +12,12 @@ function friendly(message: string): string {
   return message;
 }
 
-/** Every saved row of the website's home page layout (the blocks, the category shelves and the other pages' strips). */
-export function useWebHomeLayout() {
+/** Every saved row of a channel's home page layout (the blocks, the category shelves and, on the website, the other pages' strips). */
+export function useHomeLayoutRows(channel: HomeChannel) {
   return useQuery({
-    queryKey: ['home-layout-web'],
+    queryKey: ['home-layout-rows', channel],
     queryFn: async (): Promise<HomeLayoutRow[]> => {
-      const { data, error } = await supabase.from('home_layout').select(COLUMNS).eq('channel', 'web').order('sort_order', { ascending: true });
+      const { data, error } = await supabase.from('home_layout').select(COLUMNS).eq('channel', channel).order('sort_order', { ascending: true });
       if (error) throw new Error(error.message);
       return (data ?? []) as HomeLayoutRow[];
     },
@@ -27,19 +27,20 @@ export function useWebHomeLayout() {
 function useRefresh() {
   const qc = useQueryClient();
   return () => {
-    void qc.invalidateQueries({ queryKey: ['home-layout-web'] });
+    void qc.invalidateQueries({ queryKey: ['home-layout-rows'] });
     void qc.invalidateQueries({ queryKey: ['home-layout'] });
+    void qc.invalidateQueries({ queryKey: ['app-home-settings'] });
   };
 }
 
 /** Saves rows (adds the ones that are new, changes the others) in one request. */
-export function useSaveHomeRows() {
+export function useSaveHomeRows(channel: HomeChannel) {
   const refresh = useRefresh();
   return useMutation({
     mutationFn: async (rows: readonly HomeLayoutRow[]) => {
       const now = new Date().toISOString();
       const { error } = await supabase.from('home_layout').upsert(
-        rows.map((r) => ({ ...r, channel: 'web', updated_at: now })),
+        rows.map((r) => ({ ...r, channel, updated_at: now })),
         { onConflict: 'channel,section_key' },
       );
       if (error) throw new Error(error.message);
@@ -49,11 +50,11 @@ export function useSaveHomeRows() {
   });
 }
 
-export function useDeleteHomeRow() {
+export function useDeleteHomeRow(channel: HomeChannel) {
   const refresh = useRefresh();
   return useMutation({
     mutationFn: async (key: string) => {
-      const { error } = await supabase.from('home_layout').delete().eq('channel', 'web').eq('section_key', key);
+      const { error } = await supabase.from('home_layout').delete().eq('channel', channel).eq('section_key', key);
       if (error) throw new Error(error.message);
     },
     onSuccess: refresh,

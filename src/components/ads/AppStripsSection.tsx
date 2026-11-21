@@ -21,7 +21,7 @@ const SAMPLE_THRESHOLD = 500;
  * The strips the APP adds around the store's own content: the free-shipping bar at the bottom of the cart, and which
  * sections its home screen shows. (The offers strip, the category bar, best sellers and the boxes have their own tabs.)
  */
-export default function AppStripsSection() {
+export default function AppStripsSection({ inHub = false }: { inHub?: boolean } = {}) {
   const { data: saved, isLoading, isError, error } = useAppHomeSettings();
   const { data: offers = [] } = useShippingOffers();
   const save = useSaveAppHomeSettings();
@@ -132,48 +132,19 @@ export default function AppStripsSection() {
         </div>
       </section>
 
-      {/* ── The home screen's own sections ── */}
-      <section className="bg-white rounded-2xl border border-gray-100 p-5 space-y-1" data-testid="app-home-sections">
-        <h2 className="text-sm font-bold text-gray-800 flex items-center gap-2"><Smartphone size={16} className="text-indigo-600" /> أقسام الرئيسية في التطبيق</h2>
-        <p className="text-xs text-gray-500 pb-2 leading-relaxed">
-          أقسام التطبيق بتتبني لوحدها من الكتب. هنا بتقفل أو تفتح أي قسم منها. شريط الإعلانات والتصنيفات والأكثر مبيعًا والمربعات من التابات اللي جنبه، والبانر من «صور الصفحة الرئيسية».
-        </p>
-
-        <ToggleRow
-          title="أقسام المتجر"
-          hint="كروت السلاسل (بصورها) تحت البانر. الصور والأسماء والترتيب من «إدارة السلاسل»."
-          checked={draft.show_store_departments}
-          onChange={(v) => set('show_store_departments', v)}
-        >
-          <label className="block text-xs text-gray-500 mb-1">عنوان القسم (فاضي = «{DEFAULT_DEPARTMENTS_TITLE}»)</label>
-          <input
-            value={draft.store_departments_title ?? ''}
-            onChange={(e) => set('store_departments_title', e.target.value === '' ? null : e.target.value)}
-            maxLength={MAX_TEXT_LENGTH}
-            placeholder={DEFAULT_DEPARTMENTS_TITLE}
-            className={field}
-            aria-label="عنوان أقسام المتجر"
-          />
-        </ToggleRow>
-        <ToggleRow
-          title="وصل حديثًا"
-          hint="رف أحدث الكتب المضافة."
-          checked={draft.show_new_arrivals}
-          onChange={(v) => set('show_new_arrivals', v)}
-        />
-        <ToggleRow
-          title="عروض وخصومات"
-          hint="رف الكتب اللي سعرها أقل من سعرها المعتاد. لو مفيش خصومات كفاية مش بيظهر لوحده."
-          checked={draft.show_offers}
-          onChange={(v) => set('show_offers', v)}
-        />
-        <ToggleRow
-          title="المكتبة الإلكترونية"
-          hint="الكارت اللي بيفتح الكتب الإلكترونية بس (بيظهر لما يبقى فيه كتاب إلكتروني)."
-          checked={draft.show_ebook_library}
-          onChange={(v) => set('show_ebook_library', v)}
-        />
+      {/* ── The home screen's own sections: moved to the hub ── */}
+      {!inHub && (
+      <section className="bg-white rounded-2xl border border-gray-100 p-5 flex flex-col md:flex-row md:items-center gap-3 justify-between" data-testid="app-home-sections">
+        <div>
+          <h2 className="text-sm font-bold text-gray-800 flex items-center gap-2"><Smartphone size={16} className="text-indigo-600" /> أقسام الرئيسية في التطبيق</h2>
+          <p className="text-xs text-gray-500 mt-1 leading-relaxed">
+            ترتيب الأقسام وإخفاؤها وعناوينها وعدد كتبها ورفوف التصنيفات بقوا في «السلاسل والتصنيفات ← الصفحة الرئيسية ← التطبيق».
+            الإظهار والإخفاء بيتطبّق على التطبيق الحالي كمان، والترتيب والرفوف على نسخته الجاية.
+          </p>
+        </div>
+        <Link to="/catalog?tab=home&channel=app" className="btn-primary self-start whitespace-nowrap" data-testid="app-blocks-link">فتح «الصفحة الرئيسية» للتطبيق</Link>
       </section>
+      )}
 
       {/* ── Save bar ── */}
       <div className="sticky bottom-3 flex items-center justify-between gap-3 bg-white/95 backdrop-blur rounded-2xl border border-gray-200 shadow-lg px-4 py-3">
@@ -208,14 +179,15 @@ export default function AppStripsSection() {
 }
 
 /** What is stored: every wording trimmed and empty = null (the app's own words). */
-function normalise(s: AppHomeSettings): AppHomeSettings {
+function normalise(s: AppHomeSettings): Partial<AppHomeSettings> {
+  // the home screen's sections (show / hide, the departments' title) are saved from the hub, not from here
+  const { show_store_departments: _a, store_departments_title: _b, show_new_arrivals: _c, show_offers: _d, show_ebook_library: _e, ...rest } = s;
   return {
-    ...s,
+    ...rest,
     brand_name_ar: cleanBrandName(s.brand_name_ar ?? ''),
     brand_name_en: cleanBrandName(s.brand_name_en ?? ''),
     free_shipping_progress_text: s.free_shipping_progress_text ? cleanText(s.free_shipping_progress_text) : null,
     free_shipping_done_text: s.free_shipping_done_text ? cleanText(s.free_shipping_done_text) : null,
-    store_departments_title: s.store_departments_title ? cleanText(s.store_departments_title) : null,
   };
 }
 
@@ -258,22 +230,6 @@ function WordingField({
   );
 }
 
-function ToggleRow({
-  title, hint, checked, onChange, children,
-}: { title: string; hint: string; checked: boolean; onChange: (v: boolean) => void; children?: React.ReactNode }) {
-  return (
-    <div className="py-3 border-t border-gray-50 first:border-t-0">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-sm font-semibold text-gray-800">{title}</p>
-          <p className="text-xs text-gray-500 mt-0.5">{hint}</p>
-        </div>
-        <Switch checked={checked} onChange={onChange} label={`إظهار ${title}`} />
-      </div>
-      {children && <div className={`mt-2 ${checked ? '' : 'opacity-50 pointer-events-none'}`}>{children}</div>}
-    </div>
-  );
-}
 
 /** The bar as the app draws it: what was added, what is left, the fill, and the wording. */
 function BarPreview({

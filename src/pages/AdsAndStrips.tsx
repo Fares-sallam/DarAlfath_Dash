@@ -10,7 +10,7 @@ const TABS = [
   { key: 'offers', label: 'شريط العروض والإعلانات', hint: 'الشريط اللي تحت الهيدر على طول، برسايل بتتبدل كل 5 ثواني.', icon: Megaphone, Section: AnnouncementsSection },
   { key: 'boxes', label: 'مربعات أعلى الفوتر', hint: 'المربعات اللي في آخر الصفحة الرئيسية فوق الفوتر.', icon: LayoutGrid, Section: FeatureBoxesSection },
   { key: 'best', label: 'الأكثر مبيعًا', hint: 'صف «الأكثر مبيعًا» في الرئيسية، ومبيعات كل كتاب عشان تختار.', icon: Trophy, Section: BestSellersSection },
-  { key: 'app', label: 'شرايط التطبيق', hint: 'شريط الشحن المجاني في سلة التطبيق، وأقسام الرئيسية في التطبيق اللي تقدر تقفلها أو تفتحها.', icon: Smartphone, Section: AppStripsSection },
+  { key: 'app', label: 'شرايط التطبيق', hint: 'شريط الشحن المجاني في سلة التطبيق واسم الناشر. أقسام الرئيسية في التطبيق من «السلاسل والتصنيفات ← الصفحة الرئيسية».', icon: Smartphone, Section: AppStripsSection },
 ] as const;
 
 /** One place for what the store shows around the books: the strips, the boxes above the footer, and the best sellers row. */

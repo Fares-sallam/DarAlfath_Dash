@@ -3,12 +3,11 @@ import { Link } from 'react-router-dom';
 import { Loader2, Pencil, Plus, Trash2 } from 'lucide-react';
 import { Switch } from '@/components/ads/CategoryBarSection';
 import { useCatalogCounts, useCatalogNodes } from '@/hooks/useCatalog';
-import { pageStripRow, useDeleteHomeRow, useSaveHomeRows, useWebHomeLayout } from '@/hooks/useHomeShelves';
-import { HOME_SECTION_META } from '@/lib/appearance';
+import { pageStripRow, useDeleteHomeRow, useHomeLayoutRows, useSaveHomeRows } from '@/hooks/useHomeShelves';
 import { ancestorsOf, NODE_TYPE_LABELS, type CatalogNode } from '@/lib/catalogTree';
 import { reorderRelative, stepInList } from '@/lib/dragSort';
 import {
-  BLOCK_DEFAULTS, BOOK_RELATED_KEY, pageStripOf, resolveHomeBlocks, rowsFor, type HomeBlock,
+  BLOCK_META, BOOK_RELATED_KEY, blockDefaults, pageStripOf, resolveHomeBlocks, rowsFor, type HomeBlock, type HomeChannel,
 } from '@/lib/homeBlocks';
 import { parseShelfLimit, shelfKeyFor } from '@/lib/homeShelves';
 import { Grip, gripButtonClass, useDragRows } from './useDragRows';
@@ -16,18 +15,20 @@ import { Grip, gripButtonClass, useDragRows } from './useDragRows';
 const BOOK_RELATED_DEFAULT = { title: 'كتب قد تعجبك', limit: 4 };
 
 /**
- * The website's home page, top to bottom, in one list: the standard blocks and the category shelves in ONE order (drag to
- * move), each shown or hidden, with its own title, the line under it and how many books it holds. Below it, the strip on a
- * book's page. (The banner above, the offers bar and the category bar under the header have their own tabs.)
+ * A channel's home page (the website's or the app's), top to bottom, in one list: the standard blocks and the category
+ * shelves in ONE order (drag to move), each shown or hidden, with its own title, the line under it and how many books it
+ * holds. On the website, below it, the strip on a book's page. (The banner above, the offers bar and the category bar have
+ * their own tabs.)
  */
-export default function HomeBlocksEditor() {
-  const { data: rows = [], isLoading } = useWebHomeLayout();
+export default function HomeBlocksEditor({ channel }: { channel: HomeChannel }) {
+  const isApp = channel === 'app';
+  const { data: rows = [], isLoading } = useHomeLayoutRows(channel);
   const { data: nodes = [] } = useCatalogNodes();
   const { data: counts } = useCatalogCounts();
-  const save = useSaveHomeRows();
-  const remove = useDeleteHomeRow();
+  const save = useSaveHomeRows(channel);
+  const remove = useDeleteHomeRow(channel);
 
-  const blocks = useMemo(() => resolveHomeBlocks(rows), [rows]);
+  const blocks = useMemo(() => resolveHomeBlocks(rows, channel), [rows, channel]);
   const shelfCount = blocks.filter((b) => b.std === null).length;
 
   /** null = nothing open, 'new' = adding a shelf, otherwise the key of the block being edited */
@@ -49,7 +50,7 @@ export default function HomeBlocksEditor() {
     .sort((a, b) => labelOf(a).localeCompare(labelOf(b), 'ar'));
 
   const editingBlock = blocks.find((b) => b.key === editing) ?? null;
-  const fields = editingBlock?.std ? BLOCK_DEFAULTS[editingBlock.std].editable : ['title', 'subtitle', 'limit'];
+  const fields = editingBlock?.std ? blockDefaults(editingBlock.std, channel).editable : ['title', 'subtitle', 'limit'];
 
   const open = (block: HomeBlock | null) => {
     setEditing(block ? block.key : 'new');
@@ -94,11 +95,11 @@ export default function HomeBlocksEditor() {
     }
   };
 
-  const nameOf = (b: HomeBlock) => (b.std ? (b.title ?? HOME_SECTION_META[b.std].label) : b.title || byId.get(b.nodeId ?? '')?.name_ar || 'عنصر محذوف أو مخفي');
+  const nameOf = (b: HomeBlock) => (b.std ? (b.title ?? BLOCK_META[b.std].label) : b.title || byId.get(b.nodeId ?? '')?.name_ar || 'عنصر محذوف أو مخفي');
   const hintOf = (b: HomeBlock) => {
     if (b.std) {
-      const d = BLOCK_DEFAULTS[b.std];
-      const bits = [HOME_SECTION_META[b.std].hint];
+      const d = blockDefaults(b.std, channel);
+      const bits = [BLOCK_META[b.std].hint];
       if (b.limit != null && d.editable.includes('limit')) bits.push(`${d.limitLabel ?? 'العدد'}: ${b.limit}`);
       return bits.join(' · ');
     }
@@ -131,14 +132,19 @@ export default function HomeBlocksEditor() {
       <section className="bg-white rounded-2xl shadow-sm overflow-hidden">
         <div className="p-5 flex flex-col md:flex-row md:items-center gap-3 justify-between border-b border-gray-50">
           <div>
-            <h2 className="text-lg font-bold text-gray-800">ترتيب الصفحة الرئيسية في الموقع</h2>
+            <h2 className="text-lg font-bold text-gray-800">{isApp ? 'ترتيب الصفحة الرئيسية في التطبيق' : 'ترتيب الصفحة الرئيسية في الموقع'}</h2>
             <p className="text-sm text-gray-500 mt-1">
               كل أقسام الصفحة ورفوف التصنيفات في قايمة واحدة: اسحب أي واحد لمكانه، أقفله أو افتحه، وغيّر عنوانه وعدد كتبه. البانر في الأعلى ثابت
               (صوره من «صور الصفحة الرئيسية»). {shelfCount > 0 && 'لما فيه رفوف مختارة، «صفوف التصنيفات» التلقائية بتسكت وتاخد الرفوف مكانها.'}
             </p>
+            {isApp && (
+              <p className="text-xs text-amber-700 bg-amber-50 rounded-xl px-3 py-2 mt-2" data-testid="app-note">
+                الإظهار والإخفاء (وعنوان «أقسام المتجر») بيتطبّق على التطبيق الحالي كمان. الترتيب والرفوف المختارة والعناوين والأعداد بتظهر في نسخة التطبيق الجاية.
+              </p>
+            )}
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
-            <Link to="/appearance" className="text-sm font-semibold text-blue-600 hover:underline whitespace-nowrap">«مظهر المتجر»</Link>
+            {!isApp && <Link to="/appearance" className="text-sm font-semibold text-blue-600 hover:underline whitespace-nowrap">«مظهر المتجر»</Link>}
             <button type="button" onClick={() => open(null)} className="btn-primary flex items-center gap-1.5 whitespace-nowrap" data-testid="shelf-add">
               <Plus size={15} /> إضافة رف تصنيف
             </button>
@@ -160,21 +166,21 @@ export default function HomeBlocksEditor() {
               <label className={`block ${fields.includes('subtitle') ? '' : 'md:col-span-2'}`}>
                 <span className="block text-sm font-semibold text-gray-700 mb-1.5">العنوان (اختياري)</span>
                 <input value={title} onChange={(e) => setTitle(e.target.value)} className="input-field" maxLength={80}
-                  placeholder={editingBlock?.std ? BLOCK_DEFAULTS[editingBlock.std].title : byId.get(nodeId)?.name_ar ?? 'لو فاضي بنكتب اسم التصنيف'} data-testid="shelf-title" />
+                  placeholder={editingBlock?.std ? blockDefaults(editingBlock.std, channel).title : byId.get(nodeId)?.name_ar ?? 'لو فاضي بنكتب اسم التصنيف'} data-testid="shelf-title" />
               </label>
             )}
             {fields.includes('subtitle') && (
               <label className="block">
                 <span className="block text-sm font-semibold text-gray-700 mb-1.5">السطر تحت العنوان (اختياري)</span>
                 <input value={subtitle} onChange={(e) => setSubtitle(e.target.value)} className="input-field" maxLength={120}
-                  placeholder={editingBlock?.std ? BLOCK_DEFAULTS[editingBlock.std].subtitle ?? '' : 'لو فاضي بنكتب سطر جاهز'} data-testid="shelf-subtitle" />
+                  placeholder={editingBlock?.std ? blockDefaults(editingBlock.std, channel).subtitle ?? '' : 'لو فاضي بنكتب سطر جاهز'} data-testid="shelf-subtitle" />
               </label>
             )}
             {fields.includes('limit') && (
               <label className="block">
-                <span className="block text-sm font-semibold text-gray-700 mb-1.5">{editingBlock?.std ? BLOCK_DEFAULTS[editingBlock.std].limitLabel ?? 'العدد' : 'عدد الكتب'} (اختياري)</span>
+                <span className="block text-sm font-semibold text-gray-700 mb-1.5">{editingBlock?.std ? blockDefaults(editingBlock.std, channel).limitLabel ?? 'العدد' : 'عدد الكتب'} (اختياري)</span>
                 <input value={limit} onChange={(e) => setLimit(e.target.value)} inputMode="numeric" className="input-field"
-                  placeholder={editingBlock?.std && BLOCK_DEFAULTS[editingBlock.std].limit != null ? String(BLOCK_DEFAULTS[editingBlock.std].limit) : 'الكل'} data-testid="shelf-limit" />
+                  placeholder={editingBlock?.std && blockDefaults(editingBlock.std, channel).limit != null ? String(blockDefaults(editingBlock.std, channel).limit) : 'الكل'} data-testid="shelf-limit" />
               </label>
             )}
             {problem && <p className="md:col-span-3 text-sm text-red-600" data-testid="shelf-problem">{problem}</p>}
@@ -194,7 +200,7 @@ export default function HomeBlocksEditor() {
             {blocks.map((block, i) => {
               const name = nameOf(block);
               const replaced = block.std === 'categories' && shelfCount > 0;
-              const canEdit = block.std === null || BLOCK_DEFAULTS[block.std].editable.length > 0;
+              const canEdit = block.std === null || blockDefaults(block.std, channel).editable.length > 0;
               return (
                 <li
                   key={block.key}
@@ -232,6 +238,7 @@ export default function HomeBlocksEditor() {
         )}
       </section>
 
+      {!isApp && (
       <section className="bg-white rounded-2xl shadow-sm p-5 space-y-3" data-testid="page-strips">
         <div>
           <h2 className="text-lg font-bold text-gray-800">أشرطة الصفحات التانية</h2>
@@ -258,6 +265,7 @@ export default function HomeBlocksEditor() {
           <button type="button" onClick={submitRelated} disabled={save.isPending || (relTitle === null && relLimit === null)} className="btn-secondary disabled:opacity-40" data-testid="related-save">حفظ</button>
         </div>
       </section>
+      )}
     </div>
   );
 }

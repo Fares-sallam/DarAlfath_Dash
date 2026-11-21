@@ -21,7 +21,7 @@ export function useAppHomeSettings() {
 export function useSaveAppHomeSettings() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (settings: AppHomeSettings) => {
+    mutationFn: async (settings: Partial<AppHomeSettings>) => {
       // upsert: the row is created by the migration, but saving must also work if it was ever deleted.
       const { error } = await supabase.from('app_home_settings').upsert({ id: 1, ...settings }, { onConflict: 'id' });
       if (error) throw error;

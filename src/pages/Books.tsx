@@ -1,3 +1,4 @@
+import PublisherField from '@/components/books/PublisherField';
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { SALE_CHANNEL_LABELS, isSaleChannel, type SaleChannel } from '@/lib/saleChannel';
 import { useSearchParams } from 'react-router-dom';
@@ -1885,9 +1886,7 @@ export default function Books() {
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <label className="block text-sm font-semibold text-gray-700">الناشر (اختياري)
-                      <input value={form.publisher} onChange={(e) => setForm((f) => ({ ...f, publisher: e.target.value }))} className="input-field mt-1.5" maxLength={160} placeholder="اسم دار النشر" />
-                    </label>
+                    <PublisherField value={form.publisher} onChange={(name) => setForm((f) => ({ ...f, publisher: name }))} />
                     <label className="block text-sm font-semibold text-gray-700">عدد الصفحات (اختياري)
                       <input type="number" min={1} step={1} value={form.page_count} onChange={(e) => setForm((f) => ({ ...f, page_count: e.target.value }))} className="input-field mt-1.5" placeholder="مثال: 240" />
                     </label>

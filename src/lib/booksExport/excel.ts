@@ -1,4 +1,5 @@
 import type { Fill, Borders } from 'exceljs';
+import { decimalFormat } from '@/lib/reports/format';
 import { catalogColumns, type CatalogColumn, type CatalogRow } from './rows';
 
 const FONT = 'Arial';
@@ -52,7 +53,8 @@ export async function buildCatalogExcel(rows: readonly CatalogRow[], generatedAt
         cell.numFmt = '@';
         cell.alignment = { horizontal: 'right', vertical: 'top', wrapText: true, readingOrder: 'rtl' };
       } else {
-        cell.numFmt = col.kind === 'money' ? '#,##0.00' : '0.0##';
+        // a weight or a size shows its own fractions, as stored (0.3 stays 0.3, 0.075 stays 0.075)
+        cell.numFmt = col.kind === 'money' ? '#,##0.00' : decimalFormat(typeof value === 'number' ? value : null);
         cell.alignment = { horizontal: 'center', vertical: 'top' };
       }
       if (i % 2 === 1) cell.fill = fill(C.zebra);

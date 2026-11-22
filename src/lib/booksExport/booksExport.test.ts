@@ -240,3 +240,27 @@ describe('the other things about a book', () => {
     expect(html).not.toContain('N-1'); // the SKU was not chosen
   });
 });
+
+describe('weights and sizes in the export keep their fractions', () => {
+  const items: ExportBook[] = [
+    { title: 'أ', product_variants: [{ sku: '1', variant_type: 'ورقي', weight_kg: 0.35 }, { sku: '2', variant_type: 'ورقي', weight_kg: 0.4 }, { sku: '3', variant_type: 'ورقي', weight_kg: 1 }], electronic_books: { file_size_mb: 12.5 } },
+  ];
+  const rows = catalogRows(items, { keepOrder: true });
+
+  it('stores the weight as a number and shows each as it is (0.35, 0.4, 1, not 0, 0, 1)', async () => {
+    // the catalog's order: title, pages, weight, e-book size
+    const blob = await buildCatalogExcel(rows, new Date(), catalogColumns(['title', 'weight', 'ebookSize', 'pages']));
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(await blob.arrayBuffer());
+    const ws = wb.worksheets[0];
+    expect([2, 3, 4].map((r) => ws.getRow(r).getCell(3).value)).toEqual([0.35, 0.4, 1]);
+    expect([2, 3, 4].map((r) => ws.getRow(r).getCell(3).numFmt)).toEqual(['0.00', '0.0', '0']);
+    expect(ws.getRow(2).getCell(4).value).toBe(12.5);
+    expect(ws.getRow(2).getCell(4).numFmt).toBe('0.0');
+    // a column with only whole numbers shows no decimals
+    const only = await buildCatalogExcel(catalogRows([{ title: 'ب', page_count: 120 }]), new Date(), catalogColumns(['title', 'pages']));
+    const w2 = new ExcelJS.Workbook();
+    await w2.xlsx.load(await only.arrayBuffer());
+    expect(w2.worksheets[0].getRow(2).getCell(2).numFmt).toBe('0');
+  });
+});

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import ExcelJS from 'exceljs';
 import { makeSection, share, type ReportDocument } from './types';
-import { csvCell, formatCell } from './format';
+import { csvCell, decimalFormat, formatCell } from './format';
 import { resolvePeriod } from './period';
 import { buildCsv } from './csv';
 import { buildExcel } from './excel';
@@ -147,5 +147,66 @@ describe('PDF page', () => {
     expect(html).toContain('thead { display: table-header-group; }');
     expect(html).toContain('tfoot { display: table-row-group; }');
     expect(html).toContain('counter(pages)');
+  });
+});
+
+describe('decimal columns (weights, sizes)', () => {
+  type W = { name: string; kg: number | null; size: number | null; count: number };
+  const items: W[] = [
+    { name: 'أ', kg: 0.35, size: 12.5, count: 3 },
+    { name: 'ب', kg: 0.4, size: 7, count: 12 },
+    { name: 'ج', kg: 1, size: null, count: 1500 },
+    { name: 'د', kg: null, size: 0.125, count: 0 },
+  ];
+  const weights = makeSection('أوزان', [
+    { header: 'الاسم', value: (w: W) => w.name },
+    { header: 'الوزن (كجم)', type: 'decimal', value: (w) => w.kg },
+    { header: 'الحجم', type: 'decimal', value: (w) => w.size },
+    { header: 'العدد', type: 'number', value: (w) => w.count },
+  ], items);
+  const wdoc: ReportDocument = { ...doc, sections: [weights] };
+
+  const sheet = async () => {
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(await (await buildExcel(wdoc)).arrayBuffer());
+    return wb.worksheets[1];
+  };
+  /** the cell of a data row, found by its first cell */
+  const cellOf = (ws: ExcelJS.Worksheet, name: string, col: number) => {
+    let found: ExcelJS.Cell | null = null;
+    ws.eachRow((row) => { if (row.getCell(1).value === name) found = row.getCell(col); });
+    return found as unknown as ExcelJS.Cell;
+  };
+
+  it('keeps the fractions of a weight: the value is stored whole and each cell shows it as it is (a whole-number format showed 0.35 as 0)', async () => {
+    const ws = await sheet();
+    expect(cellOf(ws, 'أ', 2).value).toBe(0.35);
+    expect(cellOf(ws, 'ب', 2).value).toBe(0.4);
+    expect(cellOf(ws, 'أ', 2).numFmt).toBe('0.00');
+    expect(cellOf(ws, 'ب', 2).numFmt).toBe('0.0'); // 0.4 stays 0.4, not 0.400
+    expect(cellOf(ws, 'ج', 2).numFmt).toBe('0'); // a whole number has no point
+    expect(cellOf(ws, 'د', 2).value).toBeNull();
+  });
+
+  it('shows up to three decimals where a value needs them; a count stays a whole-number format', async () => {
+    const ws = await sheet();
+    expect(cellOf(ws, 'د', 3).numFmt).toBe('0.000'); // 0.125
+    expect(cellOf(ws, 'أ', 3).numFmt).toBe('0.0'); // 12.5
+    expect(cellOf(ws, 'ب', 3).numFmt).toBe('0'); // 7
+    expect(cellOf(ws, 'ج', 4).numFmt).toBe('#,##0');
+    expect([30, 0.5, 0.35, 0.075, 3.245, 1.225, 0.30000000000000004].map(decimalFormat)).toEqual(['0', '0.0', '0.00', '0.000', '0.000', '0.000', '0.0']);
+    expect([null, undefined, Number.NaN].map(decimalFormat)).toEqual(['0.0', '0.0', '0.0']);
+  });
+
+  it('shows and writes the fractions in the PDF and the CSV too', () => {
+    expect(formatCell(0.35, 'decimal')).toBe('0.35');
+    expect(formatCell(0.125, 'decimal')).toBe('0.125');
+    expect(formatCell(12, 'decimal')).toBe('12');
+    expect(formatCell(0.125, 'number')).toBe('0.13'); // a count never has them
+    expect(csvCell(0.125, 'decimal')).toBe('0.125');
+    expect(csvCell(0.35, 'decimal')).toBe('0.35');
+    const html = buildReportHtml(wdoc, { fileTitle: 'x' });
+    expect(html).toContain('0.35');
+    expect(html).toContain('0.125');
   });
 });

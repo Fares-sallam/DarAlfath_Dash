@@ -100,7 +100,9 @@ describe('the books report columns', () => {
     expect(cell(0, 'SKU (كل النسخ)')).toBe('N-P، N-L، N-E');
     expect(cell(0, 'تصنيفات إضافية')).toBe('تعليم');
     expect(cell(0, 'أسماء النسخ')).toBe('ورق عادي، مقاس 24*17، نسخة إلكترونية');
-    expect(cell(0, 'الوزن (كجم)')).toBe('0.35 - 0.5');
+    expect(cell(0, 'الوزن (كجم)')).toBe(0.35); // a number (not text): the lowest weight of the paper copies
+    expect(cell(0, 'أعلى وزن (كجم)')).toBe(0.5);
+    expect(cell(1, 'الوزن (كجم)')).toBe(0.4);
     expect(cell(0, 'السعر قبل الخصم (ج.م)')).toBe(50);
     expect(cell(0, 'أعلى خصم')).toBe(20);
     expect(cell(0, 'صيغة الملف الإلكتروني')).toBe('PDF');
@@ -110,6 +112,19 @@ describe('the books report columns', () => {
     expect(cell(1, 'محتويات المجموعة')).toBe('قواعد النحو ×2، (كتاب محذوف)'); // each book once, with its count
     expect(cell(1, 'السعر قبل الخصم (ج.م)')).toBe(200);
     expect(cell(1, 'أعلى خصم')).toBeNull();
+  });
+
+  it('weights and sizes keep their fractions: they are decimal columns (a whole-number format showed 0.35 kg as 0)', async () => {
+    const d = setAll(BOOKS_REPORT_GROUPS, setAll(BOOKS_REPORT_GROUPS, {}, 'books', 'all'), 'copies', 'all');
+    const doc = await run(resolveSelection(BOOKS_REPORT_GROUPS, d));
+    const type = (sheet: number, header: string) => doc.sections[sheet].columns.find((c) => c.header === header)?.type;
+    expect(type(0, 'الوزن (كجم)')).toBe('decimal');
+    expect(type(0, 'أعلى وزن (كجم)')).toBe('decimal');
+    expect(type(0, 'حجم الملف الإلكتروني (MB)')).toBe('decimal');
+    expect(type(1, 'الوزن (كجم)')).toBe('decimal');
+    // the copy's own weight is a number too, and an e-book has none
+    const at = doc.sections[1].columns.findIndex((c) => c.header === 'الوزن (كجم)');
+    expect(doc.sections[1].rows.map((r) => r.cells[at])).toEqual([0.35, 0.5, null, 0.4]);
   });
 
   it('the sheet of copies can be left out, or carry the extra copy columns', async () => {

@@ -39,7 +39,8 @@ export const BOOKS_REPORT_GROUPS: readonly ColumnGroup[] = [
       { id: 'updatedAt', label: 'تاريخ آخر تعديل', defaultOn: false },
       { id: 'extraCategories', label: 'تصنيفات إضافية', defaultOn: false },
       { id: 'copyNames', label: 'أسماء النسخ', defaultOn: false },
-      { id: 'weight', label: 'الوزن (كجم)', defaultOn: false, hint: 'لو النسخ بأوزان مختلفة بيظهر المدى' },
+      { id: 'weight', label: 'الوزن (كجم)', defaultOn: false, hint: 'لو النسخ الورقية بأوزان مختلفة بيظهر الأقل (وزن كل نسخة في ورقة النسخ)' },
+      { id: 'weightMax', label: 'أعلى وزن (كجم)', defaultOn: false },
       { id: 'basePrice', label: 'السعر قبل الخصم', defaultOn: false, hint: 'أقل سعر قبل الخصم بين النسخ' },
       { id: 'discount', label: 'أعلى خصم', defaultOn: false },
       { id: 'ebookFormat', label: 'صيغة الملف الإلكتروني', defaultOn: false },
@@ -124,13 +125,7 @@ export async function buildBooksReport(
   };
   const physicalWeights = (p: Product) =>
     (p.product_variants ?? []).filter((v) => v.variant_type !== 'رقمي').map((v) => num(v.weight_kg)).filter((w) => w > 0);
-  const weightText = (p: Product) => {
-    const w = physicalWeights(p);
-    if (!w.length) return '';
-    const lo = Math.min(...w);
-    const hi = Math.max(...w);
-    return lo === hi ? String(lo) : `${lo} - ${hi}`;
-  };
+
   const basePrices = (p: Product) => (p.product_variants ?? []).map((v) => num(v.base_price)).filter((x) => x > 0);
   const topDiscount = (p: Product) => {
     const ds = (p.product_variants ?? []).map((v) => {
@@ -204,11 +199,12 @@ export async function buildBooksReport(
         { id: 'updatedAt', header: 'تاريخ آخر تعديل', type: 'date', value: (p) => p.updated_at },
         { id: 'extraCategories', header: 'تصنيفات إضافية', value: (p) => (p.product_categories ?? []).map((c) => c.categories?.name).filter(Boolean).join('، ') },
         { id: 'copyNames', header: 'أسماء النسخ', value: (p) => (p.product_variants ?? []).map((v) => v.variant_name).filter(Boolean).join('، ') },
-        { id: 'weight', header: 'الوزن (كجم)', value: weightText },
+        { id: 'weight', header: 'الوزن (كجم)', type: 'decimal', value: (p) => (physicalWeights(p).length ? Math.min(...physicalWeights(p)) : null) },
+        { id: 'weightMax', header: 'أعلى وزن (كجم)', type: 'decimal', value: (p) => (physicalWeights(p).length ? Math.max(...physicalWeights(p)) : null) },
         { id: 'basePrice', header: money('السعر قبل الخصم', scope), type: 'money', value: (p) => (basePrices(p).length ? Math.min(...basePrices(p)) : null) },
         { id: 'discount', header: 'أعلى خصم', type: 'percent', value: topDiscount },
         { id: 'ebookFormat', header: 'صيغة الملف الإلكتروني', value: (p) => p.electronic_books?.file_format ?? '' },
-        { id: 'ebookSize', header: 'حجم الملف الإلكتروني (MB)', type: 'number', value: (p) => p.electronic_books?.file_size_mb ?? null },
+        { id: 'ebookSize', header: 'حجم الملف الإلكتروني (MB)', type: 'decimal', value: (p) => p.electronic_books?.file_size_mb ?? null },
         { id: 'cover', header: 'رابط الغلاف', value: (p) => p.cover_url ?? '' },
         { id: 'bundleItems', header: 'محتويات المجموعة', width: 40, value: (p) => (p.is_bundle ? bundleBooks(p) : '') },
       ], listSel), products, { emptyText: 'لا توجد كتب' }),
@@ -238,7 +234,7 @@ export async function buildBooksReport(
               value: ({ v }) => (salePrice(v) ? salePrice(v) - num(v.cost_price) : null),
               tone: ({ v }) => (salePrice(v) && salePrice(v) - num(v.cost_price) < 0 ? 'bad' : undefined),
             },
-            { id: 'weight', header: 'الوزن (كجم)', type: 'number', value: ({ v }) => (v.variant_type === 'رقمي' ? null : num(v.weight_kg) || null) },
+            { id: 'weight', header: 'الوزن (كجم)', type: 'decimal', value: ({ v }) => (v.variant_type === 'رقمي' ? null : num(v.weight_kg) || null) },
             { id: 'available', header: 'المتاح', type: 'number', total: 'sum', value: ({ p, v }) => available(p, v) },
             { id: 'unitsSold', header: 'المبيع خلال الفترة', type: 'number', total: 'sum', value: ({ v }) => byVariant.get(v.id)?.units ?? 0 },
             { id: 'revenue', header: money('مبيعات الفترة', scope), type: 'money', total: 'sum', value: ({ v }) => byVariant.get(v.id)?.revenue ?? 0 },
@@ -256,6 +252,7 @@ export async function buildBooksReport(
         ? ['المبيعات تستبعد الطلبات الملغاة والمرتجعة. المجموعة تُحتسب مبيعاتها باسمها، ومتاحها = عدد المجموعات التي يكفيها مخزون كتبها.']
         : []),
       ...(listSel.ids.has('cost') ? ['سعر التكلفة للكتاب = أقل تكلفة بين نسخه؛ تكلفة كل نسخة في ورقة «النسخ والأسعار».'] : []),
+      ...(listSel.ids.has('weight') ? ['وزن الكتاب = أقل وزن بين نسخه الورقية (بالكيلوجرام)؛ وزن كل نسخة في ورقة «النسخ والأسعار».'] : []),
       ...(opts.capped ? ['تعرض صفحة الكتب أحدث 300 كتاب فقط، وهذا التقرير مبني على نفس القائمة.'] : []),
     ],
   };

@@ -1,7 +1,8 @@
 import type { ResolvedPeriod } from './period';
 
 export type CellValue = string | number | Date | null | undefined;
-export type ColumnType = 'text' | 'number' | 'money' | 'percent' | 'date' | 'datetime';
+/** `number` is a whole number (a count); `decimal` keeps its fractions (a weight in kg, a size in MB). */
+export type ColumnType = 'text' | 'number' | 'decimal' | 'money' | 'percent' | 'date' | 'datetime';
 export type Tone = 'good' | 'warn' | 'bad' | 'info' | 'muted' | 'accent';
 
 export interface ReportColumn<R> {

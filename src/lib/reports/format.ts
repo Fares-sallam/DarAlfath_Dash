@@ -5,6 +5,7 @@ import type { CellValue, ColumnType } from './types';
 const longDate = new Intl.DateTimeFormat('ar-EG-u-nu-latn', { day: 'numeric', month: 'long', year: 'numeric' });
 const time = new Intl.DateTimeFormat('ar-EG-u-nu-latn', { hour: 'numeric', minute: '2-digit', hour12: true });
 const numberFmt = new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 });
+const decimalFmt = new Intl.NumberFormat('en-US', { maximumFractionDigits: 3 });
 const moneyFmt = new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const pctFmt = new Intl.NumberFormat('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 
@@ -35,6 +36,7 @@ export function formatCell(value: CellValue, type: ColumnType = 'text', currency
     if (!Number.isFinite(value)) return '—';
     if (type === 'money') return fmtMoney(value, currency);
     if (type === 'percent') return fmtPercent(value);
+    if (type === 'decimal') return decimalFmt.format(value);
     return fmtNumber(value);
   }
   if (type === 'date' || type === 'datetime') {
@@ -51,6 +53,7 @@ export function csvCell(value: CellValue, type: ColumnType = 'text'): string {
   if (value === null || value === undefined) return '';
   if (typeof value === 'number') {
     if (!Number.isFinite(value)) return '';
+    if (type === 'decimal') return String(Math.round(value * 1000) / 1000);
     return type === 'percent' ? value.toFixed(1) : String(Math.round(value * 100) / 100);
   }
   if (type === 'date' || type === 'datetime' || value instanceof Date) {
@@ -61,4 +64,15 @@ export function csvCell(value: CellValue, type: ColumnType = 'text'): string {
   return String(value);
 }
 
-export const isNumericType = (type: ColumnType) => type === 'number' || type === 'money' || type === 'percent';
+export const isNumericType = (type: ColumnType) => type === 'number' || type === 'decimal' || type === 'money' || type === 'percent';
+
+/**
+ * The Excel number format that shows a number as it is stored, up to three decimals and no more than it needs: 0.3 as «0.3», 0.075
+ * as «0.075», a whole 1 as «1» (a whole-number format shows 0.35 kg as 0, and a fixed one would pad 0.3 to 0.300).
+ */
+export function decimalFormat(value: number | null | undefined): string {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return '0.0';
+  const rounded = Math.round(value * 1000) / 1000;
+  const places = Number.isInteger(rounded) ? 0 : Math.round(rounded * 10) / 10 === rounded ? 1 : Math.round(rounded * 100) / 100 === rounded ? 2 : 3;
+  return places === 0 ? '0' : `0.${'0'.repeat(places)}`;
+}

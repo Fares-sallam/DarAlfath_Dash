@@ -1,6 +1,6 @@
 import type { Worksheet, Cell, Fill, Borders } from 'exceljs';
 import type { CellValue, ColumnType, ReportDocument, ReportSection, Tone } from './types';
-import { fmtDateTime, isNumericType, toDate } from './format';
+import { decimalFormat, fmtDateTime, isNumericType, toDate } from './format';
 
 const ORG = 'دار الفتح للنشر والتوزيع';
 const FONT = 'Arial';
@@ -36,6 +36,8 @@ const boxBorder: Partial<Borders> = { top: thin, bottom: thin, left: thin, right
 function numFmt(type: ColumnType): string | undefined {
   switch (type) {
     case 'number': return '#,##0';
+    // a decimal's format depends on its value: see decimalFormat
+    case 'decimal': return '0.###';
     case 'money': return '#,##0.00';
     case 'percent': return '0.0%';
     case 'date': return 'yyyy/mm/dd';
@@ -215,8 +217,8 @@ function writeSectionSheet(ws: Worksheet, doc: ReportDocument, section: ReportSe
   header.height = 30;
   r++;
 
-  const styleData = (cell: Cell, type: ColumnType, zebra: boolean) => {
-    const fmt = numFmt(type);
+  const styleData = (cell: Cell, type: ColumnType, zebra: boolean, decimals?: string | null) => {
+    const fmt = decimals ?? numFmt(type);
     if (fmt) cell.numFmt = fmt;
     cell.border = boxBorder;
     cell.alignment = isNumericType(type) || type === 'date' || type === 'datetime'
@@ -239,7 +241,8 @@ function writeSectionSheet(ws: Worksheet, doc: ReportDocument, section: ReportSe
       cell.value = excelValue(value, type);
       const tone = row.tones[c];
       cell.font = { name: FONT, size: 10, bold: !!tone, color: { argb: tone ? TONE[tone] : C.ink } };
-      styleData(cell, type, i % 2 === 1);
+      // a decimal (a weight in kg) shows its own fractions, as stored
+      styleData(cell, type, i % 2 === 1, type === 'decimal' && typeof value === 'number' ? decimalFormat(value) : null);
     });
     excelRow.height = 20;
     r++;

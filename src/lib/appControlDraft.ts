@@ -54,3 +54,13 @@ export function raisesMinimum(saved: AppControl, draft: AppControl): { platform:
   }
   return out;
 }
+
+/** Emergency stop changes only maintenance, retaining any fields a newer app may have added. */
+export function maintenanceOff(raw: unknown): Record<string, unknown> | null {
+  const maintenance = raw && typeof raw === 'object' && !Array.isArray(raw)
+    ? raw as Record<string, unknown>
+    : {};
+  return maintenance.enabled === true
+    ? { ...maintenance, enabled: false, startsAt: null, endsAt: null }
+    : null;
+}

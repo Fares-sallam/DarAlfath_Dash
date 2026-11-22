@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, Loader2, RefreshCw, RotateCcw, Save, Smartphone, Undo2 } from 'lucide-react';
+import { AlertTriangle, Loader2, PowerOff, RefreshCw, RotateCcw, Save, Smartphone, Undo2 } from 'lucide-react';
 import Layout from '@/components/layout/Layout';
 import { Switch } from '@/components/ads/CategoryBarSection';
 import { Field, ImageField, ScheduleFields, Segmented, field } from '@/components/links/admin/ui';
 import AppControlPreview from '@/components/preview/AppControlPreview';
 import PreviewDock from '@/components/preview/PreviewDock';
 import type { AppNotice } from '@/lib/livePreview';
-import { useAppControlAdmin, useSaveAppControl } from '@/hooks/useAppControl';
+import { useAppControlAdmin, useDisableAppMaintenance, useSaveAppControl } from '@/hooks/useAppControl';
 import { appControlProblems, raisesMinimum, withCampaign } from '@/lib/appControlDraft';
 import {
   BUTTON_MAX, DEFAULT_APP_CONTROL, DEFAULT_MAINTENANCE_MESSAGE, DEFAULT_MAINTENANCE_TITLE, DEFAULT_UPDATE_MESSAGE, MESSAGE_MAX, POPUP_FREQUENCIES,
@@ -91,6 +91,7 @@ const LINK_PRESETS: { label: string; url: string }[] = [
 export default function AppControlAdmin() {
   const { data, isLoading, isError, error } = useAppControlAdmin();
   const save = useSaveAppControl();
+  const disableMaintenance = useDisableAppMaintenance();
 
   const [draft, setDraft] = useState<AppControl>(DEFAULT_APP_CONTROL);
   const [ready, setReady] = useState(false);
@@ -148,6 +149,16 @@ export default function AppControlAdmin() {
     save.mutate(next);
   };
 
+  const onDisableMaintenance = () => {
+    if (!window.confirm('إيقاف وضع الصيانة الآن؟ المسودات الأخرى في الصفحة لن تُحفظ.')) return;
+    disableMaintenance.mutate(undefined, {
+      onSuccess: () => setDraft((current) => ({
+        ...current,
+        maintenance: { ...current.maintenance, enabled: false, startsAt: null, endsAt: null },
+      })),
+    });
+  };
+
   return (
     <Layout>
       <div className="space-y-5 pb-28" data-testid="app-control-page">
@@ -161,15 +172,29 @@ export default function AppControlAdmin() {
               شاشة صيانة، وتحديث إجباري أو مقترح بحسب رقم البيلد، ونافذة ترويجية. بتشتغل فقط على نسخ التطبيق المنشورة اللي تدعم التحكم ده؛ النسخ الأقدم لا تتأثر.
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => setDraft(DEFAULT_APP_CONTROL)}
-            disabled={isDefault}
-            data-testid="app-control-reset"
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 bg-white text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-40"
-          >
-            <RotateCcw size={14} /> قفل الكل
-          </button>
+          <div className="flex items-center gap-2 flex-wrap">
+            {saved?.maintenance.enabled && !tableMissing && (
+              <button
+                type="button"
+                onClick={onDisableMaintenance}
+                disabled={disableMaintenance.isPending}
+                data-testid="app-control-stop-maintenance"
+                className="flex items-center gap-1.5 px-3 py-2 rounded border border-red-200 bg-white text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-40"
+              >
+                {disableMaintenance.isPending ? <Loader2 size={14} className="animate-spin" /> : <PowerOff size={14} />}
+                إيقاف الصيانة الآن
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setDraft(DEFAULT_APP_CONTROL)}
+              disabled={isDefault}
+              data-testid="app-control-reset"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 bg-white text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-40"
+            >
+              <RotateCcw size={14} /> قفل الكل
+            </button>
+          </div>
         </div>
 
         {isLoading && <div className="py-24 flex justify-center text-gray-400"><Loader2 className="animate-spin" /></div>}

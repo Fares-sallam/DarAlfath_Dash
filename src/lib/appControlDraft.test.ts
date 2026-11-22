@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_APP_CONTROL, resolveAppControl, type AppControl } from './appControl';
-import { appControlProblems, raisesMinimum, withCampaign } from './appControlDraft';
+import { appControlProblems, maintenanceOff, raisesMinimum, withCampaign } from './appControlDraft';
 
 const draft = (over: Partial<{ maintenance: object; update: object; popup: object }> = {}): AppControl => ({
   maintenance: { ...DEFAULT_APP_CONTROL.maintenance, ...(over.maintenance ?? {}) },
@@ -52,5 +52,15 @@ describe('raisesMinimum', () => {
     expect(raisesMinimum(saved, draft({ update: { minBuild: { ios: 10, android: 17 } } }))).toEqual([{ platform: 'android', label: 'أندرويد', build: 17 }]);
     expect(raisesMinimum(saved, draft({ update: { minBuild: { ios: 8, android: null } } }))).toEqual([]);
     expect(raisesMinimum(saved, draft())).toEqual([]);
+  });
+});
+
+describe('maintenanceOff', () => {
+  it('stops maintenance without changing other or future fields', () => {
+    const active = { enabled: true, startsAt: '2026-11-22', endsAt: '2026-11-23', title: 'صيانة', future: 'keep' };
+    expect(maintenanceOff(active)).toEqual({ ...active, enabled: false, startsAt: null, endsAt: null });
+    expect(active.enabled).toBe(true);
+    expect(maintenanceOff({ enabled: false })).toBeNull();
+    expect(maintenanceOff(null)).toBeNull();
   });
 });

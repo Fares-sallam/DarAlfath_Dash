@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import { APP_CONTROL_COLUMNS, DEFAULT_APP_CONTROL, appControlToRow, resolveAppControl, type AppControl } from '@/lib/appControl';
+import { maintenanceOff } from '@/lib/appControlDraft';
 
 /* What «التحكم في التطبيق» edits: app_control, one row (the maintenance screen, the forced / recommended update, the pop-up).
    The app reads the same row and acts on it. */
@@ -42,5 +43,28 @@ export function useSaveAppControl() {
       toast.success('اتحفظ. التطبيق بياخد التغيير لما يتفتح أو يرجع للمقدمة (خلال دقيقتين)');
     },
     onError: (e: Error) => toast.error(`تعذّر الحفظ: ${e.message}`),
+  });
+}
+
+export function useDisableAppMaintenance() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.from('app_control').select('maintenance').eq('id', 1).single();
+      if (error) throw error;
+      const maintenance = maintenanceOff(data.maintenance);
+      if (!maintenance) return;
+      const { error: updateError } = await supabase.from('app_control')
+        .update({ maintenance })
+        .eq('id', 1)
+        .select('maintenance')
+        .single();
+      if (updateError) throw updateError;
+    },
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: KEY });
+      toast.success('اتوقفت الصيانة. قد يستغرق وصول التغيير للتطبيق دقيقتين في النسخ الحالية.');
+    },
+    onError: (e: Error) => toast.error(`تعذّر إيقاف الصيانة: ${e.message}`),
   });
 }

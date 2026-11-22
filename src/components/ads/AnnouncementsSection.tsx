@@ -32,12 +32,15 @@ export default function AnnouncementsSection() {
   const [message, setMessage] = useState('');
   const [audience, setAudience] = useState<Announcement['audience']>('all');
   const [previewAudience, setPreviewAudience] = useState<'web' | 'app'>('web');
+  const [previewMode, setPreviewMode] = useState<'live' | 'draft'>('live');
   const [link, setLink] = useState('');
   const [startsAt, setStartsAt] = useState('');
   const [endsAt, setEndsAt] = useState('');
 
   const datesWrong = Boolean(startsAt && endsAt && new Date(endsAt) <= new Date(startsAt));
   const live = rows.filter((r) => announcementState(r).label === 'ظاهرة الآن' && (r.audience === 'all' || r.audience === previewAudience));
+  const draftVisible = previewMode === 'draft' && message.trim() !== '' && (audience === 'all' || audience === previewAudience);
+  const previewMessage = previewMode === 'draft' ? (draftVisible ? message.trim() : undefined) : live[0]?.message;
 
   const add = async () => {
     if (!message.trim() || datesWrong) return;
@@ -53,25 +56,33 @@ export default function AnnouncementsSection() {
     setLink('');
     setStartsAt('');
     setEndsAt('');
+    setPreviewMode('live');
   };
 
   return (
     <div className="space-y-5">
       {/* What the strip shows right now. */}
       <div className="rounded-2xl overflow-hidden border border-gray-100">
-        <p className="text-xs font-semibold text-gray-500 px-4 py-2 bg-gray-50">معاينة الشريط تحت الهيدر</p>
+        <div className="flex items-center justify-between gap-2 flex-wrap px-4 py-2 bg-gray-50">
+          <p className="text-xs font-semibold text-gray-500">معاينة الشريط تحت الهيدر</p>
+          <div className="flex gap-1" role="group" aria-label="نوع المعاينة">
+            {(['live', 'draft'] as const).map((mode) => (
+              <button key={mode} type="button" onClick={() => setPreviewMode(mode)} aria-pressed={previewMode === mode} className={`px-3 py-1 text-xs rounded border ${previewMode === mode ? 'bg-white border-indigo-400 text-indigo-700' : 'border-gray-200 text-gray-500'}`}>{mode === 'live' ? 'المنشور' : 'الرسالة الجديدة'}</button>
+            ))}
+          </div>
+        </div>
         <div className="flex gap-1 px-4 py-2" role="group" aria-label="معاينة حسب المنصة">
           {(['web', 'app'] as const).map((target) => (
             <button key={target} type="button" onClick={() => setPreviewAudience(target)} aria-pressed={previewAudience === target} className={`px-3 py-1 text-xs rounded border ${previewAudience === target ? 'bg-indigo-50 border-indigo-400 text-indigo-700' : 'border-gray-200 text-gray-500'}`}>{target === 'web' ? 'الموقع' : 'التطبيق'}</button>
           ))}
         </div>
-        {live.length ? (
+        {previewMessage ? (
           <div className="bg-gradient-to-l from-[#12448f] to-[#092f6a] text-white text-center text-sm font-bold py-2.5 px-4" data-testid="announcement-preview">
-            {live[0].message}
-            {live.length > 1 && <span className="opacity-60 font-normal"> · و{live.length - 1} غيرها بالتناوب كل 5 ثواني</span>}
+            {previewMessage}
+            {draftVisible ? <span className="opacity-70 font-normal"> · مسودة لم تُحفظ</span> : live.length > 1 && <span className="opacity-60 font-normal"> · و{live.length - 1} غيرها بالتناوب كل 5 ثواني</span>}
           </div>
         ) : (
-          <p className="text-sm text-gray-400 text-center py-3">مفيش رسالة ظاهرة على {previewAudience === 'web' ? 'الموقع' : 'التطبيق'} دلوقتي.</p>
+          <p className="text-sm text-gray-400 text-center py-3">{previewMode === 'draft' ? 'مفيش مسودة للقناة دي.' : `مفيش رسالة ظاهرة على ${previewAudience === 'web' ? 'الموقع' : 'التطبيق'} دلوقتي.`}</p>
         )}
       </div>
 

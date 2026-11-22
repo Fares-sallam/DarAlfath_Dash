@@ -1,5 +1,5 @@
 import type { Fill, Borders } from 'exceljs';
-import { CATALOG_COLUMNS, type CatalogRow } from './rows';
+import { catalogColumns, type CatalogColumn, type CatalogRow } from './rows';
 
 const FONT = 'Arial';
 const C = { navy: 'FF16377A', gold: 'FFC9A227', ink: 'FF1E293B', line: 'FFD9DEE8', zebra: 'FFF5F7FB', white: 'FFFFFFFF' };
@@ -10,11 +10,11 @@ const box: Partial<Borders> = { top: thin, bottom: thin, left: thin, right: thin
 export const CATALOG_SHEET = 'الكتب';
 
 /**
- * The books as ONE workbook with ONE sheet: the nine columns as a plain table from the first row (no title bands or merged
+ * The books as ONE workbook with ONE sheet: the chosen columns (the owner's nine unless he picked others) as a plain table from the first row (no title bands or merged
  * cells, so it filters, sorts and imports cleanly), right to left, the header frozen and filterable. SKU and ISBN are kept
  * as text (a spreadsheet would turn a long number into 9.78E+12 and drop leading zeros).
  */
-export async function buildCatalogExcel(rows: readonly CatalogRow[], generatedAt: Date): Promise<Blob> {
+export async function buildCatalogExcel(rows: readonly CatalogRow[], generatedAt: Date, columns: readonly CatalogColumn[] = catalogColumns()): Promise<Blob> {
   // Loaded on demand: ExcelJS is large and only needed when someone downloads.
   const mod = await import('exceljs');
   const ExcelJS = ((mod as unknown as { default?: typeof mod }).default ?? mod) as typeof mod;
@@ -27,10 +27,10 @@ export async function buildCatalogExcel(rows: readonly CatalogRow[], generatedAt
     views: [{ rightToLeft: true, state: 'frozen', ySplit: 1, showGridLines: false }],
   });
 
-  ws.columns = CATALOG_COLUMNS.map((c) => ({ key: c.key, width: c.width }));
+  ws.columns = columns.map((c) => ({ key: c.key, width: c.width }));
 
   const header = ws.getRow(1);
-  CATALOG_COLUMNS.forEach((col, i) => {
+  columns.forEach((col, i) => {
     const cell = header.getCell(i + 1);
     cell.value = col.header;
     cell.font = { name: FONT, size: 11, bold: true, color: { argb: C.white } };
@@ -42,7 +42,7 @@ export async function buildCatalogExcel(rows: readonly CatalogRow[], generatedAt
 
   rows.forEach((row, i) => {
     const excelRow = ws.getRow(i + 2);
-    CATALOG_COLUMNS.forEach((col, c) => {
+    columns.forEach((col, c) => {
       const cell = excelRow.getCell(c + 1);
       const value = row[col.key];
       cell.value = value === null || value === '' ? null : value;
@@ -59,7 +59,7 @@ export async function buildCatalogExcel(rows: readonly CatalogRow[], generatedAt
     });
   });
 
-  if (rows.length > 0) ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: rows.length + 1, column: CATALOG_COLUMNS.length } };
+  if (rows.length > 0) ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: rows.length + 1, column: columns.length } };
 
   ws.pageSetup = {
     paperSize: 9,

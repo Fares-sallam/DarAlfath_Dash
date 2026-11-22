@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import ExcelJS from 'exceljs';
-import { CATALOG_COLUMNS, catalogFileBase, catalogRows, type ExportBook } from './rows';
+import { CATALOG_COLUMNS, catalogColumns, catalogFileBase, catalogRows, type ExportBook } from './rows';
 import { CATALOG_SHEET, buildCatalogExcel } from './excel';
 import { buildCatalogHtml } from './pdf';
 
@@ -33,8 +33,15 @@ const books: ExportBook[] = [
 ];
 
 describe('the columns', () => {
-  it('are the nine the owner asked for, in that order', () => {
-    expect(CATALOG_COLUMNS.map((c) => c.header)).toEqual(HEADERS);
+  it('the standard ones are the nine the owner asked for, in that order', () => {
+    expect(catalogColumns().map((c) => c.header)).toEqual(HEADERS);
+  });
+
+  it('every other thing about a book is a column to choose, in the catalog\'s order, and a column left out is not there', () => {
+    expect(CATALOG_COLUMNS.length).toBeGreaterThan(20);
+    expect(new Set(CATALOG_COLUMNS.map((c) => c.key)).size).toBe(CATALOG_COLUMNS.length);
+    expect(catalogColumns(['cost', 'sku', 'title', 'nope']).map((c) => c.key)).toEqual(['sku', 'title', 'cost']);
+    expect(catalogColumns(new Set<string>())).toEqual([]);
   });
 });
 
@@ -154,5 +161,82 @@ describe('the PDF page', () => {
 
   it('says so when there is nothing to list', () => {
     expect(buildCatalogHtml([], { generatedAt: new Date(), fileTitle: 'x', bookCount: 0 })).toContain('لا توجد كتب');
+  });
+});
+
+describe('the other things about a book', () => {
+  const full: ExportBook = {
+    title: 'قواعد النحو',
+    author: 'محمد القليعي',
+    publisher: 'دار الفتح',
+    publication_year: 2025,
+    page_count: 120,
+    description: 'وصف',
+    keywords: ['نحو', 'لغة', 'نحو'],
+    isbn: '9780123456789',
+    cover_url: 'https://x.example/c.png',
+    is_active: false,
+    created_at: '2026-03-05T10:00:00Z',
+    updated_at: '2026-04-06T10:00:00Z',
+    categories: { name: 'النحو' },
+    product_categories: [{ categories: { name: 'تعليم' } }, { categories: { name: 'تعليم' } }, { categories: { name: 'مراجعة' } }],
+    product_series: [],
+    electronic_books: { file_format: 'PDF', file_size_mb: '12.5' },
+    product_variants: [
+      { sku: 'N-1', variant_name: 'مقاس 24*17', variant_type: 'ورقي', weight_kg: 0.5, cost_price: 30, base_price: 120, sale_price: 100, price: 100, sale_channel: 'web', iap_product_id: null },
+      { sku: 'N-E', variant_name: 'نسخة إلكترونية', variant_type: 'رقمي', weight_kg: 0, cost_price: 10, base_price: 50, sale_price: null, price: 50, sale_channel: 'app', iap_product_id: 'iap.nahw' },
+    ],
+  };
+  const rows = catalogRows([full], { keepOrder: true });
+
+  it('carries the book\'s own data on every row', () => {
+    expect(rows[0]).toMatchObject({
+      publisher: 'دار الفتح', year: '2025', pages: 120, keywords: 'نحو، لغة', status: 'مخفي', createdAt: '2026-03-05', updatedAt: '2026-04-06',
+      extraCategories: 'تعليم، مراجعة', ebookFormat: 'PDF', ebookSize: 12.5, cover: 'https://x.example/c.png',
+    });
+    expect(rows[1]).toMatchObject({ publisher: 'دار الفتح', extraCategories: 'تعليم، مراجعة' });
+  });
+
+  it('carries each copy\'s own data: its name and type, the price before and after the discount, the discount\'s channel and the in-app id', () => {
+    expect(rows[0]).toMatchObject({ copy: 'مقاس 24*17', copyType: 'ورقي', basePrice: 120, sellPrice: 100, saleChannel: 'الموقع فقط', iap: '' });
+    expect(rows[1]).toMatchObject({ copy: 'نسخة إلكترونية', copyType: 'رقمي', basePrice: 50, sellPrice: 50, saleChannel: 'التطبيق فقط', iap: 'iap.nahw' });
+  });
+
+  it('leaves what it does not know empty', () => {
+    const [row] = catalogRows([{ title: 'ب' }]);
+    expect(row).toMatchObject({ publisher: '', year: '', pages: null, status: '', createdAt: '', ebookFormat: '', ebookSize: null, saleChannel: '', iap: '', cover: '' });
+  });
+
+  it('makes a one-sheet Excel of exactly the columns chosen, in the catalog\'s order', async () => {
+    const columns = catalogColumns(['sellPrice', 'title', 'copy', 'publisher']);
+    const blob = await buildCatalogExcel(rows, new Date(), columns);
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(await blob.arrayBuffer());
+    expect(wb.worksheets).toHaveLength(1);
+    const ws = wb.worksheets[0];
+    expect(ws.columnCount).toBe(4);
+    expect([1, 2, 3, 4].map((i) => ws.getRow(1).getCell(i).value)).toEqual(['اسم الكتاب', 'النسخة', 'الناشر', 'سعر البيع']);
+    expect([1, 2, 3, 4].map((i) => ws.getRow(2).getCell(i).value)).toEqual(['قواعد النحو', 'مقاس 24*17', 'دار الفتح', 100]);
+    expect(ws.autoFilter).toBe('A1:D3');
+  });
+
+  it('makes an Excel with every column there is', async () => {
+    const blob = await buildCatalogExcel(rows, new Date(), CATALOG_COLUMNS);
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(await blob.arrayBuffer());
+    expect(wb.worksheets[0].columnCount).toBe(CATALOG_COLUMNS.length);
+    expect(wb.worksheets[0].getRow(1).getCell(CATALOG_COLUMNS.length).value).toBe('رابط الغلاف');
+  });
+
+  it('makes a PDF page of the columns chosen, each given a share of the width, all adding up to the page', () => {
+    const columns = catalogColumns(['title', 'description', 'cost']);
+    const html = buildCatalogHtml(rows, { generatedAt: new Date(), fileTitle: 'x', bookCount: 1, columns });
+    expect([...html.matchAll(/<th class="c-[A-Za-z]+">([^<]+)<\/th>/g)].map((m) => m[1])).toEqual(['اسم الكتاب', 'وصف الكتاب', 'سعر التكلفة']);
+    const widths = [...html.matchAll(/<col style="width:([\d.]+)%">/g)].map((m) => Number(m[1]));
+    expect(widths).toHaveLength(3);
+    expect(widths.reduce((a, b) => a + b, 0)).toBeGreaterThan(99.9);
+    expect(widths.reduce((a, b) => a + b, 0)).toBeLessThan(100.1);
+    expect(html).toContain('30.00');
+    expect(html).not.toContain('N-1'); // the SKU was not chosen
   });
 });

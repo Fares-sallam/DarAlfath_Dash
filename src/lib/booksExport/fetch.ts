@@ -11,10 +11,12 @@ export function fetchBooksForExport(): Promise<ExportBook[]> {
     supabase
       .from('products')
       .select(`
-        id, title, author, description, isbn, created_at,
+        id, title, author, publisher, publication_year, page_count, description, keywords, isbn, cover_url, is_active, created_at, updated_at,
         categories!products_category_id_fkey(name),
+        product_categories(categories(name)),
         product_series(book_series(name)),
-        product_variants(sku, variant_name, variant_type, weight_kg, cost_price)
+        electronic_books(file_format, file_size_mb),
+        product_variants(sku, variant_name, variant_type, weight_kg, cost_price, base_price, sale_price, price, sale_channel, iap_product_id)
       `)
       .order('created_at', { ascending: false })
       .order('id')

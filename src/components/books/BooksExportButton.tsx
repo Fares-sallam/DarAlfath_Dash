@@ -5,12 +5,24 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { useAuth } from '@/contexts/AuthContext';
 import { useLogo } from '@/contexts/LogoContext';
 import fallbackLogo from '@/assets/logo.png';
-import { catalogFileBase, catalogRows, CATALOG_COLUMNS, type ExportBook } from '@/lib/booksExport/rows';
+import ColumnPicker from '@/components/reports/ColumnPicker';
+import { useColumnDecisions } from '@/hooks/useColumnDecisions';
+import { resolveSelection, type ColumnGroup } from '@/lib/reports/columnChoices';
+import { catalogColumns, catalogFileBase, catalogRows, CATALOG_COLUMNS, type ExportBook } from '@/lib/booksExport/rows';
 import { buildCatalogExcel } from '@/lib/booksExport/excel';
 import { buildCatalogHtml } from '@/lib/booksExport/pdf';
 import { fetchBooksForExport } from '@/lib/booksExport/fetch';
 import { printHtml } from '@/lib/reports/pdf';
 import { saveBlob } from '@/lib/reports/download';
+
+/** Every column of the export as a button (the nine the owner asked for are on until he turns them off). */
+const EXPORT_GROUPS: readonly ColumnGroup[] = [
+  {
+    id: 'cols',
+    title: 'أعمدة الملف',
+    choices: CATALOG_COLUMNS.map((c) => ({ id: c.key, label: c.header, defaultOn: c.defaultOn, hint: c.hint })),
+  },
+];
 
 type Format = 'excel' | 'pdf';
 type Scope = 'all' | 'filtered';
@@ -41,8 +53,11 @@ export default function BooksExportButton({ filtered, filtersActive, filtersLabe
   const [format, setFormat] = useState<Format>('excel');
   const [scope, setScope] = useState<Scope>('all');
   const useFilters = filtersActive && scope === 'filtered';
+  const [decisions, changeDecisions] = useColumnDecisions('books-export', EXPORT_GROUPS);
+  const columns = catalogColumns(resolveSelection(EXPORT_GROUPS, decisions).cols.ids);
 
   const run = async () => {
+    if (columns.length === 0) return;
     setBusy(true);
     try {
       const generatedAt = new Date();
@@ -55,7 +70,7 @@ export default function BooksExportButton({ filtered, filtersActive, filtersLabe
       const base = catalogFileBase(generatedAt);
       const description = `${books.length.toLocaleString('en-US')} كتاب · ${rows.length.toLocaleString('en-US')} سطر`;
       if (format === 'excel') {
-        saveBlob(await buildCatalogExcel(rows, generatedAt), `${base}.xlsx`);
+        saveBlob(await buildCatalogExcel(rows, generatedAt, columns), `${base}.xlsx`);
         toast.success('تم تنزيل ملف Excel', { description });
       } else {
         setOpen(false);
@@ -65,6 +80,7 @@ export default function BooksExportButton({ filtered, filtersActive, filtersLabe
             generatedAt,
             fileTitle: base,
             bookCount: books.length,
+            columns,
             scopeLabel: useFilters ? 'حسب الفلاتر الحالية' : undefined,
             logoUrl: logoUrl ?? new URL(fallbackLogo, window.location.href).href,
           }),
@@ -99,13 +115,13 @@ export default function BooksExportButton({ filtered, filtersActive, filtersLabe
         sideOffset={8}
         dir="rtl"
         collisionPadding={12}
-        className="w-[380px] max-w-[calc(100vw-24px)] p-0 rounded-2xl border-gray-100 shadow-xl"
+        className="w-[420px] max-w-[calc(100vw-24px)] max-h-[var(--radix-popover-content-available-height)] overflow-y-auto p-0 rounded-2xl border-gray-100 shadow-xl"
         data-testid="books-export-panel"
       >
         <div className="px-5 pt-4 pb-3 border-b border-gray-100">
           <p className="text-sm font-bold text-gray-800">تصدير قائمة الكتب</p>
           <p className="text-xs text-gray-500 mt-1 leading-relaxed">
-            جدول واحد بالأعمدة: {CATALOG_COLUMNS.map((c) => c.header).join(' · ')}. صف لكل نسخة من الكتاب (لأن الـSKU والوزن وسعر التكلفة على مستوى النسخة).
+            جدول واحد، وإنت اللي بتختار أعمدته. صف لكل نسخة من الكتاب (لأن الـSKU والوزن وسعر التكلفة على مستوى النسخة).
           </p>
         </div>
 
@@ -130,6 +146,13 @@ export default function BooksExportButton({ filtered, filtersActive, filtersLabe
             </fieldset>
           )}
 
+          <div>
+            <p className="text-xs font-bold text-gray-600 mb-1">الأعمدة اللي تظهر في الملف</p>
+            <p className="text-[11px] text-gray-400 mb-3">اللي تقفله مش بيتعمل له عمود خالص.</p>
+            <ColumnPicker groups={EXPORT_GROUPS} decisions={decisions} onChange={changeDecisions} />
+            {columns.length === 0 && <p className="text-xs text-red-500 mt-2" data-testid="export-no-columns">اختار عمود واحد على الأقل.</p>}
+          </div>
+
           <fieldset>
             <legend className="text-xs font-bold text-gray-600 mb-2">صيغة الملف</legend>
             <div className="grid grid-cols-2 gap-2" role="radiogroup">
@@ -153,7 +176,7 @@ export default function BooksExportButton({ filtered, filtersActive, filtersLabe
         </div>
 
         <div className="px-5 pb-5">
-          <button type="button" onClick={run} disabled={busy} className="btn-primary w-full flex items-center justify-center gap-2 disabled:opacity-60" data-testid="export-run">
+          <button type="button" onClick={run} disabled={busy || columns.length === 0} className="btn-primary w-full flex items-center justify-center gap-2 disabled:opacity-60" data-testid="export-run">
             {busy ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
             {busy ? 'جارٍ التجهيز…' : 'تنزيل'}
           </button>

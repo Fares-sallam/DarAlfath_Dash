@@ -7,7 +7,7 @@ import { useSearchParams } from 'react-router-dom';
 import Layout from '@/components/layout/Layout';
 import ReportDownloadButton from '@/components/reports/ReportDownloadButton';
 import BooksExportButton from '@/components/books/BooksExportButton';
-import { buildBooksReport } from '@/lib/reports/builders/books';
+import { BOOKS_REPORT_GROUPS, buildBooksReport } from '@/lib/reports/builders/books';
 import BundleComposer from '@/components/features/BundleComposer';
 import HideBookDialog from '@/components/features/HideBookDialog';import RemoveVariantDialog, { type RemoveVariantPrompt } from '@/components/features/RemoveVariantDialog';
 import { iapProductIdError } from '@/lib/iap';
@@ -1455,7 +1455,9 @@ export default function Books() {
               title="تقرير الكتب"
               periodHint="قائمة الكتب ونسخها وأسعارها ومخزونها الحالي، مع المبيعات خلال الفترة المختارة."
               filters={{ active: !!hasFilters, label: booksFiltersLabel }}
-              build={({ period, generatedAt, applyFilters }) =>
+              columnGroups={BOOKS_REPORT_GROUPS}
+              columnsKey="books"
+              build={({ period, generatedAt, applyFilters, columns }) =>
                 buildBooksReport(
                   { period, generatedAt, country: selectedCountry, currencySymbol },
                   {
@@ -1463,6 +1465,8 @@ export default function Books() {
                     keepOrder: applyFilters,
                     filtersLabel: booksFiltersLabel,
                     capped: products.length >= 300,
+                    columns,
+                    titleOf: (productId) => products.find((b) => b.id === productId)?.title,
                     bundleAvailable: (p, variantId) =>
                       computeBundleSummary(bundleItemsByVariant(p).get(variantId) ?? [], allComponentById, bundleKindOf(p)).available,
                   }

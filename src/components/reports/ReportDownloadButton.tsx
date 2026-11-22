@@ -13,6 +13,9 @@ import {
   type ResolvedPeriod,
 } from '@/lib/reports/period';
 import { fmtDateOnlyIso } from '@/lib/reports/format';
+import ColumnPicker from '@/components/reports/ColumnPicker';
+import { useColumnDecisions } from '@/hooks/useColumnDecisions';
+import { resolveSelection, type ColumnGroup, type ColumnSelection } from '@/lib/reports/columnChoices';
 import { buildExcel } from '@/lib/reports/excel';
 import { buildCsv } from '@/lib/reports/csv';
 import { printReport } from '@/lib/reports/pdf';
@@ -25,6 +28,8 @@ export interface ReportBuildContext {
   period: ResolvedPeriod;
   applyFilters: boolean;
   generatedAt: Date;
+  /** The columns the owner chose (only when the report offers a choice). */
+  columns?: ColumnSelection;
 }
 
 interface Props {
@@ -36,6 +41,9 @@ interface Props {
   defaultPeriod?: PeriodSelection;
   /** Shown only while the page has filters or a search applied. */
   filters?: { active: boolean; label?: string };
+  /** The report's columns as buttons the owner turns on or off (what is off is not in the file); `columnsKey` keeps the choice. */
+  columnGroups?: readonly ColumnGroup[];
+  columnsKey?: string;
 }
 
 const FORMATS: { id: Format; label: string; caption: string; icon: typeof Sheet }[] = [
@@ -55,7 +63,7 @@ function readFormat(): Format {
   }
 }
 
-export default function ReportDownloadButton({ title, periodHint, build, defaultPeriod, filters }: Props) {
+export default function ReportDownloadButton({ title, periodHint, build, defaultPeriod, filters, columnGroups, columnsKey }: Props) {
   const { user } = useAuth();
   const { logoUrl } = useLogo();
   const allowed = !!user && (user.isSystemOwner || !!user.permissions?.can_export);
@@ -65,6 +73,7 @@ export default function ReportDownloadButton({ title, periodHint, build, default
   const [format, setFormat] = useState<Format>(readFormat);
   const [selection, setSelection] = useState<PeriodSelection>(defaultPeriod ?? { preset: 'thisMonth' });
   const [applyFilters, setApplyFilters] = useState(true);
+  const [decisions, changeDecisions] = useColumnDecisions(columnsKey, columnGroups);
 
   const today = fmtDateOnlyIso(new Date());
   const error = validatePeriod(selection);
@@ -107,7 +116,12 @@ export default function ReportDownloadButton({ title, periodHint, build, default
     try {
       const generatedAt = new Date();
       const period = resolvePeriod(selection, generatedAt);
-      const doc = await build({ period, applyFilters: !!filters?.active && applyFilters, generatedAt });
+      const doc = await build({
+        period,
+        applyFilters: !!filters?.active && applyFilters,
+        generatedAt,
+        columns: columnGroups ? resolveSelection(columnGroups, decisions) : undefined,
+      });
       const base = reportFileBase(doc);
       // The file name mixes Arabic and digits and renders scrambled inside an RTL toast.
       const description = `${doc.title} — ${period.label}`;
@@ -151,7 +165,7 @@ export default function ReportDownloadButton({ title, periodHint, build, default
   return (
     <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
-        <button type="button" className="btn-secondary flex items-center gap-1.5 text-sm" aria-haspopup="dialog">
+        <button type="button" className="btn-secondary flex items-center gap-1.5 text-sm" aria-haspopup="dialog" data-testid="report-download">
           <Download size={14} /> تنزيل تقرير
         </button>
       </PopoverTrigger>
@@ -161,7 +175,8 @@ export default function ReportDownloadButton({ title, periodHint, build, default
         sideOffset={8}
         dir="rtl"
         collisionPadding={12}
-        className="w-[380px] max-w-[calc(100vw-24px)] max-h-[var(--radix-popover-content-available-height)] overflow-y-auto p-0 rounded-2xl border-gray-100 shadow-xl"
+        className="w-[420px] max-w-[calc(100vw-24px)] max-h-[var(--radix-popover-content-available-height)] overflow-y-auto p-0 rounded-2xl border-gray-100 shadow-xl"
+        data-testid="report-panel"
       >
         <div className="px-5 pt-4 pb-3 border-b border-gray-100">
           <p className="text-sm font-bold text-gray-800">{title}</p>
@@ -237,6 +252,14 @@ export default function ReportDownloadButton({ title, periodHint, build, default
             </label>
           )}
 
+          {columnGroups && (
+            <div>
+              <p className="text-xs font-bold text-gray-600 mb-1">الأعمدة اللي تظهر في التقرير</p>
+              <p className="text-[11px] text-gray-400 mb-3">اللي تقفله مش بيتعمل له عمود في الملف خالص.</p>
+              <ColumnPicker groups={columnGroups} decisions={decisions} onChange={changeDecisions} />
+            </div>
+          )}
+
           <fieldset>
             <legend className="text-xs font-bold text-gray-600 mb-2">صيغة الملف</legend>
             <div className="grid grid-cols-3 gap-2" role="radiogroup">
@@ -269,6 +292,7 @@ export default function ReportDownloadButton({ title, periodHint, build, default
           <button
             type="button"
             onClick={run}
+            data-testid="report-run"
             disabled={busy || !!error}
             className="btn-primary w-full flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
           >

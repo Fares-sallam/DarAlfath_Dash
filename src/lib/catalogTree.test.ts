@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  allowedParents, ancestorsOf, buildTree, childrenOf, descendantIds, healthIssues, moveWithinSiblings,
+  allowedParents, ancestorsOf, buildTree, childrenOf, descendantIds, healthIssues, homeShelfNodes, moveWithinSiblings,
   nextSortFor, nodeFlags, nodeStatus, slugify, type CatalogNode, type NodeCounts, type ProductLink,
 } from './catalogTree';
 
@@ -23,6 +23,15 @@ const tree: CatalogNode[] = [
 ];
 
 describe('ordering by channel', () => {
+  it('home shelf choices follow the selected channel, not the website switch', () => {
+    const candidates = [
+      node('web', { show_app: false }),
+      node('app', { show_web: false }),
+      node('hidden', { is_active: false }),
+    ];
+    expect(homeShelfNodes(candidates, 'web').map((n) => n.id)).toEqual(['web']);
+    expect(homeShelfNodes(candidates, 'app').map((n) => n.id)).toEqual(['app']);
+  });
   it('roots follow the chosen channel', () => {
     expect(childrenOf(tree, null, 'web').map((n) => n.id)).toEqual(['s1', 's2']);
     expect(childrenOf(tree, null, 'app').map((n) => n.id)).toEqual(['s2', 's1']);

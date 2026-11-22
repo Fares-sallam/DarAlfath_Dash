@@ -55,9 +55,8 @@ export function useSaveLinksPage() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ blocks, settings, settingsChanged, removedIds }: SaveLinksPageInput) => {
-      if (settingsChanged) {
-        const row = {
-          id: 1,
+      const row = settingsChanged
+        ? {
           ...settings,
           title: settings.title.trim(),
           tagline: settings.tagline.trim(),
@@ -65,27 +64,17 @@ export function useSaveLinksPage() {
           seo_title: settings.seo_title.trim(),
           seo_description: settings.seo_description.trim(),
           share_image_url: settings.share_image_url?.trim() || null,
-        };
-        let { error } = await supabase.from('links_page_settings').upsert(row);
-        if (error && /pattern_(position|strength)/.test(error.message)) {
-          // The database does not have the pattern columns yet: everything else still saves.
-          const { pattern_position: _position, pattern_strength: _strength, ...legacy } = row;
-          void _position; void _strength;
-          ({ error } = await supabase.from('links_page_settings').upsert(legacy));
-          if (!error) toast.warning('اتحفظت كل الإعدادات ماعدا مكان الباترن ودرجته، لأن تحديث قاعدة البيانات لسه ما اتطبقش.');
         }
-        if (error) throw error;
+        : null;
+      const { error } = await supabase.rpc('links_page_save', {
+        p_settings: row,
+        p_blocks: blocks.map(blockToRow),
+        p_removed_ids: removedIds,
+      });
+      if (error?.code === 'PGRST202') {
+        throw new Error('لازم تطبيق ترحيل حفظ صفحة الروابط على قاعدة البيانات قبل نشر هذا الإصدار من اللوحة.');
       }
-
-      if (blocks.length > 0) {
-        const { error } = await supabase.from('links_page_blocks').upsert(blocks.map(blockToRow), { onConflict: 'id' });
-        if (error) throw error;
-      }
-
-      if (removedIds.length > 0) {
-        const { error } = await supabase.from('links_page_blocks').delete().in('id', removedIds);
-        if (error) throw error;
-      }
+      if (error) throw error;
     },
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: KEY });

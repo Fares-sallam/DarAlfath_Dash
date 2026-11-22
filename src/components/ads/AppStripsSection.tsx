@@ -139,7 +139,7 @@ export default function AppStripsSection({ inHub = false }: { inHub?: boolean } 
           <h2 className="text-sm font-bold text-gray-800 flex items-center gap-2"><Smartphone size={16} className="text-indigo-600" /> أقسام الرئيسية في التطبيق</h2>
           <p className="text-xs text-gray-500 mt-1 leading-relaxed">
             ترتيب الأقسام وإخفاؤها وعناوينها وعدد كتبها ورفوف التصنيفات بقوا في «السلاسل والتصنيفات ← الصفحة الرئيسية ← التطبيق».
-            الإظهار والإخفاء بيتطبّق على التطبيق الحالي كمان، والترتيب والرفوف على نسخته الجاية.
+            الترتيب والرفوف والإظهار تظهر في نسخة التطبيق التي تدعم تخطيط الرئيسية بعد تحديث بياناتها.
           </p>
         </div>
         <Link to="/catalog?tab=home&channel=app" className="btn-primary self-start whitespace-nowrap" data-testid="app-blocks-link">فتح «الصفحة الرئيسية» للتطبيق</Link>

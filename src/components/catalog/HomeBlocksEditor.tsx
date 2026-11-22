@@ -6,7 +6,7 @@ import { Switch } from '@/components/ads/CategoryBarSection';
 import { useCatalogCounts, useCatalogNodes } from '@/hooks/useCatalog';
 import { pageStripRow, useApplyHomeLayout, useDeleteHomeRow, useHomeLayoutRows, useSaveHomeRows } from '@/hooks/useHomeShelves';
 import { useCountries } from '@/hooks/useSettings';
-import { ancestorsOf, NODE_TYPE_LABELS, type CatalogNode } from '@/lib/catalogTree';
+import { ancestorsOf, homeShelfNodes, NODE_TYPE_LABELS, type CatalogNode } from '@/lib/catalogTree';
 import { reorderRelative, stepInList } from '@/lib/dragSort';
 import { blockFromDraft, blocksWithDraft, draftFromBlock, newDraft, type BlockDraft } from '@/lib/homeBlockDraft';
 import {
@@ -68,9 +68,10 @@ export default function HomeBlocksEditor({ channel }: { channel: HomeChannel }) 
     return `${NODE_TYPE_LABELS[node.type]}: ${[...path, node.name_ar].join(' ‹ ')}`;
   };
   const taken = new Set(blocks.filter((b) => b.kind === SHELF_KIND).map((b) => b.nodeId));
-  const webNodes = nodes.filter((n) => n.is_active && n.show_web).sort((a, b) => labelOf(a).localeCompare(labelOf(b), 'ar'));
-  const shelfChoices = webNodes.filter((n) => !taken.has(n.id)).map((n) => ({ id: n.id, label: labelOf(n) }));
-  const scopeChoices = webNodes.map((n) => ({ id: n.id, label: labelOf(n) }));
+  const channelNodes = homeShelfNodes(nodes, channel)
+    .sort((a, b) => labelOf(a).localeCompare(labelOf(b), 'ar'));
+  const shelfChoices = channelNodes.filter((n) => !taken.has(n.id)).map((n) => ({ id: n.id, label: labelOf(n) }));
+  const scopeChoices = channelNodes.map((n) => ({ id: n.id, label: labelOf(n) }));
 
   const editingBlock = draft?.key ? blocks.find((b) => b.key === draft.key) ?? null : null;
   const open = (block: HomeBlock) => { setDraft(draftFromBlock(block)); setProblem(''); };
@@ -109,7 +110,7 @@ export default function HomeBlocksEditor({ channel }: { channel: HomeChannel }) 
     const lines = [
       `ترتيب ${target} هيبقى زي ترتيب ${isApp ? 'التطبيق' : 'الموقع'} بالظبط: نفس الأقسام والرفوف والعناوين والتواريخ.`,
       removed.length > 0 ? `${removed.length} عنصر من عناصر ${target} الحالية مش موجودين هنا هيتشالوا.` : null,
-      other === 'app' ? 'إظهار وإخفاء الأقسام الأربعة الرئيسية هيتطبق على التطبيق الحالي فورًا.' : null,
+      other === 'app' ? 'التطبيق الذي يحتوي على نظام تخطيط الرئيسية سيقرأ الترتيب الجديد عند تحديث بياناته.' : null,
       'متأكد؟',
     ].filter(Boolean);
     if (!window.confirm(lines.join('\n'))) return;
@@ -203,7 +204,7 @@ export default function HomeBlocksEditor({ channel }: { channel: HomeChannel }) 
             </p>
             {isApp && (
               <p className="text-xs text-amber-700 bg-amber-50 rounded-xl px-3 py-2 mt-2" data-testid="app-note">
-                الإظهار والإخفاء (وعنوان «أقسام المتجر») بيتطبّق على التطبيق الحالي كمان. الترتيب والرفوف المختارة والعناوين والأعداد بتظهر في نسخة التطبيق الجاية.
+                الترتيب والرفوف والعناوين والأعداد تظهر في التطبيق بعد تحديث بيانات الرئيسية، بشرط أن تكون النسخة المثبتة تدعم تخطيط الرئيسية.
               </p>
             )}
           </div>

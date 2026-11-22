@@ -85,7 +85,7 @@ const LINK_PRESETS: { label: string; url: string }[] = [
 
 /**
  * التحكم في التطبيق: the app's operating switches. A maintenance screen, a forced / recommended update by build number, and one
- * promotional pop-up. Only builds of the app that have this feature read it; the apps already installed are not affected.
+ * promotional pop-up. Only builds of the app that have this feature read it; older builds are not affected.
  * Nothing reaches the app until it is saved; the app takes a change when it opens or comes back to the front.
  */
 export default function AppControlAdmin() {
@@ -158,7 +158,7 @@ export default function AppControlAdmin() {
               التحكم في التطبيق
             </h1>
             <p className="text-sm text-gray-500 mt-1 max-w-2xl">
-              شاشة صيانة، وتحديث إجباري أو مقترح بحسب رقم البيلد، ونافذة ترويجية. بتشتغل على نسخ التطبيق اللي فيها الميزة دي (من البيلد الجاي)، والنسخ المتثبتة دلوقتي مش هتتأثر.
+              شاشة صيانة، وتحديث إجباري أو مقترح بحسب رقم البيلد، ونافذة ترويجية. بتشتغل فقط على نسخ التطبيق المنشورة اللي تدعم التحكم ده؛ النسخ الأقدم لا تتأثر.
             </p>
           </div>
           <button

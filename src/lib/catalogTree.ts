@@ -149,6 +149,11 @@ export function ancestorsOf(nodes: readonly CatalogNode[], id: string): CatalogN
   return out;
 }
 
+/** Nodes available to a home shelf in the selected channel. */
+export function homeShelfNodes(nodes: readonly CatalogNode[], channel: 'web' | 'app'): CatalogNode[] {
+  return nodes.filter((node) => node.is_active && (channel === 'app' ? node.show_app : node.show_web));
+}
+
 /** Where a node may be placed: anywhere except under itself or its own descendants. */
 export function allowedParents(nodes: readonly CatalogNode[], id: string | null): CatalogNode[] {
   if (!id) return [...nodes];

@@ -27,7 +27,7 @@ export function Pills<T extends string>({ value, options, onChange, label }: { v
 /** The box a preview sits in: a title, its controls, and the framed page. */
 export function PreviewShell({ title, hint, controls, testId, children }: { title: string; hint: string; controls: ReactNode; testId: string; children: ReactNode }) {
   return (
-    <aside className="bg-white rounded-2xl border border-gray-100 p-4 space-y-3" data-testid={testId}>
+    <aside className="bg-white rounded-2xl border border-gray-100 p-4 space-y-3" data-testid={testId} data-dock-shell>
       <div>
         <h2 className="text-sm font-bold text-gray-700">{title}</h2>
         <p className="text-[11px] text-gray-400 leading-relaxed mt-0.5">{hint}</p>

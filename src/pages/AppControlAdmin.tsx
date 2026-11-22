@@ -4,6 +4,7 @@ import Layout from '@/components/layout/Layout';
 import { Switch } from '@/components/ads/CategoryBarSection';
 import { Field, ImageField, ScheduleFields, Segmented, field } from '@/components/links/admin/ui';
 import AppControlPreview from '@/components/preview/AppControlPreview';
+import PreviewDock from '@/components/preview/PreviewDock';
 import type { AppNotice } from '@/lib/livePreview';
 import { useAppControlAdmin, useSaveAppControl } from '@/hooks/useAppControl';
 import { appControlProblems, raisesMinimum, withCampaign } from '@/lib/appControlDraft';
@@ -190,9 +191,9 @@ export default function AppControlAdmin() {
         {ready && (
           <div className="space-y-5 xl:space-y-0 xl:grid xl:grid-cols-[minmax(0,1fr)_440px] xl:gap-5 xl:items-start">
             {/* the live preview: above the form on a small screen, docked beside it (and following the scroll) on a wide one */}
-            <div className="xl:col-start-2 xl:row-start-1 xl:sticky xl:top-4 xl:self-start">
+            <PreviewDock>
               <AppControlPreview control={draft} notice={notice} onNoticeChange={setNotice} />
-            </div>
+            </PreviewDock>
           <div className="grid gap-5 lg:grid-cols-2 xl:grid-cols-1 xl:col-start-1 xl:row-start-1 min-w-0">
             {/* ── maintenance ── */}
             <Section
@@ -334,7 +335,7 @@ export default function AppControlAdmin() {
       </div>
 
       {dirty && (
-        <div className="fixed bottom-4 inset-x-0 z-40 flex justify-center pointer-events-none px-4 lg:pr-72">
+        <div className="fixed bottom-4 inset-x-0 z-40 flex justify-center pointer-events-none px-4 lg:pr-72 xl:pl-[480px]">
           <div className="pointer-events-auto flex items-center gap-3 flex-wrap justify-center rounded-2xl bg-gray-900 text-white shadow-2xl px-4 py-3" role="status" data-testid="app-control-save-bar">
             <span className="text-sm">فيه تغييرات لسه ما اتحفظتش</span>
             <button type="button" onClick={() => saved && setDraft(saved)} disabled={save.isPending} className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-gray-300 hover:bg-white/10 disabled:opacity-40">

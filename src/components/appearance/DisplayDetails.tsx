@@ -3,6 +3,7 @@ import { AlertTriangle, ArrowDown, ArrowUp, ExternalLink, Loader2, Plus, RotateC
 import { Switch } from '@/components/ads/CategoryBarSection';
 import { Field, Segmented, field } from '@/components/links/admin/ui';
 import DisplayPreview from '@/components/preview/DisplayPreview';
+import PreviewDock from '@/components/preview/PreviewDock';
 import { useDisplaySettingsAdmin, useSaveDisplaySettings } from '@/hooks/useDisplaySettings';
 import { blankColumn, blankLink, blankTrust, displayProblems, moveItem, removeAt, replaceAt } from '@/lib/displayDraft';
 import {
@@ -184,9 +185,9 @@ export default function DisplayDetails() {
       {ready && (
         <div className="space-y-5 xl:space-y-0 xl:grid xl:grid-cols-[minmax(0,1fr)_540px] xl:gap-5 xl:items-start">
           {/* the live preview: above the form on a small screen, docked beside it (and following the scroll) on a wide one */}
-          <div className="xl:col-start-2 xl:row-start-1 xl:sticky xl:top-4 xl:self-start">
+          <PreviewDock>
             <DisplayPreview display={draft} />
-          </div>
+          </PreviewDock>
         <div className="grid gap-5 lg:grid-cols-2 xl:grid-cols-1 xl:col-start-1 xl:row-start-1 min-w-0" data-testid="display-page">
           {/* ── the book card ── */}
           <Section title="بطاقة الكتاب" hint="البطاقة اللي بتظهر في القوائم والبحث وصفوف الرئيسية." testId="display-card">
@@ -397,7 +398,7 @@ export default function DisplayDetails() {
       )}
 
       {dirty && (
-        <div className="fixed bottom-4 inset-x-0 z-40 flex justify-center pointer-events-none px-4 lg:pr-72">
+        <div className="fixed bottom-4 inset-x-0 z-40 flex justify-center pointer-events-none px-4 lg:pr-72 xl:pl-[580px]">
           <div className="pointer-events-auto flex items-center gap-3 flex-wrap justify-center rounded-2xl bg-gray-900 text-white shadow-2xl px-4 py-3" role="status" data-testid="display-save-bar">
             <span className="text-sm">فيه تغييرات لسه ما اتحفظتش</span>
             <button type="button" onClick={() => saved && setDraft(saved)} disabled={save.isPending} className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-gray-300 hover:bg-white/10 disabled:opacity-40">

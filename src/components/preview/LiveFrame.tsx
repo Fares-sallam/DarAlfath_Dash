@@ -1,10 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ExternalLink, Loader2 } from 'lucide-react';
+import { DOCK_STUCK_TOP } from '@/components/preview/PreviewDock';
 
 /** How long a frame may take to say it is ready before the preview says it could not load. */
 const READY_WAIT_MS = 15_000;
 /** The draft is sent a moment after the last change, not on every key. */
 const SEND_AFTER_MS = 150;
+/** From this window width the previews are docked beside the form (see DisplayDetails / AppControlAdmin: the `xl` breakpoint). */
+const DOCK_FROM_WIDTH = 1280;
+/** A docked preview stays this far below the top of the window once the page has scrolled (see PreviewDock) and keeps this much below it. */
+const DOCK_BOTTOM = 16;
+/** The least height the picture is shrunk to (below it the box scrolls inside itself instead). */
+const MIN_ROOM = 300;
 
 interface Props {
   title: string;
@@ -73,23 +80,51 @@ export default function LiveFrame({ title, src, origin, readyType, message, widt
     return () => observer.disconnect();
   }, []);
 
-  const scale = Math.min(1, boxWidth > 0 ? boxWidth / width : 1);
-  const bezel = phone ? 'rounded-[28px] border-[6px] border-gray-800 bg-gray-800 shadow-lg' : 'rounded-xl border border-gray-200 bg-gray-50';
+  // beside the form (a wide screen) the preview stays in view while the page scrolls, so it must also fit the window's height
+  const [view, setView] = useState(() => ({ w: window.innerWidth, h: window.innerHeight }));
+  useEffect(() => {
+    const onResize = () => setView({ w: window.innerWidth, h: window.innerHeight });
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+  const docked = view.w >= DOCK_FROM_WIDTH;
+  // what the box around the picture takes besides the picture (title, controls, hint, padding): measured, so the picture gets the rest
+  const [chrome, setChrome] = useState(300);
+  useEffect(() => {
+    const shell = boxRef.current?.closest('[data-dock-shell]') as HTMLElement | null;
+    if (!shell || !boxRef.current) return undefined;
+    const measure = () => { if (boxRef.current) setChrome(Math.max(0, shell.offsetHeight - boxRef.current.offsetHeight)); };
+    const observer = new ResizeObserver(measure);
+    observer.observe(shell);
+    measure();
+    return () => observer.disconnect();
+  }, []);
+  const room = Math.max(MIN_ROOM, view.h - DOCK_STUCK_TOP - DOCK_BOTTOM - chrome);
+
+  const pad = phone ? 12 : 0;
+  const fullW = width + pad;
+  const fullH = height + pad;
+  const scale = Math.min(1, boxWidth > 0 ? boxWidth / fullW : 1, docked ? room / fullH : 1);
+  const bezel = phone ? 'rounded-[28px] bg-gray-800 shadow-lg p-[6px]' : 'rounded-xl bg-gray-50 ring-1 ring-gray-200';
 
   return (
-    <div className="space-y-2" data-testid={testId} data-ready={ticks > 0 ? 'true' : 'false'}>
-      <div ref={boxRef} className={`relative mx-auto overflow-hidden ${bezel}`} dir="ltr" style={{ width: '100%', maxWidth: width + (phone ? 12 : 0), height: Math.round(height * scale) + (phone ? 12 : 0) }}>
-        <iframe
-          ref={frameRef}
-          title={title}
-          src={src}
-          sandbox="allow-scripts allow-same-origin"
-          data-testid={`${testId}-iframe`}
-          style={{ width, height, border: 0, transform: `scale(${scale})`, transformOrigin: 'top left', background: '#fff', borderRadius: phone ? 20 : 0 }}
-        />
-        {ticks === 0 && !failed && (
-          <div className="absolute inset-0 flex items-center justify-center text-gray-400 bg-white/70" data-testid={`${testId}-loading`}><Loader2 className="animate-spin" /></div>
-        )}
+    <div className="space-y-2" data-testid={testId} data-ready={ticks > 0 ? 'true' : 'false'} data-scale={scale.toFixed(2)}>
+      <div ref={boxRef} className="w-full">
+        <div className="mx-auto" style={{ width: Math.round(fullW * scale), height: Math.round(fullH * scale) }}>
+          <div className={`relative overflow-hidden ${bezel}`} dir="ltr" style={{ width: fullW, height: fullH, transform: `scale(${scale})`, transformOrigin: 'top left' }}>
+            <iframe
+              ref={frameRef}
+              title={title}
+              src={src}
+              sandbox="allow-scripts allow-same-origin"
+              data-testid={`${testId}-iframe`}
+              style={{ width, height, border: 0, background: '#fff', borderRadius: phone ? 22 : 12, display: 'block' }}
+            />
+            {ticks === 0 && !failed && (
+              <div className="absolute inset-0 flex items-center justify-center text-gray-400 bg-white/70" data-testid={`${testId}-loading`}><Loader2 className="animate-spin" /></div>
+            )}
+          </div>
+        </div>
       </div>
       {failed && (
         <p className="text-xs text-amber-700 bg-amber-50 rounded-xl px-3 py-2" data-testid={`${testId}-failed`}>

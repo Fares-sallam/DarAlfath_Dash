@@ -145,13 +145,13 @@ export function buildReportHtml(doc: ReportDocument, opts: { logoUrl?: string | 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /**
- * Prints the report from a hidden iframe (no pop-up to be blocked). The
- * print dialog's "Save as PDF" keeps Arabic text shaped and selectable,
- * which PDF libraries don't do reliably.
+ * Prints an HTML page from a hidden iframe (no pop-up to be blocked). The print dialog's "Save as PDF" keeps Arabic text
+ * shaped and selectable, which PDF libraries don't do reliably.
  */
-export async function printReport(doc: ReportDocument, opts: { logoUrl?: string | null; fileTitle: string }): Promise<void> {
+export async function printHtml(html: string, fileTitle: string): Promise<void> {
   const iframe = document.createElement('iframe');
   iframe.setAttribute('aria-hidden', 'true');
+  iframe.setAttribute('data-print-frame', '');
   iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden;';
   document.body.appendChild(iframe);
 
@@ -163,7 +163,7 @@ export async function printReport(doc: ReportDocument, opts: { logoUrl?: string 
   }
 
   idoc.open();
-  idoc.write(buildReportHtml(doc, opts));
+  idoc.write(html);
   idoc.close();
 
   // Fonts and the logo must be in before printing, or the PDF falls back
@@ -179,7 +179,7 @@ export async function printReport(doc: ReportDocument, opts: { logoUrl?: string 
 
   // Chrome and Safari suggest the *top* document's title as the PDF name.
   const previousTitle = document.title;
-  document.title = opts.fileTitle;
+  document.title = fileTitle;
   const cleanup = () => {
     document.title = previousTitle;
     setTimeout(() => iframe.remove(), 1000);
@@ -190,6 +190,11 @@ export async function printReport(doc: ReportDocument, opts: { logoUrl?: string 
   win.print();
   // Browsers whose print() doesn't block never fire afterprint reliably.
   setTimeout(() => {
-    if (document.title === opts.fileTitle) cleanup();
+    if (document.title === fileTitle) cleanup();
   }, 60_000);
+}
+
+/** Prints the report (see printHtml). */
+export async function printReport(doc: ReportDocument, opts: { logoUrl?: string | null; fileTitle: string }): Promise<void> {
+  return printHtml(buildReportHtml(doc, opts), opts.fileTitle);
 }

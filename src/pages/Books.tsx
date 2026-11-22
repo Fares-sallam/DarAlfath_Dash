@@ -6,6 +6,7 @@ import { SALE_CHANNEL_LABELS, isSaleChannel, type SaleChannel } from '@/lib/sale
 import { useSearchParams } from 'react-router-dom';
 import Layout from '@/components/layout/Layout';
 import ReportDownloadButton from '@/components/reports/ReportDownloadButton';
+import BooksExportButton from '@/components/books/BooksExportButton';
 import { buildBooksReport } from '@/lib/reports/builders/books';
 import BundleComposer from '@/components/features/BundleComposer';
 import HideBookDialog from '@/components/features/HideBookDialog';import RemoveVariantDialog, { type RemoveVariantPrompt } from '@/components/features/RemoveVariantDialog';
@@ -1447,6 +1448,8 @@ export default function Books() {
                 </span>
               )}
             </button>
+
+            <BooksExportButton filtered={filtered} filtersActive={!!hasFilters} filtersLabel={booksFiltersLabel} />
 
             <ReportDownloadButton
               title="تقرير الكتب"

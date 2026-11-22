@@ -110,8 +110,10 @@ export default function LiveFrame({ title, src, origin, readyType, message, widt
   return (
     <div className="space-y-2" data-testid={testId} data-ready={ticks > 0 ? 'true' : 'false'} data-scale={scale.toFixed(2)}>
       <div ref={boxRef} className="w-full">
-        <div className="mx-auto" style={{ width: Math.round(fullW * scale), height: Math.round(fullH * scale) }}>
-          <div className={`relative overflow-hidden ${bezel}`} dir="ltr" style={{ width: fullW, height: fullH, transform: `scale(${scale})`, transformOrigin: 'top left' }}>
+        {/* left-to-right and positioned from the top left: the page around is right to left, where a box wider than its parent would
+            hang out of its left side and the shrinking would pull it further that way */}
+        <div className="relative mx-auto" dir="ltr" style={{ width: Math.round(fullW * scale), height: Math.round(fullH * scale) }}>
+          <div className={`absolute left-0 top-0 overflow-hidden ${bezel}`} style={{ width: fullW, height: fullH, transform: `scale(${scale})`, transformOrigin: 'top left' }}>
             <iframe
               ref={frameRef}
               title={title}

@@ -3,7 +3,8 @@ import { AlertTriangle, Loader2, RefreshCw, RotateCcw, Save, Smartphone, Undo2 }
 import Layout from '@/components/layout/Layout';
 import { Switch } from '@/components/ads/CategoryBarSection';
 import { Field, ImageField, ScheduleFields, Segmented, field } from '@/components/links/admin/ui';
-import { MaintenanceSample, PopupSample } from '@/components/appcontrol/Samples';
+import AppControlPreview from '@/components/preview/AppControlPreview';
+import type { AppNotice } from '@/lib/livePreview';
 import { useAppControlAdmin, useSaveAppControl } from '@/hooks/useAppControl';
 import { appControlProblems, raisesMinimum, withCampaign } from '@/lib/appControlDraft';
 import {
@@ -14,10 +15,10 @@ import {
 
 const signature = (c: AppControl) => JSON.stringify(resolveAppControl({ maintenance: c.maintenance, update_policy: c.update, popup: c.popup }));
 
-const Section = ({ title, hint, testId, wide, status, children }: {
-  title: string; hint: string; testId: string; wide?: boolean; status?: React.ReactNode; children: React.ReactNode;
+const Section = ({ title, hint, testId, wide, status, onFocus, children }: {
+  title: string; hint: string; testId: string; wide?: boolean; status?: React.ReactNode; onFocus?: () => void; children: React.ReactNode;
 }) => (
-  <section className={`bg-white rounded-2xl border border-gray-100 p-5 space-y-4 ${wide ? 'lg:col-span-2' : ''}`} data-testid={testId}>
+  <section className={`bg-white rounded-2xl border border-gray-100 p-5 space-y-4 ${wide ? 'lg:col-span-2 xl:col-span-1' : ''}`} data-testid={testId} onFocusCapture={onFocus}>
     <div className="flex items-start justify-between gap-3">
       <div>
         <h2 className="text-sm font-bold text-gray-700">{title}</h2>
@@ -92,6 +93,8 @@ export default function AppControlAdmin() {
 
   const [draft, setDraft] = useState<AppControl>(DEFAULT_APP_CONTROL);
   const [ready, setReady] = useState(false);
+  // which notice the live preview shows: the one whose section is being edited
+  const [notice, setNotice] = useState<AppNotice>('maintenance');
 
   const saved = data?.control;
   const problems = useMemo(() => appControlProblems(draft), [draft]);
@@ -185,12 +188,18 @@ export default function AppControlAdmin() {
         )}
 
         {ready && (
-          <div className="grid gap-5 lg:grid-cols-2">
+          <div className="space-y-5 xl:space-y-0 xl:grid xl:grid-cols-[minmax(0,1fr)_440px] xl:gap-5 xl:items-start">
+            {/* the live preview: above the form on a small screen, docked beside it (and following the scroll) on a wide one */}
+            <div className="xl:col-start-2 xl:row-start-1 xl:sticky xl:top-4 xl:self-start">
+              <AppControlPreview control={draft} notice={notice} onNoticeChange={setNotice} />
+            </div>
+          <div className="grid gap-5 lg:grid-cols-2 xl:grid-cols-1 xl:col-start-1 xl:row-start-1 min-w-0">
             {/* ── maintenance ── */}
             <Section
               title="شاشة الصيانة"
               hint="لما تتشغل، التطبيق بيفتح على شاشة مقفولة لكل المستخدمين. الأدمن بيدخلوا التطبيق عادي ويشوفوا شريط تنبيه."
               testId="app-control-maintenance"
+              onFocus={() => setNotice('maintenance')}
               status={<Chip label={STATE_CHIP[state].label} cls={STATE_CHIP[state].cls} testId="maintenance-state" />}
             >
               <SwitchRow title="تشغيل الصيانة" hint="من أول ما تحفظ (أو من وقت البداية لو حددت)" checked={m.enabled} onChange={(enabled) => patchM({ enabled })} label="تشغيل الصيانة" />
@@ -205,7 +214,6 @@ export default function AppControlAdmin() {
                 <textarea aria-label="رسالة الصيانة بالإنجليزي" dir="ltr" rows={2} value={m.messageEn} maxLength={MESSAGE_MAX} placeholder="We are making improvements. We will be back soon." onChange={(e) => patchM({ messageEn: e.target.value })} className={`${field} resize-y`} />
               </English>
               <ScheduleFields startsAt={m.startsAt} endsAt={m.endsAt} onChange={(patch) => patchM({ ...('starts_at' in patch ? { startsAt: patch.starts_at ?? null } : null), ...('ends_at' in patch ? { endsAt: patch.ends_at ?? null } : null) })} />
-              <MaintenanceSample maintenance={m} />
             </Section>
 
             {/* ── update ── */}
@@ -213,6 +221,7 @@ export default function AppControlAdmin() {
               title="تحديث التطبيق"
               hint="اكتب رقم البيلد (مش رقم الإصدار). «إجباري»: أي نسخة أقل منه تشوف شاشة تحديث ومتكمّلش. «مقترح»: يقدر يأجّل."
               testId="app-control-update"
+              onFocus={() => setNotice((n) => (n === 'update-offer' ? n : 'update-required'))}
             >
               <div className="rounded-xl border border-gray-100 divide-y divide-gray-100" role="table" aria-label="أرقام البيلد">
                 <div className="grid grid-cols-[72px_1fr_1fr] gap-2 px-3 py-2 bg-gray-50 text-[11px] font-semibold text-gray-500 rounded-t-xl" role="row">
@@ -250,68 +259,67 @@ export default function AppControlAdmin() {
               title="النافذة الترويجية"
               hint="نافذة بتظهر فوق الصفحة الرئيسية بعد ما التطبيق يفتح: عرض، خصم، إعلان. المستخدم يقفلها أو يفتح الرابط."
               testId="app-control-popup"
+              onFocus={() => setNotice('popup')}
               wide
               status={<Chip label={p.enabled ? 'شغّالة' : 'مقفولة'} cls={p.enabled ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'} testId="popup-state" />}
             >
-              <div className="grid gap-5 lg:grid-cols-[1fr_320px]">
-                <div className="space-y-4">
-                  <SwitchRow title="تشغيل النافذة" hint="بتظهر من أول ما تحفظ (أو من وقت البداية لو حددت)" checked={p.enabled} onChange={(enabled) => patchP({ enabled })} label="تشغيل النافذة" />
-                  <Field label="العنوان">
-                    <input value={p.title} maxLength={TITLE_MAX} placeholder="مثلًا: خصم 20% على كل الكتب" data-testid="popup-title" onChange={(e) => patchP({ title: e.target.value })} className={field} />
-                  </Field>
-                  <Field label="الرسالة" hint={`لحد ${MESSAGE_MAX} حرف`}>
-                    <textarea rows={3} value={p.message} maxLength={MESSAGE_MAX} data-testid="popup-message" onChange={(e) => patchP({ message: e.target.value })} className={`${field} resize-y`} />
-                  </Field>
-                  <Field label="الصورة (اختياري)" hint="بتظهر فوق الكلام. الأحسن صورة عريضة">
-                    <ImageField value={p.imageUrl} onChange={(imageUrl) => patchP({ imageUrl })} />
-                  </Field>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <Field label="كلمة الزر" hint={`سيبها فاضية لـ «افتح». لحد ${BUTTON_MAX} حرف`}>
-                      <input value={p.buttonLabel} maxLength={BUTTON_MAX} placeholder="تصفّح العروض" data-testid="popup-button" onChange={(e) => patchP({ buttonLabel: e.target.value })} className={field} />
-                    </Field>
-                    <Field label="الرابط (اختياري)" hint="صفحة جوه التطبيق تبدأ بـ / أو https://. من غيره تفضل بزر قفل بس">
-                      <input dir="ltr" value={p.linkUrl ?? ''} placeholder="/search" data-testid="popup-link" onChange={(e) => patchP({ linkUrl: e.target.value === '' ? null : e.target.value })} className={field} />
-                    </Field>
-                  </div>
-                  <div className="flex flex-wrap gap-1.5" aria-label="روابط جاهزة">
-                    {LINK_PRESETS.map((preset) => (
-                      <button key={preset.url} type="button" onClick={() => patchP({ linkUrl: preset.url })} className="px-2.5 py-1 rounded-lg bg-gray-100 text-[11px] font-semibold text-gray-600 hover:bg-gray-200">
-                        {preset.label}
-                      </button>
-                    ))}
-                  </div>
-                  <English open={Boolean(p.titleEn || p.messageEn || p.buttonLabelEn)} testId="popup-english">
-                    <input aria-label="عنوان النافذة بالإنجليزي" dir="ltr" value={p.titleEn} maxLength={TITLE_MAX} onChange={(e) => patchP({ titleEn: e.target.value })} className={field} />
-                    <textarea aria-label="رسالة النافذة بالإنجليزي" dir="ltr" rows={2} value={p.messageEn} maxLength={MESSAGE_MAX} onChange={(e) => patchP({ messageEn: e.target.value })} className={`${field} resize-y`} />
-                    <input aria-label="كلمة الزر بالإنجليزي" dir="ltr" value={p.buttonLabelEn} maxLength={BUTTON_MAX} onChange={(e) => patchP({ buttonLabelEn: e.target.value })} className={field} />
-                  </English>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <Field label="كل قد إيه تظهر">
-                      <Segmented<PopupFrequency> label="تكرار النافذة" value={p.frequency} options={POPUP_FREQUENCIES.map((key) => ({ key, label: POPUP_FREQUENCY_LABEL[key] }))} onChange={(frequency) => patchP({ frequency })} />
-                    </Field>
-                    <Field label="لمين">
-                      <Segmented<PopupPlatform> label="النافذة لمين" value={p.platform} options={POPUP_PLATFORMS.map((key) => ({ key, label: POPUP_PLATFORM_LABEL[key] }))} onChange={(platform) => patchP({ platform })} />
-                    </Field>
-                  </div>
-                  <ScheduleFields startsAt={p.startsAt} endsAt={p.endsAt} onChange={(patch) => patchP({ ...('starts_at' in patch ? { startsAt: patch.starts_at ?? null } : null), ...('ends_at' in patch ? { endsAt: patch.ends_at ?? null } : null) })} />
-                  <div className="flex items-center justify-between gap-3 rounded-xl border border-gray-100 px-3 py-2.5">
-                    <div>
-                      <div className="text-sm font-semibold text-gray-800">عرضها من جديد لكل المستخدمين</div>
-                      <div className="text-[11px] text-gray-400 leading-relaxed">اللي قفلها قبل كده هيشوفها تاني. استخدمها لما تبدأ حملة جديدة، مش لتصحيح كلمة.</div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => patchP({ campaign: newCampaignId() })}
-                      data-testid="popup-new-campaign"
-                      className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 bg-white text-xs font-semibold text-gray-700 hover:bg-gray-50 shrink-0"
-                    >
-                      <RefreshCw size={14} /> حملة جديدة
-                    </button>
-                  </div>
+              <div className="space-y-4">
+              <SwitchRow title="تشغيل النافذة" hint="بتظهر من أول ما تحفظ (أو من وقت البداية لو حددت)" checked={p.enabled} onChange={(enabled) => patchP({ enabled })} label="تشغيل النافذة" />
+              <Field label="العنوان">
+                <input value={p.title} maxLength={TITLE_MAX} placeholder="مثلًا: خصم 20% على كل الكتب" data-testid="popup-title" onChange={(e) => patchP({ title: e.target.value })} className={field} />
+              </Field>
+              <Field label="الرسالة" hint={`لحد ${MESSAGE_MAX} حرف`}>
+                <textarea rows={3} value={p.message} maxLength={MESSAGE_MAX} data-testid="popup-message" onChange={(e) => patchP({ message: e.target.value })} className={`${field} resize-y`} />
+              </Field>
+              <Field label="الصورة (اختياري)" hint="بتظهر فوق الكلام. الأحسن صورة عريضة">
+                <ImageField value={p.imageUrl} onChange={(imageUrl) => patchP({ imageUrl })} />
+              </Field>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field label="كلمة الزر" hint={`سيبها فاضية لـ «افتح». لحد ${BUTTON_MAX} حرف`}>
+                  <input value={p.buttonLabel} maxLength={BUTTON_MAX} placeholder="تصفّح العروض" data-testid="popup-button" onChange={(e) => patchP({ buttonLabel: e.target.value })} className={field} />
+                </Field>
+                <Field label="الرابط (اختياري)" hint="صفحة جوه التطبيق تبدأ بـ / أو https://. من غيره تفضل بزر قفل بس">
+                  <input dir="ltr" value={p.linkUrl ?? ''} placeholder="/search" data-testid="popup-link" onChange={(e) => patchP({ linkUrl: e.target.value === '' ? null : e.target.value })} className={field} />
+                </Field>
+              </div>
+              <div className="flex flex-wrap gap-1.5" aria-label="روابط جاهزة">
+                {LINK_PRESETS.map((preset) => (
+                  <button key={preset.url} type="button" onClick={() => patchP({ linkUrl: preset.url })} className="px-2.5 py-1 rounded-lg bg-gray-100 text-[11px] font-semibold text-gray-600 hover:bg-gray-200">
+                    {preset.label}
+                  </button>
+                ))}
+              </div>
+              <English open={Boolean(p.titleEn || p.messageEn || p.buttonLabelEn)} testId="popup-english">
+                <input aria-label="عنوان النافذة بالإنجليزي" dir="ltr" value={p.titleEn} maxLength={TITLE_MAX} onChange={(e) => patchP({ titleEn: e.target.value })} className={field} />
+                <textarea aria-label="رسالة النافذة بالإنجليزي" dir="ltr" rows={2} value={p.messageEn} maxLength={MESSAGE_MAX} onChange={(e) => patchP({ messageEn: e.target.value })} className={`${field} resize-y`} />
+                <input aria-label="كلمة الزر بالإنجليزي" dir="ltr" value={p.buttonLabelEn} maxLength={BUTTON_MAX} onChange={(e) => patchP({ buttonLabelEn: e.target.value })} className={field} />
+              </English>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field label="كل قد إيه تظهر">
+                  <Segmented<PopupFrequency> label="تكرار النافذة" value={p.frequency} options={POPUP_FREQUENCIES.map((key) => ({ key, label: POPUP_FREQUENCY_LABEL[key] }))} onChange={(frequency) => patchP({ frequency })} />
+                </Field>
+                <Field label="لمين">
+                  <Segmented<PopupPlatform> label="النافذة لمين" value={p.platform} options={POPUP_PLATFORMS.map((key) => ({ key, label: POPUP_PLATFORM_LABEL[key] }))} onChange={(platform) => patchP({ platform })} />
+                </Field>
+              </div>
+              <ScheduleFields startsAt={p.startsAt} endsAt={p.endsAt} onChange={(patch) => patchP({ ...('starts_at' in patch ? { startsAt: patch.starts_at ?? null } : null), ...('ends_at' in patch ? { endsAt: patch.ends_at ?? null } : null) })} />
+              <div className="flex items-center justify-between gap-3 rounded-xl border border-gray-100 px-3 py-2.5">
+                <div>
+                  <div className="text-sm font-semibold text-gray-800">عرضها من جديد لكل المستخدمين</div>
+                  <div className="text-[11px] text-gray-400 leading-relaxed">اللي قفلها قبل كده هيشوفها تاني. استخدمها لما تبدأ حملة جديدة، مش لتصحيح كلمة.</div>
                 </div>
-                <PopupSample popup={p} />
+                <button
+                  type="button"
+                  onClick={() => patchP({ campaign: newCampaignId() })}
+                  data-testid="popup-new-campaign"
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 bg-white text-xs font-semibold text-gray-700 hover:bg-gray-50 shrink-0"
+                >
+                  <RefreshCw size={14} /> حملة جديدة
+                </button>
+              </div>
               </div>
             </Section>
+          </div>
           </div>
         )}
 

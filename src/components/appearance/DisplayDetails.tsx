@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, ArrowDown, ArrowUp, ExternalLink, Loader2, Plus, RotateCcw, Save, Trash2, Undo2 } from 'lucide-react';
 import { Switch } from '@/components/ads/CategoryBarSection';
 import { Field, Segmented, field } from '@/components/links/admin/ui';
-import CardSample from '@/components/appearance/CardSample';
+import DisplayPreview from '@/components/preview/DisplayPreview';
 import { useDisplaySettingsAdmin, useSaveDisplaySettings } from '@/hooks/useDisplaySettings';
 import { blankColumn, blankLink, blankTrust, displayProblems, moveItem, removeAt, replaceAt } from '@/lib/displayDraft';
 import {
@@ -17,7 +17,7 @@ import { STOREFRONT_URL } from '@/lib/storefront';
 const signature = (d: DisplaySettings) => JSON.stringify(resolveDisplay(d));
 
 const Section = ({ title, hint, testId, wide, children }: { title: string; hint?: string; testId: string; wide?: boolean; children: React.ReactNode }) => (
-  <section className={`bg-white rounded-2xl border border-gray-100 p-5 space-y-4 ${wide ? 'lg:col-span-2' : ''}`} data-testid={testId}>
+  <section className={`bg-white rounded-2xl border border-gray-100 p-5 space-y-4 ${wide ? 'lg:col-span-2 xl:col-span-1' : ''}`} data-testid={testId}>
     <div>
       <h2 className="text-sm font-bold text-gray-700">{title}</h2>
       {hint && <p className="text-xs text-gray-500 mt-1 leading-relaxed">{hint}</p>}
@@ -182,7 +182,12 @@ export default function DisplayDetails() {
       )}
 
       {ready && (
-        <div className="grid gap-5 lg:grid-cols-2" data-testid="display-page">
+        <div className="space-y-5 xl:space-y-0 xl:grid xl:grid-cols-[minmax(0,1fr)_540px] xl:gap-5 xl:items-start">
+          {/* the live preview: above the form on a small screen, docked beside it (and following the scroll) on a wide one */}
+          <div className="xl:col-start-2 xl:row-start-1 xl:sticky xl:top-4 xl:self-start">
+            <DisplayPreview display={draft} />
+          </div>
+        <div className="grid gap-5 lg:grid-cols-2 xl:grid-cols-1 xl:col-start-1 xl:row-start-1 min-w-0" data-testid="display-page">
           {/* ── the book card ── */}
           <Section title="بطاقة الكتاب" hint="البطاقة اللي بتظهر في القوائم والبحث وصفوف الرئيسية." testId="display-card">
             <Matrix keys={CARD_ELEMENT_KEYS} meta={CARD_ELEMENT_META} value={draft.card.show} scope="card" onChange={(key, next) => patchCard({ show: { ...draft.card.show, [key]: next } })} />
@@ -218,8 +223,6 @@ export default function DisplayDetails() {
                 />
               </Field>
             </div>
-
-            <CardSample card={draft.card} />
           </Section>
 
           {/* ── the book's page ── */}
@@ -380,6 +383,7 @@ export default function DisplayDetails() {
               </p>
             </div>
           </Section>
+        </div>
         </div>
       )}
 

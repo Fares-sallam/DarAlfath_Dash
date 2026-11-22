@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import Layout from '@/components/layout/Layout';
 import ReportDownloadButton from '@/components/reports/ReportDownloadButton';
+import { SHIPPING_REPORT_GROUPS } from '@/lib/reports/reportColumns';
 import { buildShippingReport } from '@/lib/reports/builders/shipping';
 import type { ReportOrder } from '@/lib/reports/data';
 import {
@@ -282,6 +283,8 @@ export default function Shipping() {
 
             <ReportDownloadButton
               title="تقرير الشحن"
+              columnGroups={SHIPPING_REPORT_GROUPS}
+              columnsKey="shipping"
               periodHint="كل شحنات الفترة بعناوينها وشركات الشحن وأرقام التتبع، مع أداء كل شركة وكل محافظة."
               filters={{ active: shippingFiltersActive, label: shippingFiltersLabel }}
               build={({ period, generatedAt, applyFilters }) =>

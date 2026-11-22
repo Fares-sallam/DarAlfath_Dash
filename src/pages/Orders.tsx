@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import Layout from '@/components/layout/Layout';
 import ReportDownloadButton from '@/components/reports/ReportDownloadButton';
+import { ORDERS_REPORT_GROUPS } from '@/lib/reports/reportColumns';
 import { buildOrdersReport } from '@/lib/reports/builders/orders';
 import { fmtDateOnlyIso } from '@/lib/reports/format';
 import type { ReportOrder } from '@/lib/reports/data';
@@ -583,6 +584,8 @@ export default function Orders() {
 
             <ReportDownloadButton
               title="تقرير الطلبات"
+              columnGroups={ORDERS_REPORT_GROUPS}
+              columnsKey="orders"
               periodHint="كل الطلبات المسجلة خلال الفترة بتفاصيلها، مع ملخص الحالات وطرق الدفع."
               defaultPeriod={
                 dateFrom

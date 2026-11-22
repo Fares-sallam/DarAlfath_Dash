@@ -63,3 +63,79 @@ describe('column choices', () => {
     expect(pickColumns(catalog, undefined)).toHaveLength(3);
   });
 });
+
+import { applyColumnChoices, baseLabel, labelGroup } from './columnChoices';
+import { makeSection, type ReportDocument } from './types';
+import { resolvePeriod } from './period';
+
+describe('applying the choices to a built report', () => {
+  type Row = { id: string; name: string; units: number; total: number; status: string };
+  const rows: Row[] = [
+    { id: 'A1', name: 'أحمد', units: 2, total: 100, status: 'تم' },
+    { id: 'A2', name: 'منى', units: 3, total: 50.5, status: 'ملغي' },
+  ];
+  const doc = (): ReportDocument => ({
+    title: 'تقرير', fileBase: 'تقرير', period: resolvePeriod({ preset: 'thisMonth' }, new Date(2026, 10, 22)), generatedAt: new Date(2026, 10, 22), currencySymbol: 'ج.م',
+    meta: [], summary: [], notes: [],
+    sections: [
+      makeSection('الطلبات', [
+        { header: 'رقم', value: (r: Row) => r.id },
+        { header: 'العميل', value: (r: Row) => r.name },
+        { header: 'النسخ', type: 'number', total: 'sum', value: (r: Row) => r.units },
+        { header: 'الإجمالي (ج.م)', type: 'money', total: 'sum', value: (r: Row) => r.total },
+        { header: 'الحالة', value: (r: Row) => r.status, tone: (r: Row) => (r.status === 'ملغي' ? 'bad' : 'good') },
+        { header: 'عمود من البيانات', value: () => 'x' },
+      ], rows),
+      makeSection('ملخص', [{ header: 'الحالة', value: (r: Row) => r.status }, { header: 'عدد', type: 'number', total: 'sum', value: (r: Row) => r.units }], rows),
+    ],
+  });
+  const groups = [
+    labelGroup('orders', 'الطلبات', ['رقم', 'العميل', 'النسخ', 'الإجمالي', 'الحالة'], { locked: 'رقم' }),
+    labelGroup('summary', 'ملخص', ['الحالة', 'عدد'], { optional: true, locked: 'الحالة' }),
+  ];
+
+  it('names a button by the column\'s own header, without the currency', () => {
+    expect(baseLabel('الإجمالي (ج.م)', 'ج.م')).toBe('الإجمالي');
+    expect(baseLabel('الوزن (كجم)', 'ج.م')).toBe('الوزن (كجم)');
+    expect(baseLabel('الإجمالي (ج.م)', '')).toBe('الإجمالي (ج.م)');
+    expect(labelGroup('g', 'g', ['أ', { label: 'ب', defaultOn: false }], { locked: 'أ' }).choices).toEqual([
+      { id: 'أ', label: 'أ', defaultOn: true, hint: undefined, locked: true },
+      { id: 'ب', label: 'ب', defaultOn: false, hint: undefined, locked: false },
+    ]);
+  });
+
+  it('changes nothing when everything is on', () => {
+    const out = applyColumnChoices(doc(), groups, resolveSelection(groups));
+    expect(out.sections).toEqual(doc().sections);
+  });
+
+  it('takes a column that is off out of the sheet, with its cells, and keeps the others lined up (a column the groups don\'t know stays)', () => {
+    const d = setColumn(groups, setColumn(groups, {}, 'orders', 'العميل', false), 'orders', 'الإجمالي', false);
+    const s = applyColumnChoices(doc(), groups, resolveSelection(groups, d)).sections[0];
+    expect(s.columns.map((c) => c.header)).toEqual(['رقم', 'النسخ', 'الحالة', 'عمود من البيانات']);
+    expect(s.rows[0].cells).toEqual(['A1', 2, 'تم', 'x']);
+    expect(s.rows[1].tones).toEqual([undefined, undefined, 'bad', undefined]);
+    expect(s.totals).toEqual(['الإجمالي (2)', 5, null, null]);
+  });
+
+  it('keeps the totals row\'s label when the column that carried it is gone, and drops the totals when no summed column is left', () => {
+    const noId = labelGroup('orders', 'الطلبات', [{ label: 'رقم', defaultOn: false }, 'العميل', 'النسخ', 'الإجمالي', 'الحالة']);
+    const noIdSection = applyColumnChoices(doc(), [noId, groups[1]], resolveSelection([noId, groups[1]])).sections[0];
+    expect(noIdSection.columns.map((c) => c.header)).toEqual(['العميل', 'النسخ', 'الإجمالي (ج.م)', 'الحالة', 'عمود من البيانات']);
+    expect(noIdSection.totals).toEqual(['الإجمالي (2)', 5, 150.5, null, null]);
+
+    let d = setColumn(groups, {}, 'orders', 'النسخ', false);
+    d = setColumn(groups, d, 'orders', 'الإجمالي', false);
+    expect(applyColumnChoices(doc(), groups, resolveSelection(groups, d)).sections[0].totals).toBeNull();
+  });
+
+  it('leaves out a sheet that is switched off', () => {
+    const out = applyColumnChoices(doc(), groups, resolveSelection(groups, setGroupEnabled(groups, {}, 'summary', false)));
+    expect(out.sections.map((s) => s.title)).toEqual(['الطلبات']);
+  });
+
+  it('leaves a sheet no group is made for as it is', () => {
+    const out = applyColumnChoices(doc(), [groups[0]], resolveSelection([groups[0]], setColumn([groups[0]], {}, 'orders', 'العميل', false)));
+    expect(out.sections[1]).toEqual(doc().sections[1]);
+  });
+});

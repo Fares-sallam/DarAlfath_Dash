@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import Layout from '@/components/layout/Layout';
 import ReportDownloadButton from '@/components/reports/ReportDownloadButton';
+import { INVENTORY_REPORT_GROUPS } from '@/lib/reports/reportColumns';
 import { buildInventoryReport } from '@/lib/reports/builders/inventory';
 import {
   AlertTriangle, Package, TrendingDown, RefreshCw, Search,
@@ -279,6 +280,8 @@ export default function Inventory() {
 
             <ReportDownloadButton
               title="تقرير المخزون"
+              columnGroups={INVENTORY_REPORT_GROUPS}
+              columnsKey="inventory"
               periodHint="أرصدة المخزون الحالية، مع الكميات المباعة من كل نسخة خلال الفترة المختارة."
               filters={{ active: inventoryFiltersActive, label: inventoryFiltersLabel }}
               build={({ period, generatedAt, applyFilters }) =>

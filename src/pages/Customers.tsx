@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import Layout from '@/components/layout/Layout';
 import ReportDownloadButton from '@/components/reports/ReportDownloadButton';
+import { CUSTOMERS_REPORT_GROUPS } from '@/lib/reports/reportColumns';
 import { buildCustomersReport } from '@/lib/reports/builders/customers';
 import {
   CUSTOMER_STAT_CARDS,
@@ -414,6 +415,8 @@ export default function Customers() {
 
             <ReportDownloadButton
               title="تقرير العملاء"
+              columnGroups={CUSTOMERS_REPORT_GROUPS}
+              columnsKey="customers"
               periodHint="العملاء الذين اشتروا أو سجّلوا خلال الفترة وإنفاقهم فيها؛ الشامل يضم كل العملاء."
               defaultPeriod={{ preset: 'all' }}
               filters={{ active: customerFiltersActive, label: customerFiltersLabel }}

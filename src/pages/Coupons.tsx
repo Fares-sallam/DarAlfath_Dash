@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import Layout from '@/components/layout/Layout';
 import ReportDownloadButton from '@/components/reports/ReportDownloadButton';
+import { COUPONS_REPORT_GROUPS } from '@/lib/reports/reportColumns';
 import { buildCouponsReport } from '@/lib/reports/builders/coupons';
 import { COUPON_STATUSES, couponMatchesStatus, countByStatus, toggleFilter } from '@/lib/listFilters';
 import {
@@ -270,6 +271,8 @@ export default function Coupons() {
 
             <ReportDownloadButton
               title="تقرير الكوبونات"
+              columnGroups={COUPONS_REPORT_GROUPS}
+              columnsKey="coupons"
               periodHint="كل الكوبونات بحالتها الحالية، مع استخداماتها والخصم والمبيعات خلال الفترة المختارة."
               filters={{ active: couponFiltersActive, label: couponFiltersLabel }}
               build={({ period, generatedAt, applyFilters }) =>

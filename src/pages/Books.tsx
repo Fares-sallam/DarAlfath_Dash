@@ -1457,6 +1457,7 @@ export default function Books() {
               filters={{ active: !!hasFilters, label: booksFiltersLabel }}
               columnGroups={BOOKS_REPORT_GROUPS}
               columnsKey="books"
+              columnsByBuilder
               build={({ period, generatedAt, applyFilters, columns }) =>
                 buildBooksReport(
                   { period, generatedAt, country: selectedCountry, currencySymbol },

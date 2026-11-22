@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import Layout from '@/components/layout/Layout';
 import ReportDownloadButton from '@/components/reports/ReportDownloadButton';
+import { ACTIVITY_REPORT_GROUPS } from '@/lib/reports/reportColumns';
 import { buildActivityReport, type ActivityLogRow } from '@/lib/reports/builders/activity';
 import { fmtDateOnlyIso } from '@/lib/reports/format';
 import {
@@ -486,6 +487,8 @@ export default function ActivityLog() {
 
             <ReportDownloadButton
               title="تقرير سجل النشاط"
+              columnGroups={ACTIVITY_REPORT_GROUPS}
+              columnsKey="activity"
               periodHint="كل العمليات المسجلة خلال الفترة، مع ملخص نشاط كل مستخدم وكل قسم."
               defaultPeriod={
                 dateFrom

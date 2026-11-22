@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Layout from '@/components/layout/Layout';
 import ReportDownloadButton from '@/components/reports/ReportDownloadButton';
+import { ANALYTICS_REPORT_GROUPS } from '@/lib/reports/reportColumns';
 import { buildAnalyticsReport } from '@/lib/reports/builders/analytics';
 import { fmtDateOnlyIso } from '@/lib/reports/format';
 import type { PeriodSelection } from '@/lib/reports/period';
@@ -315,6 +316,8 @@ return (
 
             <ReportDownloadButton
               title="تقرير التحليلات والأداء"
+              columnGroups={ANALYTICS_REPORT_GROUPS}
+              columnsKey="analytics"
               periodHint="الإيرادات والأرباح والكتب الأكثر مبيعًا والعملاء وطرق الدفع خلال الفترة المختارة."
               defaultPeriod={reportDefaultPeriod}
               build={({ period: reportPeriod, generatedAt }) =>

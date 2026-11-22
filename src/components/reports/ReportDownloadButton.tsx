@@ -15,7 +15,7 @@ import {
 import { fmtDateOnlyIso } from '@/lib/reports/format';
 import ColumnPicker from '@/components/reports/ColumnPicker';
 import { useColumnDecisions } from '@/hooks/useColumnDecisions';
-import { resolveSelection, type ColumnGroup, type ColumnSelection } from '@/lib/reports/columnChoices';
+import { applyColumnChoices, resolveSelection, type ColumnGroup, type ColumnSelection } from '@/lib/reports/columnChoices';
 import { buildExcel } from '@/lib/reports/excel';
 import { buildCsv } from '@/lib/reports/csv';
 import { printReport } from '@/lib/reports/pdf';
@@ -44,6 +44,8 @@ interface Props {
   /** The report's columns as buttons the owner turns on or off (what is off is not in the file); `columnsKey` keeps the choice. */
   columnGroups?: readonly ColumnGroup[];
   columnsKey?: string;
+  /** The report builds only the chosen columns itself (it gets them in `build`'s context); otherwise they are applied to the built report. */
+  columnsByBuilder?: boolean;
 }
 
 const FORMATS: { id: Format; label: string; caption: string; icon: typeof Sheet }[] = [
@@ -63,7 +65,7 @@ function readFormat(): Format {
   }
 }
 
-export default function ReportDownloadButton({ title, periodHint, build, defaultPeriod, filters, columnGroups, columnsKey }: Props) {
+export default function ReportDownloadButton({ title, periodHint, build, defaultPeriod, filters, columnGroups, columnsKey, columnsByBuilder }: Props) {
   const { user } = useAuth();
   const { logoUrl } = useLogo();
   const allowed = !!user && (user.isSystemOwner || !!user.permissions?.can_export);
@@ -116,12 +118,9 @@ export default function ReportDownloadButton({ title, periodHint, build, default
     try {
       const generatedAt = new Date();
       const period = resolvePeriod(selection, generatedAt);
-      const doc = await build({
-        period,
-        applyFilters: !!filters?.active && applyFilters,
-        generatedAt,
-        columns: columnGroups ? resolveSelection(columnGroups, decisions) : undefined,
-      });
+      const chosenColumns = columnGroups ? resolveSelection(columnGroups, decisions) : undefined;
+      const built = await build({ period, applyFilters: !!filters?.active && applyFilters, generatedAt, columns: chosenColumns });
+      const doc = columnGroups && chosenColumns && !columnsByBuilder ? applyColumnChoices(built, columnGroups, chosenColumns) : built;
       const base = reportFileBase(doc);
       // The file name mixes Arabic and digits and renders scrambled inside an RTL toast.
       const description = `${doc.title} — ${period.label}`;

@@ -2,6 +2,8 @@
 // its columns in groups (one group per sheet); each column is on or off, with a standard. What the owner changed is kept as
 // a small map of explicit decisions, so a column added to the report later simply follows its own standard.
 
+import type { ReportDocument, ReportSection } from './types';
+
 export interface ColumnChoice {
   id: string;
   label: string;
@@ -89,4 +91,73 @@ export function parseDecisions(raw: unknown, groups: readonly ColumnGroup[]): Co
 export function pickColumns<T extends { id: string }>(columns: readonly T[], selection: ColumnSelection[string] | undefined): T[] {
   if (!selection) return [...columns];
   return columns.filter((c) => selection.ids.has(c.id));
+}
+
+// ─── Applying the choices to a report that is already built ──────────────────────────────────────────────────────────────
+
+/** `labelGroup` makes a group whose buttons are named by the column's own header (no ids to keep in step with the report). */
+export function labelGroup(
+  id: string,
+  title: string,
+  labels: readonly (string | { label: string; defaultOn?: boolean; hint?: string })[],
+  opts: { optional?: boolean; locked?: string } = {},
+): ColumnGroup {
+  return {
+    id,
+    title,
+    optional: opts.optional,
+    choices: labels.map((item) => {
+      const { label, defaultOn = true, hint } = typeof item === 'string' ? { label: item } : item;
+      return { id: label, label, defaultOn, hint, locked: label === opts.locked };
+    }),
+  };
+}
+
+/** A header without the currency the report adds to money columns («الإجمالي (ج.م)» → «الإجمالي»). */
+export const baseLabel = (header: string, currencySymbol: string): string =>
+  currencySymbol && header.endsWith(` (${currencySymbol})`) ? header.slice(0, -(currencySymbol.length + 3)) : header;
+
+function keepColumns(section: ReportSection, keep: readonly boolean[]): ReportSection {
+  const at = keep.flatMap((k, i) => (k ? [i] : []));
+  const pick = <T,>(items: readonly T[]) => at.map((i) => items[i]);
+  let totals = section.totals ? pick(section.totals) : null;
+  if (section.totals && totals) {
+    // the totals row names itself («الإجمالي (n)») in the first column that is not summed: keep that label if its column went
+    const label = section.totals.find((v) => typeof v === 'string');
+    if (!totals.some((v) => typeof v === 'number')) totals = null;
+    else if (label !== undefined && !totals.some((v) => typeof v === 'string')) {
+      const first = totals.findIndex((v) => v === null);
+      if (first >= 0) totals[first] = label;
+    }
+  }
+  return {
+    ...section,
+    columns: pick(section.columns),
+    rows: section.rows.map((r) => ({ cells: pick(r.cells), tones: pick(r.tones) })),
+    totals,
+  };
+}
+
+/**
+ * The report with only what the owner chose: the n-th group is the n-th sheet; a sheet that is switched off is not in the
+ * report, and a column that is off is not in its sheet (its cells and its place in the totals row go with it). A column the
+ * groups don't know (a header made from the data) stays. Groups are matched to sheets by position.
+ */
+export function applyColumnChoices(doc: ReportDocument, groups: readonly ColumnGroup[], selection: ColumnSelection): ReportDocument {
+  const sections: ReportSection[] = [];
+  doc.sections.forEach((section, index) => {
+    const group = groups[index];
+    const sel = group ? selection[group.id] : undefined;
+    if (!group || !sel) {
+      sections.push(section);
+      return;
+    }
+    if (!sel.enabled) return;
+    const known = new Set(group.choices.map((c) => c.id));
+    sections.push(keepColumns(section, section.columns.map((c) => {
+      const label = baseLabel(c.header, doc.currencySymbol);
+      return !known.has(label) || sel.ids.has(label);
+    })));
+  });
+  return { ...doc, sections };
 }

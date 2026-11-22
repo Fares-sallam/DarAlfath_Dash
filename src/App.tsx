@@ -22,6 +22,7 @@ import IntroVideos from "./pages/IntroVideos";
 import AdsAndStrips from "./pages/AdsAndStrips";
 import LinksPageAdmin from "./pages/LinksPageAdmin";
 import AppearanceAdmin from "./pages/AppearanceAdmin";
+import AppControlAdmin from "./pages/AppControlAdmin";
 import Catalog from "./pages/Catalog";
 import Reviews from "./pages/Reviews";
 import Inventory from "./pages/Inventory";
@@ -150,6 +151,15 @@ const App = () => {
                     element={
                       <ProtectedRoute permission="can_manage_appearance">
                         <AppearanceAdmin />
+                      </ProtectedRoute>
+                    }
+                  />
+
+                  <Route
+                    path="/app-control"
+                    element={
+                      <ProtectedRoute permission="can_manage_appearance">
+                        <AppControlAdmin />
                       </ProtectedRoute>
                     }
                   />

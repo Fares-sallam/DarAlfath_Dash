@@ -9,7 +9,7 @@ import {
   LayoutDashboard, Settings, BookOpen, ShoppingCart, Users, BookMarked,
   Tag, Package, BarChart3, Truck, ShieldCheck, ActivitySquare, LogOut, X, CreditCard,
   Image as ImageIcon, Youtube, Star, Megaphone, Link2, Lock, LockOpen,
-  BookOpen as BookIcon, Palette } from 'lucide-react';
+  BookOpen as BookIcon, Palette, Smartphone } from 'lucide-react';
 
 /** The permission each entry needs; the lock beside it shows whether the signed-in person has it. */
 const NAV_PERMISSION: Record<string, keyof AdminPermissions | undefined> = {
@@ -17,6 +17,7 @@ const NAV_PERMISSION: Record<string, keyof AdminPermissions | undefined> = {
   'intro-videos': 'can_manage_home_media',
   'ads-strips': 'can_manage_appearance',
   appearance: 'can_manage_appearance',
+  'app-control': 'can_manage_appearance',
   'links-page': 'can_manage_links_page',
   settings: 'can_manage_settings',
   books: 'can_manage_products',
@@ -45,6 +46,7 @@ const navItems = [
   { id: 'ads-strips', label: 'إدارة الإعلانات والأشرطة', icon: Megaphone, path: '/ads-strips', requiresAdmin: true },
   { id: 'links-page', label: 'إدارة الصفحة والروابط', icon: Link2, path: '/links-page', requiresAdmin: true },
   { id: 'appearance', label: 'مظهر المتجر', icon: Palette, path: '/appearance', requiresAdmin: true },
+  { id: 'app-control', label: 'التحكم في التطبيق', icon: Smartphone, path: '/app-control', requiresAdmin: true },
   { id: 'settings', label: 'الإعدادات', icon: Settings, path: '/settings', requiresAdmin: false },
   { id: 'books', label: 'إدارة الكتب', icon: BookOpen, path: '/books', requiresAdmin: true },
   { id: 'orders', label: 'إدارة الطلبات', icon: ShoppingCart, path: '/orders', requiresAdmin: true },

@@ -6,7 +6,7 @@ import { Switch } from '@/components/ads/CategoryBarSection';
 import { useCatalogCounts, useCatalogNodes } from '@/hooks/useCatalog';
 import { pageStripRow, useApplyHomeLayout, useDeleteHomeRow, useHomeLayoutRows, useSaveHomeRows } from '@/hooks/useHomeShelves';
 import { useCountries } from '@/hooks/useSettings';
-import { ancestorsOf, homeShelfNodes, NODE_TYPE_LABELS, type CatalogNode } from '@/lib/catalogTree';
+import { ancestorsOf, homeShelfIssue, homeShelfNodes, NODE_TYPE_LABELS, type CatalogNode } from '@/lib/catalogTree';
 import { reorderRelative, stepInList } from '@/lib/dragSort';
 import { blockFromDraft, blocksWithDraft, draftFromBlock, newDraft, type BlockDraft } from '@/lib/homeBlockDraft';
 import {
@@ -63,17 +63,28 @@ export default function HomeBlocksEditor({ channel }: { channel: HomeChannel }) 
   };
 
   const byId = useMemo(() => new Map(nodes.map((n) => [n.id, n])), [nodes]);
+  const channelName = isApp ? 'التطبيق' : 'الموقع';
   const labelOf = (node: CatalogNode) => {
     const path = ancestorsOf(nodes, node.id).map((a) => a.name_ar);
     return `${NODE_TYPE_LABELS[node.type]}: ${[...path, node.name_ar].join(' ‹ ')}`;
   };
+  const editingBlock = draft?.key ? blocks.find((b) => b.key === draft.key) ?? null : null;
   const taken = new Set(blocks.filter((b) => b.kind === SHELF_KIND).map((b) => b.nodeId));
   const channelNodes = homeShelfNodes(nodes, channel)
     .sort((a, b) => labelOf(a).localeCompare(labelOf(b), 'ar'));
-  const shelfChoices = channelNodes.filter((n) => !taken.has(n.id)).map((n) => ({ id: n.id, label: labelOf(n) }));
-  const scopeChoices = channelNodes.map((n) => ({ id: n.id, label: labelOf(n) }));
-
-  const editingBlock = draft?.key ? blocks.find((b) => b.key === draft.key) ?? null : null;
+  const currentNode = draft?.nodeId ? byId.get(draft.nodeId) : null;
+  const selectableNodes = currentNode && !channelNodes.some((n) => n.id === currentNode.id)
+    ? [...channelNodes, currentNode]
+    : channelNodes;
+  const choiceOf = (node: CatalogNode) => ({
+    id: node.id,
+    label: `${labelOf(node)}${homeShelfIssue(node.id, nodes, channel) ? ` (غير متاح في ${channelName})` : ''}`,
+  });
+  const missingChoice = draft?.nodeId && !currentNode ? { id: draft.nodeId, label: 'التصنيف محذوف - اختر تصنيفًا جديدًا' } : null;
+  const shelfChoices = selectableNodes.filter((n) => !taken.has(n.id) || n.id === editingBlock?.nodeId).map(choiceOf);
+  if (missingChoice) shelfChoices.push(missingChoice);
+  const scopeChoices = selectableNodes.map(choiceOf);
+  if (missingChoice) scopeChoices.push(missingChoice);
   const open = (block: HomeBlock) => { setDraft(draftFromBlock(block)); setProblem(''); };
   const openNew = (kind: 'category-shelf' | 'book-shelf' | 'filter-shelf' | 'promo') => { setDraft(newDraft(kind)); setProblem(''); };
   const close = () => { setDraft(null); setProblem(''); };
@@ -107,9 +118,13 @@ export default function HomeBlocksEditor({ channel }: { channel: HomeChannel }) 
   const copyToOther = async () => {
     const { rows: nextRows, remove: removed } = copyLayout(rows, otherRows, channel, other);
     const target = other === 'app' ? 'التطبيق' : 'الموقع';
+    const unavailableShelves = resolveHomeBlocks(nextRows, other).filter((block) =>
+      block.kind === SHELF_KIND && homeShelfIssue(block.nodeId, nodes, other, counts) !== null,
+    );
     const lines = [
       `ترتيب ${target} هيبقى زي ترتيب ${isApp ? 'التطبيق' : 'الموقع'} بالظبط: نفس الأقسام والرفوف والعناوين والتواريخ.`,
       removed.length > 0 ? `${removed.length} عنصر من عناصر ${target} الحالية مش موجودين هنا هيتشالوا.` : null,
+      unavailableShelves.length > 0 ? `${unavailableShelves.length} رف قد لا يظهر في ${target} لأن تصنيفه مخفي أو غير مفعل أو بلا كتب. راجع التنبيهات بعد النسخ.` : null,
       other === 'app' ? 'التطبيق الذي يحتوي على نظام تخطيط الرئيسية سيقرأ الترتيب الجديد عند تحديث بياناته.' : null,
       'متأكد؟',
     ].filter(Boolean);
@@ -144,7 +159,7 @@ export default function HomeBlocksEditor({ channel }: { channel: HomeChannel }) 
       return [CUSTOM_META[BOOK_SHELF_KIND].label, `${n} كتاب مختار`, b.limit != null ? `أول ${b.limit}` : null].filter(Boolean).join(' · ');
     }
     if (b.kind === FILTER_SHELF_KIND) {
-      const scope = b.nodeId ? byId.get(b.nodeId)?.name_ar ?? 'جزء مش ظاهر للموقع (الرف هيعرض المتجر كله)' : 'المتجر كله';
+      const scope = b.nodeId ? byId.get(b.nodeId)?.name_ar ?? 'تصنيف محذوف (راجع نطاق الرف)' : 'المتجر كله';
       return [FILTER_SOURCES[filterSourceOf(b.config)].label, scope, b.limit != null ? `أول ${b.limit}` : null].filter(Boolean).join(' · ');
     }
     if (b.kind === PROMO_KIND) {
@@ -154,7 +169,7 @@ export default function HomeBlocksEditor({ channel }: { channel: HomeChannel }) 
     const node = byId.get(b.nodeId ?? '');
     const total = b.nodeId ? counts?.get(b.nodeId)?.total : undefined;
     return [
-      node ? labelOf(node) : 'مش ظاهر للموقع (مخفي أو اتحذف)، فالرف مش هيظهر',
+      node ? labelOf(node) : `التصنيف محذوف، فالرف مش هيظهر في ${channelName}`,
       total != null ? `${total} كتاب` : null,
       b.limit != null ? `أول ${b.limit}` : null,
     ].filter(Boolean).join(' · ');
@@ -162,6 +177,12 @@ export default function HomeBlocksEditor({ channel }: { channel: HomeChannel }) 
   /** the dates, countries and devices a block is limited to, as short chips */
   const chipsOf = (b: HomeBlock): { text: string; tone: 'info' | 'warn' | 'bad'; id: string }[] => {
     const out: { text: string; tone: 'info' | 'warn' | 'bad'; id: string }[] = [];
+    if (b.kind === SHELF_KIND || (b.kind === FILTER_SHELF_KIND && b.nodeId)) {
+      const issue = homeShelfIssue(b.nodeId, nodes, channel, counts);
+      const issueText = issue === 'missing' ? 'التصنيف محذوف' : issue === 'inactive' ? 'التصنيف غير مفعل'
+        : issue === 'hidden' ? `التصنيف مخفي عن ${channelName}` : issue === 'empty' ? 'لا توجد كتب في التصنيف' : null;
+      if (issueText) out.push({ id: 'shelf-health', tone: issue === 'empty' ? 'warn' : 'bad', text: issueText });
+    }
     const state = scheduleState(b.window, now);
     if (state === 'upcoming') out.push({ id: 'upcoming', tone: 'warn', text: `يبدأ ${dayOf(b.window.startsAt!)}` });
     else if (state === 'ended') out.push({ id: 'ended', tone: 'bad', text: `انتهى ${dayOf(b.window.endsAt!)}` });

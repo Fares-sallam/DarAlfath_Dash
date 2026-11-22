@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  allowedParents, ancestorsOf, buildTree, childrenOf, descendantIds, healthIssues, homeShelfNodes, moveWithinSiblings,
+  allowedParents, ancestorsOf, buildTree, childrenOf, descendantIds, healthIssues, homeShelfIssue, homeShelfNodes, moveWithinSiblings,
   nextSortFor, nodeFlags, nodeStatus, slugify, type CatalogNode, type NodeCounts, type ProductLink,
 } from './catalogTree';
 
@@ -31,6 +31,21 @@ describe('ordering by channel', () => {
     ];
     expect(homeShelfNodes(candidates, 'web').map((n) => n.id)).toEqual(['web']);
     expect(homeShelfNodes(candidates, 'app').map((n) => n.id)).toEqual(['app']);
+  });
+  it('explains why a saved shelf cannot show on its channel', () => {
+    const candidates = [
+      node('web', { show_app: false }),
+      node('app', { show_web: false }),
+      node('off', { is_active: false }),
+      node('empty'),
+    ];
+    const counts = new Map<string, NodeCounts>([['empty', { direct: 0, total: 0 }]]);
+    expect(homeShelfIssue('gone', candidates, 'web', counts)).toBe('missing');
+    expect(homeShelfIssue('off', candidates, 'web', counts)).toBe('inactive');
+    expect(homeShelfIssue('web', candidates, 'app', counts)).toBe('hidden');
+    expect(homeShelfIssue('app', candidates, 'app', counts)).toBeNull();
+    expect(homeShelfIssue('empty', candidates, 'web', counts)).toBe('empty');
+    expect(homeShelfIssue('empty', candidates, 'web')).toBeNull();
   });
   it('roots follow the chosen channel', () => {
     expect(childrenOf(tree, null, 'web').map((n) => n.id)).toEqual(['s1', 's2']);

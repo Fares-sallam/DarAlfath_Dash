@@ -154,6 +154,23 @@ export function homeShelfNodes(nodes: readonly CatalogNode[], channel: 'web' | '
   return nodes.filter((node) => node.is_active && (channel === 'app' ? node.show_app : node.show_web));
 }
 
+export type HomeShelfIssue = 'missing' | 'inactive' | 'hidden' | 'empty' | null;
+
+/** Why a saved shelf cannot currently show books in this channel. Missing counts mean "not loaded", not empty. */
+export function homeShelfIssue(
+  nodeId: string | null,
+  nodes: readonly CatalogNode[],
+  channel: 'web' | 'app',
+  counts?: ReadonlyMap<string, NodeCounts>,
+): HomeShelfIssue {
+  const node = nodes.find((item) => item.id === nodeId);
+  if (!node) return 'missing';
+  if (!node.is_active) return 'inactive';
+  if (channel === 'app' ? !node.show_app : !node.show_web) return 'hidden';
+  if (counts?.get(node.id)?.total === 0) return 'empty';
+  return null;
+}
+
 /** Where a node may be placed: anywhere except under itself or its own descendants. */
 export function allowedParents(nodes: readonly CatalogNode[], id: string | null): CatalogNode[] {
   if (!id) return [...nodes];

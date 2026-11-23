@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_APP_CONTROL } from './appControl';
 import { DEFAULT_DISPLAY } from './displaySettings';
+import { DEFAULT_APPEARANCE } from './appearance';
 import {
-  APP_PREVIEW_MESSAGE, SITE_PREVIEW_MESSAGE, appRouteFor, buildAppMessage, buildSiteMessage, siteRouteFor, sitePreviewUrl,
+  APP_PREVIEW_MESSAGE, SITE_PREVIEW_MESSAGE, appRouteFor, buildAppMessage, buildLookMessage, buildSiteMessage, siteRouteFor, sitePreviewUrl,
 } from './livePreview';
 
 const BOOK = '0b1f6f7e-2a3b-4c5d-8e9f-1a2b3c4d5e6f';
@@ -13,6 +14,8 @@ describe('the website preview', () => {
     expect(siteRouteFor('book', BOOK)).toBe(`/book/${BOOK}`);
     expect(siteRouteFor('book', null)).toBe('/books');
     expect(siteRouteFor('footer', null)).toBe('/');
+    expect(siteRouteFor('home', null)).toBe('/');
+    expect(siteRouteFor('account', null)).toBe('/account');
   });
   it('the message carries the draft, the page, and where to scroll', () => {
     const m = buildSiteMessage(DEFAULT_DISPLAY, 'footer', null);
@@ -39,5 +42,14 @@ describe('the app preview', () => {
     expect(m).toMatchObject({ type: APP_PREVIEW_MESSAGE, notice: 'popup', platform: 'android', language: 'en', dark: true, navigate: '/' });
     expect(m.display).toBe(DEFAULT_DISPLAY);
     expect(buildAppMessage({ screen: 'cards', bookId: null, platform: 'ios', language: 'ar', dark: false })).toMatchObject({ display: null, control: null, notice: null });
+  });
+});
+
+describe('the look preview', () => {
+  it('carries the look, the theme and the page, and nothing about the display settings', () => {
+    const m = buildLookMessage(DEFAULT_APPEARANCE, 'dark', 'account', null);
+    expect(m).toMatchObject({ type: SITE_PREVIEW_MESSAGE, theme: 'dark', navigate: '/account', scroll: 'top' });
+    expect(m.appearance).toBe(DEFAULT_APPEARANCE);
+    expect('display' in m).toBe(false);
   });
 });

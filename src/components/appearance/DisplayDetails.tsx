@@ -94,7 +94,8 @@ const iconButton = 'p-1.5 rounded-lg text-gray-500 hover:bg-gray-100 disabled:op
  * تفاصيل العرض: what a book card, a book's page and the website's footer show. Every element has a switch for the website
  * and one for the app; the footer is the website's only (the app has none). Nothing reaches customers until it is saved.
  */
-export default function DisplayDetails({ onRestored }: { onRestored: () => void }) {
+/** `active`: the tab is the one on show. Both tabs of the page stay mounted (a draft in one survives a look at the other), but only the one on show has its live preview open: a hidden frame would load the whole store for nothing. */
+export default function DisplayDetails({ onRestored, active = true }: { onRestored: () => void; active?: boolean }) {
   const { data, isLoading, isError, error } = useDisplaySettingsAdmin();
   const save = useSaveDisplaySettings();
 
@@ -190,7 +191,7 @@ export default function DisplayDetails({ onRestored }: { onRestored: () => void 
         <div className="space-y-5 xl:space-y-0 xl:grid xl:grid-cols-[minmax(0,1fr)_540px] xl:gap-5 xl:items-start">
           {/* the live preview: above the form on a small screen, docked beside it (and following the scroll) on a wide one */}
           <PreviewDock>
-            <DisplayPreview display={draft} />
+            {active && <DisplayPreview display={draft} />}
           </PreviewDock>
         <div className="grid gap-5 lg:grid-cols-2 xl:grid-cols-1 xl:col-start-1 xl:row-start-1 min-w-0" data-testid="display-page">
           <Section title="لون الإجراء الأساسي في التطبيق" hint="للأزرار المشتركة وشريط التنقل فقط. التصميم الحالي يظل كما هو عند اختيار اللون الأصلي؛ بعض ألوان الشاشات الثابتة لا تتغير بهذا الإعداد." testId="display-app-palette">

@@ -4,6 +4,8 @@ import { AlertTriangle, ExternalLink, Loader2, Moon, Palette, RotateCcw, Save, S
 import Layout from '@/components/layout/Layout';
 import { Switch } from '@/components/ads/CategoryBarSection';
 import DisplayDetails from '@/components/appearance/DisplayDetails';
+import LookPreview from '@/components/preview/LookPreview';
+import PreviewDock from '@/components/preview/PreviewDock';
 import ControlHistory from '@/components/appearance/ControlHistory';
 import StrengthSlider from '@/components/appearance/StrengthSlider';
 import StripSample from '@/components/appearance/StripSample';
@@ -15,8 +17,14 @@ import {
   type ButtonColor, type ButtonKey, type NightColor, type StoreTheme, type StorefrontAppearance, type StripArrangement, type Tone,
 } from '@/lib/appearance';
 import { STOREFRONT_URL } from '@/lib/storefront';
+import type { SiteScreen } from '@/lib/livePreview';
 
 const signature = (a: StorefrontAppearance) => JSON.stringify(resolveAppearance(a));
+
+/** The page of the store each button is seen on: the one being edited is shown in the live preview. */
+const SCREEN_OF_BUTTON: Record<ButtonKey, SiteScreen> = {
+  view_all: 'home', view_category: 'home', add_to_cart: 'books', quick_buy: 'books', auth_submit: 'account', auth_tabs: 'account',
+};
 
 const SWATCH_BG: Record<NightColor, string> = {
   same: 'linear-gradient(135deg, #ffffff 0 50%, #0a2a52 50% 100%)',
@@ -50,7 +58,7 @@ const THEME_LABEL: Record<StoreTheme, string> = { light: 'الوضع الفات�
  * (only the four house colours, in five tones). «معاينة المتجر» opens the real store with what is on screen,
  * saved or not; nothing reaches customers until it is saved.
  */
-function LookAdmin({ onRestored }: { onRestored: () => void }) {
+function LookAdmin({ onRestored, active = true }: { onRestored: () => void; active?: boolean }) {
   const { data, isLoading, isError, error } = useStorefrontAppearanceAdmin();
   const save = useSaveStorefrontAppearance();
 
@@ -59,6 +67,8 @@ function LookAdmin({ onRestored }: { onRestored: () => void }) {
   const [baseRevision, setBaseRevision] = useState<string | null>(null);
   /** Which theme's button colours are being edited: the store has a day look and a night look. */
   const [theme, setTheme] = useState<StoreTheme>('light');
+  /** Which page of the store the live preview shows: the one the section being edited belongs to. */
+  const [screen, setScreen] = useState<SiteScreen>('home');
 
   const saved = data?.appearance;
   const dirty = ready && saved !== undefined && signature(draft) !== signature(saved);
@@ -166,9 +176,14 @@ function LookAdmin({ onRestored }: { onRestored: () => void }) {
         )}
 
         {ready && (
-          <div className="grid gap-5 lg:grid-cols-2">
+          <div className="space-y-5 xl:space-y-0 xl:grid xl:grid-cols-[minmax(0,1fr)_540px] xl:gap-5 xl:items-start">
+            {/* the live preview: above the form on a small screen, docked beside it (and staying in view) on a wide one */}
+            <PreviewDock>
+              {active && <LookPreview appearance={draft} theme={theme} onThemeChange={setTheme} screen={screen} onScreenChange={setScreen} />}
+            </PreviewDock>
+          <div className="grid gap-5 lg:grid-cols-2 xl:grid-cols-1 xl:col-start-1 xl:row-start-1 min-w-0">
             {/* ── the pattern ── */}
-            <section className="bg-white rounded-2xl border border-gray-100 p-5 space-y-4 lg:col-span-2" data-testid="appearance-pattern">
+            <section className="bg-white rounded-2xl border border-gray-100 p-5 space-y-4 lg:col-span-2 xl:col-span-1" data-testid="appearance-pattern" onFocusCapture={() => setScreen('home')}>
               <div>
                 <h2 className="text-sm font-bold text-gray-700">الباترن في المتجر</h2>
                 <p className="text-[11px] text-gray-400 mt-1">
@@ -187,7 +202,7 @@ function LookAdmin({ onRestored }: { onRestored: () => void }) {
             </section>
 
             {/* ── the pattern strips ── */}
-            <section className="bg-white rounded-2xl border border-gray-100 p-5 space-y-4 lg:col-span-2" data-testid="appearance-strip">
+            <section className="bg-white rounded-2xl border border-gray-100 p-5 space-y-4 lg:col-span-2 xl:col-span-1" data-testid="appearance-strip" onFocusCapture={() => setScreen('home')}>
               <div>
                 <h2 className="text-sm font-bold text-gray-700">شريط الباترن بين الأقسام</h2>
                 <p className="text-[11px] text-gray-400 mt-1">
@@ -259,7 +274,7 @@ function LookAdmin({ onRestored }: { onRestored: () => void }) {
                   const shownTone = theme === 'light' ? style.tone : style.night.tone;
                   const choices: NightColor[] = theme === 'light' ? BUTTON_COLORS : NIGHT_COLORS;
                   return (
-                    <div key={key} className="rounded-xl border border-gray-100 p-3 space-y-3" data-testid={`button-${key}`}>
+                    <div key={key} className="rounded-xl border border-gray-100 p-3 space-y-3" data-testid={`button-${key}`} onFocusCapture={() => setScreen(SCREEN_OF_BUTTON[key])}>
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           <p className="text-sm font-semibold text-gray-700">{meta.label}</p>
@@ -313,12 +328,13 @@ function LookAdmin({ onRestored }: { onRestored: () => void }) {
               </div>
             </section>
           </div>
+          </div>
         )}
         {!tableMissing && !isError && <ControlHistory scope="appearance" revision={data?.revision ?? null} onRestored={onRestored} />}
       </div>
 
       {dirty && (
-        <div className="fixed bottom-4 inset-x-0 z-40 flex justify-center pointer-events-none px-4 lg:pr-72">
+        <div className="fixed bottom-4 inset-x-0 z-40 flex justify-center pointer-events-none px-4 lg:pr-72 xl:pl-[580px]">
           <div className="pointer-events-auto flex items-center gap-3 flex-wrap justify-center rounded-2xl bg-gray-900 text-white shadow-2xl px-4 py-3" role="status" data-testid="appearance-save-bar">
             <span className="text-sm">فيه تغييرات لسه ما اتحفظتش</span>
             <button type="button" onClick={() => saved && setDraft(saved)} disabled={save.isPending} className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-gray-300 hover:bg-white/10 disabled:opacity-40">
@@ -374,14 +390,14 @@ export default function AppearanceAdmin() {
       </nav>
 
       <div hidden={active !== 'look'}>
-        <LookAdmin key={`look-${editorVersion}`} onRestored={resetEditors} />
+        <LookAdmin key={`look-${editorVersion}`} onRestored={resetEditors} active={active === 'look'} />
       </div>
       <div hidden={active !== 'display'} className="space-y-5 pb-28" data-testid="display-admin">
         <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
           <Palette className="text-amber-500" size={24} />
           تفاصيل العرض
         </h1>
-        <DisplayDetails key={`display-${editorVersion}`} onRestored={resetEditors} />
+        <DisplayDetails key={`display-${editorVersion}`} onRestored={resetEditors} active={active === 'display'} />
       </div>
     </Layout>
   );

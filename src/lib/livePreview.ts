@@ -6,6 +6,7 @@
  * The messages are plain objects; the website and the app each read them through their own whitelists.
  */
 import type { AppControl } from '@/lib/appControl';
+import type { StorefrontAppearance } from '@/lib/appearance';
 import type { DisplaySettings } from '@/lib/displaySettings';
 import { STOREFRONT_URL } from '@/lib/storefront';
 
@@ -21,7 +22,7 @@ export const siteOrigin = (() => {
 /** Where the website's preview frame opens (`?preview=display` is what lets the website be framed by this dashboard). */
 export const sitePreviewUrl = (path: string): string => `${STOREFRONT_URL}${path}${path.includes('?') ? '&' : '?'}preview=display`;
 
-export type SiteScreen = 'books' | 'book' | 'footer';
+export type SiteScreen = 'home' | 'books' | 'book' | 'footer' | 'account';
 
 export interface SitePreviewMessage {
   type: typeof SITE_PREVIEW_MESSAGE;
@@ -33,12 +34,26 @@ export interface SitePreviewMessage {
 /** The page of the website each screen shows (a book's page needs a real book's id). */
 export function siteRouteFor(screen: SiteScreen, bookId: string | null): string {
   if (screen === 'book' && bookId) return `/book/${bookId}`;
-  if (screen === 'footer') return '/';
+  if (screen === 'footer' || screen === 'home') return '/';
+  if (screen === 'account') return '/account';
   return '/books';
 }
 
 export function buildSiteMessage(display: DisplaySettings, screen: SiteScreen, bookId: string | null): SitePreviewMessage {
   return { type: SITE_PREVIEW_MESSAGE, display, navigate: siteRouteFor(screen, bookId), scroll: screen === 'footer' ? 'footer' : 'top' };
+}
+
+export interface LookPreviewMessage {
+  type: typeof SITE_PREVIEW_MESSAGE;
+  appearance: StorefrontAppearance;
+  theme: 'light' | 'dark';
+  navigate: string;
+  scroll: 'top';
+}
+
+/** The look being edited (pattern, strips, button colours), on a page of the store, in the day or the night look. */
+export function buildLookMessage(appearance: StorefrontAppearance, theme: 'light' | 'dark', screen: SiteScreen, bookId: string | null): LookPreviewMessage {
+  return { type: SITE_PREVIEW_MESSAGE, appearance, theme, navigate: siteRouteFor(screen, bookId), scroll: 'top' };
 }
 
 // ── The app ──────────────────────────────────────────────────────────────────

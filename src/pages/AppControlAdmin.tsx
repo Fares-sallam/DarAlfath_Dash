@@ -7,7 +7,8 @@ import AppControlPreview from '@/components/preview/AppControlPreview';
 import PreviewDock from '@/components/preview/PreviewDock';
 import type { AppNotice } from '@/lib/livePreview';
 import { useAppControlAdmin, useDisableAppMaintenance, useSaveAppControl } from '@/hooks/useAppControl';
-import { appControlProblems, raisesMinimum, withCampaign } from '@/lib/appControlDraft';
+import ControlHistory from '@/components/appearance/ControlHistory';
+import { appControlProblems, minimumReleaseProblems, raisesMinimum, withCampaign } from '@/lib/appControlDraft';
 import {
   BUTTON_MAX, DEFAULT_APP_CONTROL, DEFAULT_MAINTENANCE_MESSAGE, DEFAULT_MAINTENANCE_TITLE, DEFAULT_UPDATE_MESSAGE, MESSAGE_MAX, POPUP_FREQUENCIES,
   POPUP_FREQUENCY_LABEL, POPUP_PLATFORMS, POPUP_PLATFORM_LABEL, TITLE_MAX, cleanBuild, isDefaultAppControl, maintenanceState, newCampaignId,
@@ -19,7 +20,7 @@ const signature = (c: AppControl) => JSON.stringify(resolveAppControl({ maintena
 const Section = ({ title, hint, testId, wide, status, onFocus, children }: {
   title: string; hint: string; testId: string; wide?: boolean; status?: React.ReactNode; onFocus?: () => void; children: React.ReactNode;
 }) => (
-  <section className={`bg-white rounded-2xl border border-gray-100 p-5 space-y-4 ${wide ? 'lg:col-span-2 xl:col-span-1' : ''}`} data-testid={testId} onFocusCapture={onFocus}>
+  <section className={`min-w-0 bg-white rounded-2xl border border-gray-100 p-5 space-y-4 ${wide ? 'lg:col-span-2 xl:col-span-1' : ''}`} data-testid={testId} onFocusCapture={onFocus}>
     <div className="flex items-start justify-between gap-3">
       <div>
         <h2 className="text-sm font-bold text-gray-700">{title}</h2>
@@ -95,11 +96,12 @@ export default function AppControlAdmin() {
 
   const [draft, setDraft] = useState<AppControl>(DEFAULT_APP_CONTROL);
   const [ready, setReady] = useState(false);
+  const [baseRevision, setBaseRevision] = useState<string | null>(null);
   // which notice the live preview shows: the one whose section is being edited
   const [notice, setNotice] = useState<AppNotice>('maintenance');
 
   const saved = data?.control;
-  const problems = useMemo(() => appControlProblems(draft), [draft]);
+  const problems = useMemo(() => [...appControlProblems(draft), ...(saved ? minimumReleaseProblems(saved, draft) : [])], [draft, saved]);
   const dirty = ready && saved !== undefined && (signature(draft) !== signature(saved) || problems.length > 0);
   const dirtyNow = useRef(false);
   dirtyNow.current = dirty;
@@ -108,9 +110,10 @@ export default function AppControlAdmin() {
     if (!saved) return;
     if (!ready || !dirtyNow.current) {
       setDraft(saved);
+      setBaseRevision(data?.revision ?? null);
       setReady(true);
     }
-  }, [saved, ready]);
+  }, [saved, ready, data?.revision]);
 
   useEffect(() => {
     if (!dirty) return;
@@ -129,7 +132,7 @@ export default function AppControlAdmin() {
   const patchM = (next: Partial<AppControl['maintenance']>) => setDraft((d) => ({ ...d, maintenance: { ...d.maintenance, ...next } }));
   const patchU = (next: Partial<AppControl['update']>) => setDraft((d) => ({ ...d, update: { ...d.update, ...next } }));
   const patchP = (next: Partial<AppControl['popup']>) => setDraft((d) => ({ ...d, popup: { ...d.popup, ...next } }));
-  const setBuild = (kind: 'minBuild' | 'recommendedBuild', platform: 'ios' | 'android', value: number | null) =>
+  const setBuild = (kind: 'publishedBuild' | 'minBuild' | 'recommendedBuild', platform: 'ios' | 'android', value: number | null) =>
     patchU({ [kind]: { ...draft.update[kind], [platform]: value } } as Partial<AppControl['update']>);
 
   const m = draft.maintenance;
@@ -146,7 +149,7 @@ export default function AppControlAdmin() {
       if (!ok) return;
     }
     setDraft(next);
-    save.mutate(next);
+    save.mutate({ control: next, revision: baseRevision });
   };
 
   const onDisableMaintenance = () => {
@@ -245,25 +248,29 @@ export default function AppControlAdmin() {
             {/* ── update ── */}
             <Section
               title="تحديث التطبيق"
-              hint="اكتب رقم البيلد (مش رقم الإصدار). «إجباري»: أي نسخة أقل منه تشوف شاشة تحديث ومتكمّلش. «مقترح»: يقدر يأجّل."
+              hint="اكتب رقم البيلد (مش رقم الإصدار). قبل رفع الحد الإجباري، سجّل آخر بيلد تأكدت بنفسك أنه متاح للتحميل في المتجر."
               testId="app-control-update"
               onFocus={() => setNotice((n) => (n === 'update-offer' ? n : 'update-required'))}
             >
-              <div className="rounded-xl border border-gray-100 divide-y divide-gray-100" role="table" aria-label="أرقام البيلد">
-                <div className="grid grid-cols-[72px_1fr_1fr] gap-2 px-3 py-2 bg-gray-50 text-[11px] font-semibold text-gray-500 rounded-t-xl" role="row">
+              <div className="w-full max-w-full rounded-xl border border-gray-100 overflow-x-auto" role="table" aria-label="أرقام البيلد">
+                <div className="min-w-[520px] divide-y divide-gray-100">
+                <div className="grid grid-cols-[72px_repeat(3,minmax(0,1fr))] gap-2 px-3 py-2 bg-gray-50 text-[11px] font-semibold text-gray-500 rounded-t-xl" role="row">
                   <span role="columnheader" />
+                  <span role="columnheader">المنشور فعلًا</span>
                   <span role="columnheader">إجباري (أقل منه يحدّث)</span>
                   <span role="columnheader">مقترح (يقدر يأجّل)</span>
                 </div>
                 {([['ios', 'آيفون'], ['android', 'أندرويد']] as const).map(([platform, label]) => (
-                  <div key={platform} className="grid grid-cols-[72px_1fr_1fr] gap-2 items-center px-3 py-2.5" role="row" data-testid={`update-row-${platform}`}>
+                  <div key={platform} className="grid grid-cols-[72px_repeat(3,minmax(0,1fr))] gap-2 items-center px-3 py-2.5" role="row" data-testid={`update-row-${platform}`}>
                     <span role="cell" className="text-sm font-semibold text-gray-800">{label}</span>
+                    <div role="cell"><BuildInput label={`آخر بيلد منشور ${label}`} testId={`published-${platform}`} value={u.publishedBuild[platform]} onChange={(v) => setBuild('publishedBuild', platform, v)} /></div>
                     <div role="cell"><BuildInput label={`الحد الإجباري ${label}`} testId={`min-${platform}`} value={u.minBuild[platform]} onChange={(v) => setBuild('minBuild', platform, v)} /></div>
                     <div role="cell"><BuildInput label={`الحد المقترح ${label}`} testId={`rec-${platform}`} value={u.recommendedBuild[platform]} onChange={(v) => setBuild('recommendedBuild', platform, v)} /></div>
                   </div>
                 ))}
+                </div>
               </div>
-              <p className="text-[11px] text-gray-400 leading-relaxed">رقم البيلد بيزيد لوحده مع كل نسخة بتترفع (آيفون: Build، أندرويد: Version code). سيبه فاضي لو مش عاوز قاعدة.</p>
+              <p className="text-[11px] text-gray-400 leading-relaxed">المنشور فعلًا: رقم تتأكد منه يدويًا في المتجر، مش مجرد رقم في مشروع التطبيق. آيفون: Build، أندرويد: Version code.</p>
               <Field label="رسالة التحديث" hint={`سيبها فاضية للرسالة الأصلية: «${DEFAULT_UPDATE_MESSAGE}»`}>
                 <textarea rows={2} value={u.message} maxLength={MESSAGE_MAX} data-testid="update-message" onChange={(e) => patchU({ message: e.target.value })} className={`${field} resize-y`} />
               </Field>
@@ -369,7 +376,7 @@ export default function AppControlAdmin() {
             <button
               type="button"
               onClick={onSave}
-              disabled={save.isPending || tableMissing || problems.length > 0}
+              disabled={save.isPending || tableMissing || !baseRevision || problems.length > 0}
               data-testid="app-control-save"
               className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-indigo-500 text-sm font-semibold hover:bg-indigo-400 disabled:opacity-40 disabled:hover:bg-indigo-500"
             >
@@ -379,6 +386,7 @@ export default function AppControlAdmin() {
           </div>
         </div>
       )}
+      {!tableMissing && !isError && <ControlHistory scope="app_control" revision={data?.revision ?? null} onRestored={() => setReady(false)} />}
     </Layout>
   );
 }

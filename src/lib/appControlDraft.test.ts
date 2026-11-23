@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_APP_CONTROL, resolveAppControl, type AppControl } from './appControl';
-import { appControlProblems, maintenanceOff, raisesMinimum, withCampaign } from './appControlDraft';
+import { appControlProblems, maintenanceOff, minimumReleaseProblems, raisesMinimum, withCampaign } from './appControlDraft';
 
 const draft = (over: Partial<{ maintenance: object; update: object; popup: object }> = {}): AppControl => ({
   maintenance: { ...DEFAULT_APP_CONTROL.maintenance, ...(over.maintenance ?? {}) },
@@ -52,6 +52,28 @@ describe('raisesMinimum', () => {
     expect(raisesMinimum(saved, draft({ update: { minBuild: { ios: 10, android: 17 } } }))).toEqual([{ platform: 'android', label: 'أندرويد', build: 17 }]);
     expect(raisesMinimum(saved, draft({ update: { minBuild: { ios: 8, android: null } } }))).toEqual([]);
     expect(raisesMinimum(saved, draft())).toEqual([]);
+  });
+});
+
+describe('minimumReleaseProblems', () => {
+  it('blocks a new hard gate without a confirmed published build', () => {
+    const next = draft({ update: { minBuild: { ios: 12, android: null } } });
+    expect(minimumReleaseProblems(DEFAULT_APP_CONTROL, next)[0]).toContain('آخر بيلد منشور');
+    expect(minimumReleaseProblems(DEFAULT_APP_CONTROL, draft({ update: { minBuild: { ios: 12, android: null }, publishedBuild: { ios: 11, android: null } } }))[0]).toContain('أعلى');
+    expect(minimumReleaseProblems(DEFAULT_APP_CONTROL, draft({ update: { minBuild: { ios: 12, android: null }, publishedBuild: { ios: 12, android: null } } }))).toEqual([]);
+    expect(minimumReleaseProblems(next, next)).toEqual([]);
+  });
+
+  it('requires a real store host for a newly raised hard gate', () => {
+    const update = { minBuild: { ios: 12, android: null }, publishedBuild: { ios: 12, android: null } };
+    expect(minimumReleaseProblems(DEFAULT_APP_CONTROL, draft({ update: { ...update, storeUrl: { ios: 'https://example.com/app', android: '' } } }))[0]).toContain('apps.apple.com');
+    expect(minimumReleaseProblems(DEFAULT_APP_CONTROL, draft({ update: { ...update, storeUrl: { ios: 'https://apps.apple.com/app/id123', android: '' } } }))).toEqual([]);
+  });
+
+  it('does not allow lowering a published build below an existing mandatory minimum', () => {
+    const saved = draft({ update: { minBuild: { ios: 12, android: null }, publishedBuild: { ios: 12, android: null } } });
+    const next = draft({ update: { minBuild: { ios: 12, android: null }, publishedBuild: { ios: 11, android: null } } });
+    expect(minimumReleaseProblems(saved, next)[0]).toContain('أعلى');
   });
 });
 

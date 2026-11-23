@@ -31,10 +31,12 @@ export function useHomeLayoutRows(channel: HomeChannel) {
 
 function useRefresh() {
   const qc = useQueryClient();
-  return () => {
-    void qc.invalidateQueries({ queryKey: ['home-layout-rows'] });
-    void qc.invalidateQueries({ queryKey: ['home-layout'] });
-    void qc.invalidateQueries({ queryKey: ['app-home-settings'] });
+  return async () => {
+    await Promise.all([
+      qc.invalidateQueries({ queryKey: ['home-layout-rows'] }),
+      qc.invalidateQueries({ queryKey: ['home-layout'] }),
+      qc.invalidateQueries({ queryKey: ['app-home-settings'] }),
+    ]);
   };
 }
 
@@ -42,6 +44,8 @@ function useRefresh() {
 export function useSaveHomeRows(channel: HomeChannel) {
   const refresh = useRefresh();
   return useMutation({
+    mutationKey: ['home-layout-write'],
+    scope: { id: 'home-layout-write' },
     mutationFn: async (rows: readonly HomeLayoutRow[]) => {
       const now = new Date().toISOString();
       const { error } = await supabase.from('home_layout').upsert(
@@ -50,7 +54,7 @@ export function useSaveHomeRows(channel: HomeChannel) {
       );
       if (error) throw new Error(error.message);
     },
-    onSuccess: refresh,
+    onSuccess: () => refresh(),
     onError: (e: Error) => toast.error(friendly(e.message)),
   });
 }
@@ -62,11 +66,13 @@ export function useSaveHomeRows(channel: HomeChannel) {
 export function useApplyHomeLayout() {
   const refresh = useRefresh();
   return useMutation({
+    mutationKey: ['home-layout-write'],
+    scope: { id: 'home-layout-write' },
     mutationFn: async ({ channel, rows, remove }: { channel: HomeChannel; rows: readonly HomeLayoutRow[]; remove: readonly string[] }) => {
       const { error } = await supabase.rpc('home_layout_apply', { p_channel: channel, p_rows: rows, p_remove: remove });
       if (error) throw new Error(error.message);
     },
-    onSuccess: refresh,
+    onSuccess: () => refresh(),
     onError: (e: Error) => toast.error(friendly(e.message)),
   });
 }
@@ -88,11 +94,13 @@ export function useBookTitles(ids: readonly string[]) {
 export function useDeleteHomeRow(channel: HomeChannel) {
   const refresh = useRefresh();
   return useMutation({
+    mutationKey: ['home-layout-write'],
+    scope: { id: 'home-layout-write' },
     mutationFn: async (key: string) => {
       const { error } = await supabase.from('home_layout').delete().eq('channel', channel).eq('section_key', key);
       if (error) throw new Error(error.message);
     },
-    onSuccess: refresh,
+    onSuccess: () => refresh(),
     onError: (e: Error) => toast.error(friendly(e.message)),
   });
 }

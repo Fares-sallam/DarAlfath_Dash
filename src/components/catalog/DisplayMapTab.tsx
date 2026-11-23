@@ -5,7 +5,7 @@ import { Switch } from '@/components/ads/CategoryBarSection';
 import { useCatalogNodes } from '@/hooks/useCatalog';
 import {
   useCreateMenuItem, useDeleteMenuItem, useGroupMenuItems, useHomeLayout, useMaterializeMenuChildren, useMenuItems,
-  useMoveMenuItem, useReorderMenuItems, useUngroupMenuItem, useUpdateMenuItem,
+  useMoveAndReorderMenuItem, useMoveMenuItem, useReorderMenuItems, useUngroupMenuItem, useUpdateMenuItem,
 } from '@/hooks/useMenuItems';
 import {
   MAX_MENU_DEPTH, MENU_KIND_LABELS, flattenMenu, nextMenuSort, parentOptions, placementProblem, placementText, resolveMenu,
@@ -45,6 +45,7 @@ export default function DisplayMapTab() {
   const remove = useDeleteMenuItem();
   const reorder = useReorderMenuItems();
   const move = useMoveMenuItem();
+  const moveAndReorder = useMoveAndReorderMenuItem();
   const materialize = useMaterializeMenuChildren();
   const group = useGroupMenuItems();
   const ungroup = useUngroupMenuItem();
@@ -57,7 +58,7 @@ export default function DisplayMapTab() {
   const menu = useMemo(() => resolveMenu(items, nodes, 'web'), [items, nodes]);
   const flat = useMemo(() => flattenMenu(menu), [menu]);
   const byItemId = useMemo(() => new Map(flat.filter((e) => e.item).map((e) => [e.item!.id, e])), [flat]);
-  const busy = create.isPending || update.isPending || remove.isPending || reorder.isPending || move.isPending || materialize.isPending || group.isPending || ungroup.isPending;
+  const busy = create.isPending || update.isPending || remove.isPending || reorder.isPending || move.isPending || moveAndReorder.isPending || materialize.isPending || group.isPending || ungroup.isPending;
 
   const bar = useMemo(
     () =>
@@ -78,6 +79,7 @@ export default function DisplayMapTab() {
 
   /** One step with the keyboard (the grip focused, then the up and down arrows). */
   const step = (id: string, dir: -1 | 1) => {
+    if (busy) return;
     const item = items.find((i) => i.id === id);
     const ids = item ? stepInList(orderOf(item.parent_id), id, dir) : null;
     if (ids) reorder.mutate(ids);
@@ -88,6 +90,7 @@ export default function DisplayMapTab() {
    * becomes main); dropped in the middle of an item = placed inside it.
    */
   const dropItem = async (dragId: string, targetId: string, zone: DropZone) => {
+    if (busy) return;
     const dragged = items.find((i) => i.id === dragId);
     const target = items.find((i) => i.id === targetId);
     if (!dragged || !target) return;
@@ -98,8 +101,8 @@ export default function DisplayMapTab() {
     const sameParent = dragged.parent_id === newParent;
     if (sameParent && order.join() === orderOf(newParent).join()) return;
     try {
-      if (!sameParent) await move.mutateAsync({ id: dragId, parentId: newParent });
-      await reorder.mutateAsync(order);
+      if (sameParent) await reorder.mutateAsync(order);
+      else await moveAndReorder.mutateAsync({ id: dragId, parentId: newParent, ids: order });
     } catch {
       // the failure is already shown as a message
     }

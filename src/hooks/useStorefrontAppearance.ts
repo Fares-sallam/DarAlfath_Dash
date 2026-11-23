@@ -11,6 +11,7 @@ import {
 
 export interface AppearanceAdminData {
   appearance: StorefrontAppearance;
+  revision: string | null;
   /** The table is not in the database yet (the migration has not been applied): the page says so and does not save. */
   tableMissing: boolean;
 }
@@ -24,10 +25,10 @@ export function useStorefrontAppearanceAdmin() {
   return useQuery({
     queryKey: KEY,
     queryFn: async (): Promise<AppearanceAdminData> => {
-      const { data, error } = await supabase.from('storefront_appearance').select(APPEARANCE_COLUMNS).eq('id', 1).maybeSingle();
-      if (isMissingTable(error)) return { appearance: DEFAULT_APPEARANCE, tableMissing: true };
+      const { data, error } = await supabase.from('storefront_appearance').select(`${APPEARANCE_COLUMNS}, updated_at`).eq('id', 1).maybeSingle();
+      if (isMissingTable(error)) return { appearance: DEFAULT_APPEARANCE, revision: null, tableMissing: true };
       if (error) throw error;
-      return { appearance: resolveAppearance(data), tableMissing: false };
+      return { appearance: resolveAppearance(data), revision: data?.updated_at ?? null, tableMissing: false };
     },
     staleTime: 0,
   });
@@ -36,14 +37,18 @@ export function useStorefrontAppearanceAdmin() {
 export function useSaveStorefrontAppearance() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (appearance: StorefrontAppearance) => {
-      const { error } = await supabase.from('storefront_appearance').upsert(appearanceToRow(appearance));
+    mutationFn: async ({ appearance, revision }: { appearance: StorefrontAppearance; revision: string | null }) => {
+      const { error } = await supabase.rpc('control_save', {
+        p_scope: 'appearance_look', p_expected: revision, p_payload: appearanceToRow(appearance),
+      });
       if (error) throw error;
     },
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: KEY });
       toast.success('اتحفظ. التغيير بيظهر في المتجر خلال دقيقة');
     },
-    onError: (e: Error) => toast.error(`تعذّر الحفظ: ${e.message}`),
+    onError: (e: Error & { code?: string }) => toast.error(e.code === '40001'
+      ? 'الإعدادات اتغيرت من مكان تاني. حدّث الصفحة وراجع التغييرات قبل الحفظ.'
+      : `تعذّر الحفظ: ${e.message}`),
   });
 }

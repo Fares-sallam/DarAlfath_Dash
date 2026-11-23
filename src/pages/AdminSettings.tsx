@@ -256,6 +256,7 @@ function PermissionsPanel({ admin }: PermissionsPanelProps) {
     can_manage_settings: row.can_manage_settings,
     can_manage_home_media: row.can_manage_home_media,
     can_manage_appearance: row.can_manage_appearance,
+    can_manage_app_control: row.can_manage_app_control,
     can_manage_links_page: row.can_manage_links_page,
     can_manage_catalog: row.can_manage_catalog,
   });
@@ -1404,6 +1405,7 @@ function AdminCard({ admin, isSelected, onSelect }: AdminCardProps) {
     can_manage_settings: admin.can_manage_settings,
     can_manage_home_media: admin.can_manage_home_media,
     can_manage_appearance: admin.can_manage_appearance,
+    can_manage_app_control: admin.can_manage_app_control,
     can_manage_links_page: admin.can_manage_links_page,
     can_manage_catalog: admin.can_manage_catalog,
   });

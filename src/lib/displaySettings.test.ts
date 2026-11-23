@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   CARD_ELEMENT_KEYS, DEFAULT_COPYRIGHT, DEFAULT_DISPLAY, DEFAULT_FOOTER_COLUMNS, DEFAULT_FOOTER_NOTE, DEFAULT_TRUST, FOOTER_MAX_COLUMNS, FOOTER_MAX_LINKS,
-  PAGE_ELEMENT_KEYS, TRUST_MAX_ITEMS, cleanText, copyrightText, discountText, displayToRow, footerGrid, footerLinkKind, isDefaultDisplay, isLowStock,
+  PAGE_ELEMENT_KEYS, TRUST_MAX_ITEMS, appPrimaryColor, cleanText, copyrightText, discountText, displayToRow, footerGrid, footerLinkKind, isDefaultDisplay, isLowStock,
   isNewBook, resolveDisplay, safeFooterUrl, shown,
 } from './displaySettings';
 
@@ -34,6 +34,14 @@ describe('defaults are how things were designed', () => {
   it('every element has a switch for both places', () => {
     for (const key of CARD_ELEMENT_KEYS) expect(Object.keys(DEFAULT_DISPLAY.card.show[key]).sort()).toEqual(['app', 'web']);
     for (const key of PAGE_ELEMENT_KEYS) expect(Object.keys(DEFAULT_DISPLAY.page.show[key]).sort()).toEqual(['app', 'web']);
+  });
+
+  it('keeps the app primary color unchanged by default and rejects unknown presets', () => {
+    expect(DEFAULT_DISPLAY.appPalette).toEqual({ light: 'default', dark: 'default' });
+    expect(appPrimaryColor(resolveDisplay(null).appPalette.light)).toBeNull();
+    expect(resolveDisplay({ appPalette: { light: 'navy', dark: 'purple' } }).appPalette)
+      .toEqual({ light: 'navy', dark: 'default' });
+    expect(appPrimaryColor('navy')).toBe('#054180');
   });
 });
 

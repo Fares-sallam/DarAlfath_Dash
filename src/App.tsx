@@ -158,7 +158,7 @@ const App = () => {
                   <Route
                     path="/app-control"
                     element={
-                      <ProtectedRoute permission="can_manage_appearance">
+                      <ProtectedRoute permission="can_manage_app_control">
                         <AppControlAdmin />
                       </ProtectedRoute>
                     }

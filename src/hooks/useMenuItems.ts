@@ -115,6 +115,18 @@ export function useMoveMenuItem() {
   });
 }
 
+export function useMoveAndReorderMenuItem() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, parentId, ids }: { id: string; parentId: string | null; ids: string[] }) => {
+      const { error } = await supabase.rpc('menu_move_and_reorder', { p_id: id, p_parent: parentId, p_ids: ids });
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: () => refresh(qc),
+    onError: (e: Error) => toast.error(friendlyMenuError(e.message)),
+  });
+}
+
 export function useMaterializeMenuChildren() {
   const qc = useQueryClient();
   return useMutation({

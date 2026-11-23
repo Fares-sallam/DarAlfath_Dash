@@ -16,6 +16,7 @@ type AdminPermissionKey =
   | 'can_manage_settings'
   | 'can_manage_home_media'
   | 'can_manage_appearance'
+  | 'can_manage_app_control'
   | 'can_manage_links_page'
   | 'can_manage_catalog';
 

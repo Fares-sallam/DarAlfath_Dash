@@ -8,6 +8,7 @@ import { DEFAULT_DISPLAY, DISPLAY_COLUMN, displayToRow, resolveDisplay, type Dis
 
 export interface DisplayAdminData {
   display: DisplaySettings;
+  revision: string | null;
   /** The column is not in the database yet (the migration has not been applied): the page says so and does not save. */
   columnMissing: boolean;
 }
@@ -21,10 +22,10 @@ export function useDisplaySettingsAdmin() {
   return useQuery({
     queryKey: KEY,
     queryFn: async (): Promise<DisplayAdminData> => {
-      const { data, error } = await supabase.from('storefront_appearance').select(DISPLAY_COLUMN).eq('id', 1).maybeSingle();
-      if (isMissing(error)) return { display: DEFAULT_DISPLAY, columnMissing: true };
+      const { data, error } = await supabase.from('storefront_appearance').select(`${DISPLAY_COLUMN}, updated_at`).eq('id', 1).maybeSingle();
+      if (isMissing(error)) return { display: DEFAULT_DISPLAY, revision: null, columnMissing: true };
       if (error) throw error;
-      return { display: resolveDisplay((data as { display?: unknown } | null)?.display), columnMissing: false };
+      return { display: resolveDisplay(data?.display), revision: data?.updated_at ?? null, columnMissing: false };
     },
     staleTime: 0,
   });
@@ -33,14 +34,18 @@ export function useDisplaySettingsAdmin() {
 export function useSaveDisplaySettings() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (display: DisplaySettings) => {
-      const { error } = await supabase.from('storefront_appearance').upsert(displayToRow(display));
+    mutationFn: async ({ display, revision }: { display: DisplaySettings; revision: string | null }) => {
+      const { error } = await supabase.rpc('control_save', {
+        p_scope: 'appearance_display', p_expected: revision, p_payload: displayToRow(display),
+      });
       if (error) throw error;
     },
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: KEY });
       toast.success('اتحفظ. التغيير بيظهر في الموقع خلال دقيقة، وفي التطبيق عند فتحه');
     },
-    onError: (e: Error) => toast.error(`تعذّر الحفظ: ${e.message}`),
+    onError: (e: Error & { code?: string }) => toast.error(e.code === '40001'
+      ? 'الإعدادات اتغيرت من مكان تاني. حدّث الصفحة وراجع التغييرات قبل الحفظ.'
+      : `تعذّر الحفظ: ${e.message}`),
   });
 }

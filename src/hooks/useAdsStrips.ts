@@ -141,18 +141,12 @@ export function useDeleteAnnouncement() {
   });
 }
 
-/** Swaps the order of two rows of a table that has id + sort_order. */
+/** Swaps two entries atomically, including rows whose old sort orders were equal. */
 export function useSwapOrder(table: 'site_announcements' | 'home_feature_boxes', queryKey: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ a, b }: { a: { id: string; sort_order: number }; b: { id: string; sort_order: number } }) => {
-      // Equal orders (rows added together) would swap to the same thing: give them distinct ones.
-      const [first, second] = a.sort_order === b.sort_order ? [b.sort_order + 1, a.sort_order] : [b.sort_order, a.sort_order];
-      const results = await Promise.all([
-        supabase.from(table).update({ sort_order: first }).eq('id', a.id),
-        supabase.from(table).update({ sort_order: second }).eq('id', b.id),
-      ]);
-      const error = results.find((r) => r.error)?.error;
+      const { error } = await supabase.rpc('content_swap_order', { p_table: table, p_first: a.id, p_second: b.id });
       if (error) throw error;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: [queryKey] }),

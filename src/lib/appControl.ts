@@ -28,6 +28,8 @@ export interface PlatformBuilds {
 }
 
 export interface UpdateSettings {
+  /** Latest build the owner has verified as available in each public store. Not trusted as an automatic store lookup. */
+  publishedBuild: PlatformBuilds;
   /** Builds below this must update (a screen they cannot pass). null = no rule. */
   minBuild: PlatformBuilds;
   /** Builds below this are offered an update they can put off. null = no rule. */
@@ -87,6 +89,7 @@ export const DEFAULT_UPDATE_MESSAGE_EN = 'A newer version of the app is availabl
 export const DEFAULT_APP_CONTROL: AppControl = {
   maintenance: { enabled: false, title: '', message: '', titleEn: '', messageEn: '', startsAt: null, endsAt: null },
   update: {
+    publishedBuild: { ios: null, android: null },
     minBuild: { ios: null, android: null },
     recommendedBuild: { ios: null, android: null },
     message: '',
@@ -197,6 +200,7 @@ export function resolveAppControl(raw: unknown): AppControl {
       endsAt: cleanTime(m.endsAt),
     },
     update: {
+      publishedBuild: pickBuilds(u.publishedBuild),
       minBuild: pickBuilds(u.minBuild),
       recommendedBuild: pickBuilds(u.recommendedBuild),
       message: cleanText(u.message, MESSAGE_MAX, true),

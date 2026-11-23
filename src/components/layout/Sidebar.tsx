@@ -17,7 +17,7 @@ const NAV_PERMISSION: Record<string, keyof AdminPermissions | undefined> = {
   'intro-videos': 'can_manage_home_media',
   'ads-strips': 'can_manage_appearance',
   appearance: 'can_manage_appearance',
-  'app-control': 'can_manage_appearance',
+  'app-control': 'can_manage_app_control',
   'links-page': 'can_manage_links_page',
   settings: 'can_manage_settings',
   books: 'can_manage_products',

@@ -4,6 +4,7 @@ import { AlertTriangle, ExternalLink, Loader2, Moon, Palette, RotateCcw, Save, S
 import Layout from '@/components/layout/Layout';
 import { Switch } from '@/components/ads/CategoryBarSection';
 import DisplayDetails from '@/components/appearance/DisplayDetails';
+import ControlHistory from '@/components/appearance/ControlHistory';
 import StrengthSlider from '@/components/appearance/StrengthSlider';
 import StripSample from '@/components/appearance/StripSample';
 import { Segmented } from '@/components/links/admin/ui';
@@ -49,12 +50,13 @@ const THEME_LABEL: Record<StoreTheme, string> = { light: 'الوضع الفات�
  * (only the four house colours, in five tones). «معاينة المتجر» opens the real store with what is on screen,
  * saved or not; nothing reaches customers until it is saved.
  */
-function LookAdmin() {
+function LookAdmin({ onRestored }: { onRestored: () => void }) {
   const { data, isLoading, isError, error } = useStorefrontAppearanceAdmin();
   const save = useSaveStorefrontAppearance();
 
   const [draft, setDraft] = useState<StorefrontAppearance>(DEFAULT_APPEARANCE);
   const [ready, setReady] = useState(false);
+  const [baseRevision, setBaseRevision] = useState<string | null>(null);
   /** Which theme's button colours are being edited: the store has a day look and a night look. */
   const [theme, setTheme] = useState<StoreTheme>('light');
 
@@ -67,9 +69,10 @@ function LookAdmin() {
     if (!saved) return;
     if (!ready || !dirtyNow.current) {
       setDraft(saved);
+      setBaseRevision(data?.revision ?? null);
       setReady(true);
     }
-  }, [saved, ready]);
+  }, [saved, ready, data?.revision]);
 
   useEffect(() => {
     if (!dirty) return;
@@ -311,6 +314,7 @@ function LookAdmin() {
             </section>
           </div>
         )}
+        {!tableMissing && !isError && <ControlHistory scope="appearance" revision={data?.revision ?? null} onRestored={onRestored} />}
       </div>
 
       {dirty && (
@@ -322,8 +326,8 @@ function LookAdmin() {
             </button>
             <button
               type="button"
-              onClick={() => save.mutate(draft)}
-              disabled={save.isPending || tableMissing}
+              onClick={() => save.mutate({ appearance: draft, revision: baseRevision })}
+              disabled={save.isPending || tableMissing || !baseRevision}
               data-testid="appearance-save"
               className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-indigo-500 text-sm font-semibold hover:bg-indigo-400 disabled:opacity-40 disabled:hover:bg-indigo-500"
             >
@@ -349,6 +353,8 @@ const TABS = [
 export default function AppearanceAdmin() {
   const [params] = useSearchParams();
   const active = params.get('tab') === 'display' ? 'display' : 'look';
+  const [editorVersion, setEditorVersion] = useState(0);
+  const resetEditors = () => setEditorVersion((version) => version + 1);
 
   return (
     <Layout>
@@ -368,14 +374,14 @@ export default function AppearanceAdmin() {
       </nav>
 
       <div hidden={active !== 'look'}>
-        <LookAdmin />
+        <LookAdmin key={`look-${editorVersion}`} onRestored={resetEditors} />
       </div>
       <div hidden={active !== 'display'} className="space-y-5 pb-28" data-testid="display-admin">
         <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
           <Palette className="text-amber-500" size={24} />
           تفاصيل العرض
         </h1>
-        <DisplayDetails />
+        <DisplayDetails key={`display-${editorVersion}`} onRestored={resetEditors} />
       </div>
     </Layout>
   );

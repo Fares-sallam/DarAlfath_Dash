@@ -37,6 +37,7 @@ export default function HomeBlocksEditor({ channel }: { channel: HomeChannel }) 
   const save = useSaveHomeRows(channel);
   const remove = useDeleteHomeRow(channel);
   const apply = useApplyHomeLayout();
+  const busy = save.isPending || remove.isPending || apply.isPending;
   const other: HomeChannel = isApp ? 'web' : 'app';
   const { data: otherRows = [] } = useHomeLayoutRows(other);
   const { data: countries = [] } = useCountries();
@@ -91,14 +92,14 @@ export default function HomeBlocksEditor({ channel }: { channel: HomeChannel }) 
 
   const saveBlocks = (next: HomeBlock[]) => save.mutateAsync(rowsFor(next));
   const move = (keys: string[] | null) => {
-    if (!keys) return;
+    if (!keys || busy) return;
     void saveBlocks(keys.map((k) => blocks.find((b) => b.key === k)!));
   };
   const keys = blocks.map((b) => b.key);
   const dnd = useDragRows({ onDrop: (dragId, targetId, zone) => move(reorderRelative(keys, dragId, targetId, zone === 'after' ? 'after' : 'before')) });
 
   const submit = async () => {
-    if (!draft) return;
+    if (!draft || busy) return;
     const result = blockFromDraft(draft, editingBlock, channel, blocks.length);
     if ('problem' in result) { setProblem(result.problem); return; }
     try {
@@ -116,6 +117,7 @@ export default function HomeBlocksEditor({ channel }: { channel: HomeChannel }) 
 
   /** Makes the OTHER channel's home page follow this one (one request: the old blocks that are not in it go, the rest is written). */
   const copyToOther = async () => {
+    if (busy) return;
     const { rows: nextRows, remove: removed } = copyLayout(rows, otherRows, channel, other);
     const target = other === 'app' ? 'التطبيق' : 'الموقع';
     const unavailableShelves = resolveHomeBlocks(nextRows, other).filter((block) =>
@@ -200,7 +202,7 @@ export default function HomeBlocksEditor({ channel }: { channel: HomeChannel }) 
   const [relTitle, setRelTitle] = useState<string | null>(null);
   const [relLimit, setRelLimit] = useState<string | null>(null);
   const saveRelated = (patch: Partial<typeof related>) =>
-    save.mutate([pageStripRow(BOOK_RELATED_KEY, { ...related, ...patch })]);
+    !busy && save.mutate([pageStripRow(BOOK_RELATED_KEY, { ...related, ...patch })]);
   const submitRelated = () => {
     const parsed = parseShelfLimit(relLimit ?? (related.limit != null ? String(related.limit) : ''));
     if (parsed === 'invalid' || (parsed != null && parsed > 12)) { setProblem('عدد الكتب في «كتب قد تعجبك» من 1 لـ12.'); return; }
@@ -243,7 +245,7 @@ export default function HomeBlocksEditor({ channel }: { channel: HomeChannel }) 
             <button
               type="button"
               onClick={() => void copyToOther()}
-              disabled={apply.isPending || isLoading}
+              disabled={busy || isLoading}
               className="btn-secondary flex items-center gap-1.5 whitespace-nowrap disabled:opacity-50"
               data-testid="copy-layout"
             >
@@ -267,7 +269,7 @@ export default function HomeBlocksEditor({ channel }: { channel: HomeChannel }) 
             onChange={(next) => { setDraft(next); setProblem(''); }}
             nodes={draft.kind === SHELF_KIND ? shelfChoices : scopeChoices}
             problem={problem}
-            saving={save.isPending}
+            saving={busy}
             onSubmit={() => void submit()}
             onCancel={close}
           />
@@ -315,8 +317,8 @@ export default function HomeBlocksEditor({ channel }: { channel: HomeChannel }) 
                       </p>
                     )}
                   </div>
-                  <Switch checked={block.visible} label={`إظهار ${name}`} onChange={(v) => void saveBlocks(blocks.map((b) => (b.key === block.key ? { ...b, visible: v } : b)))} />
-                  <button type="button" onClick={() => open(block)} className="p-1.5 rounded-lg hover:bg-blue-100 text-blue-600" aria-label={`تعديل ${name}`}><Pencil size={14} /></button>
+                  <Switch checked={block.visible} disabled={busy} label={`إظهار ${name}`} onChange={(v) => void saveBlocks(blocks.map((b) => (b.key === block.key ? { ...b, visible: v } : b)))} />
+                  <button type="button" onClick={() => open(block)} disabled={busy} className="p-1.5 rounded-lg hover:bg-blue-100 text-blue-600 disabled:opacity-40" aria-label={`تعديل ${name}`}><Pencil size={14} /></button>
                   {block.std === null ? (
                     <button
                       type="button"
@@ -324,7 +326,8 @@ export default function HomeBlocksEditor({ channel }: { channel: HomeChannel }) 
                         const detail = block.kind === SHELF_KIND ? ' (التصنيف نفسه وكتبه مش بيتأثروا)' : block.kind === BOOK_SHELF_KIND ? ' (الكتب نفسها مش بتتأثر)' : '';
                         if (window.confirm(`حذف «${name}» من الصفحة الرئيسية؟${detail}`)) remove.mutate(block.key);
                       }}
-                      className="p-1.5 rounded-lg hover:bg-red-100 text-red-500"
+                      disabled={busy}
+                      className="p-1.5 rounded-lg hover:bg-red-100 text-red-500 disabled:opacity-40"
                       aria-label={`حذف رف ${name}`}
                     ><Trash2 size={14} /></button>
                   ) : <span className="w-[30px]" />}
@@ -347,7 +350,7 @@ export default function HomeBlocksEditor({ channel }: { channel: HomeChannel }) 
               <p className="text-sm font-semibold text-gray-800">«كتب قد تعجبك» في صفحة الكتاب</p>
               <p className="text-xs text-gray-400">كتب من نفس تصنيف الكتاب اللي بيتفرج عليه الزائر.</p>
             </div>
-            <Switch checked={related.visible} label="إظهار كتب قد تعجبك" onChange={(v) => saveRelated({ visible: v })} />
+            <Switch checked={related.visible} disabled={busy} label="إظهار كتب قد تعجبك" onChange={(v) => saveRelated({ visible: v })} />
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
             <label className="block md:col-span-2">
@@ -359,7 +362,7 @@ export default function HomeBlocksEditor({ channel }: { channel: HomeChannel }) 
               <input value={relLimit ?? (related.limit != null ? String(related.limit) : '')} onChange={(e) => setRelLimit(e.target.value)} inputMode="numeric" className="input-field" placeholder={String(BOOK_RELATED_DEFAULT.limit)} data-testid="related-limit" />
             </label>
           </div>
-          <button type="button" onClick={submitRelated} disabled={save.isPending || (relTitle === null && relLimit === null)} className="btn-secondary disabled:opacity-40" data-testid="related-save">حفظ</button>
+          <button type="button" onClick={submitRelated} disabled={busy || (relTitle === null && relLimit === null)} className="btn-secondary disabled:opacity-40" data-testid="related-save">حفظ</button>
         </div>
       </section>
       )}

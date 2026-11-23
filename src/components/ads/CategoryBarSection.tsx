@@ -7,10 +7,10 @@ import {
 } from '@/hooks/useAdsStrips';
 
 /** An on/off switch with a real checkbox underneath (keyboard and screen readers). */
-export function Switch({ checked, onChange, label }: { checked: boolean; onChange: (next: boolean) => void; label: string }) {
+export function Switch({ checked, onChange, label, disabled = false }: { checked: boolean; onChange: (next: boolean) => void; label: string; disabled?: boolean }) {
   return (
-    <label className="relative inline-flex items-center cursor-pointer flex-shrink-0" title={label}>
-      <input type="checkbox" className="sr-only peer" checked={checked} onChange={(e) => onChange(e.target.checked)} aria-label={label} />
+    <label className={`relative inline-flex items-center flex-shrink-0 ${disabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`} title={label}>
+      <input type="checkbox" className="sr-only peer" checked={checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} aria-label={label} />
       <span className="w-10 h-6 rounded-full bg-gray-200 peer-checked:bg-green-500 transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-indigo-300" />
       <span className="absolute top-1 right-1 w-4 h-4 rounded-full bg-white shadow transition-transform peer-checked:-translate-x-4" />
     </label>

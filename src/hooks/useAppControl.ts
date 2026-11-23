@@ -9,6 +9,7 @@ import { maintenanceOff } from '@/lib/appControlDraft';
 
 export interface AppControlAdminData {
   control: AppControl;
+  revision: string | null;
   /** The table is not in the database yet (the migration has not been applied): the page says so and does not save. */
   tableMissing: boolean;
 }
@@ -22,10 +23,10 @@ export function useAppControlAdmin() {
   return useQuery({
     queryKey: KEY,
     queryFn: async (): Promise<AppControlAdminData> => {
-      const { data, error } = await supabase.from('app_control').select(APP_CONTROL_COLUMNS).eq('id', 1).maybeSingle();
-      if (isMissingTable(error)) return { control: DEFAULT_APP_CONTROL, tableMissing: true };
+      const { data, error } = await supabase.from('app_control').select(`${APP_CONTROL_COLUMNS}, updated_at`).eq('id', 1).maybeSingle();
+      if (isMissingTable(error)) return { control: DEFAULT_APP_CONTROL, revision: null, tableMissing: true };
       if (error) throw error;
-      return { control: resolveAppControl(data), tableMissing: false };
+      return { control: resolveAppControl(data), revision: data?.updated_at ?? null, tableMissing: false };
     },
     staleTime: 0,
   });
@@ -34,15 +35,19 @@ export function useAppControlAdmin() {
 export function useSaveAppControl() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (control: AppControl) => {
-      const { error } = await supabase.from('app_control').upsert(appControlToRow(control));
+    mutationFn: async ({ control, revision }: { control: AppControl; revision: string | null }) => {
+      const { error } = await supabase.rpc('control_save', {
+        p_scope: 'app_control', p_expected: revision, p_payload: appControlToRow(control),
+      });
       if (error) throw error;
     },
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: KEY });
       toast.success('اتحفظ. التطبيق بياخد التغيير لما يتفتح أو يرجع للمقدمة (خلال دقيقتين)');
     },
-    onError: (e: Error) => toast.error(`تعذّر الحفظ: ${e.message}`),
+    onError: (e: Error & { code?: string }) => toast.error(e.code === '40001'
+      ? 'الإعدادات اتغيرت من مكان تاني. حدّث الصفحة وراجع التغييرات قبل الحفظ.'
+      : `تعذّر الحفظ: ${e.message}`),
   });
 }
 

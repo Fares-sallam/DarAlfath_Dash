@@ -3,10 +3,12 @@ import { AlertTriangle, ArrowDown, ArrowUp, ExternalLink, Loader2, Plus, RotateC
 import { Switch } from '@/components/ads/CategoryBarSection';
 import { Field, Segmented, field } from '@/components/links/admin/ui';
 import DisplayPreview from '@/components/preview/DisplayPreview';
+import ControlHistory from '@/components/appearance/ControlHistory';
 import PreviewDock from '@/components/preview/PreviewDock';
 import { useDisplaySettingsAdmin, useSaveDisplaySettings } from '@/hooks/useDisplaySettings';
 import { blankColumn, blankLink, blankTrust, displayProblems, moveItem, removeAt, replaceAt } from '@/lib/displayDraft';
 import {
+  APP_PRIMARY_COLORS, APP_PRIMARY_LABELS, APP_PRIMARY_PRESETS,
   CARD_ELEMENT_KEYS, CARD_ELEMENT_META, DEFAULT_DISPLAY, DESCRIPTION_MAX, DISCOUNT_STYLES, DISCOUNT_STYLE_LABEL, FOOTER_LABEL_MAX, FOOTER_LINE_MAX,
   FOOTER_MAX_COLUMNS, FOOTER_MAX_LINKS, FOOTER_TITLE_MAX, LOW_STOCK_MAX, LOW_STOCK_MIN, NEW_DAYS_MAX, NEW_DAYS_MIN, PAGE_ELEMENT_KEYS, PAGE_ELEMENT_META,
   PER_ROW_DESKTOP, PER_ROW_MOBILE, TRUST_ICONS, TRUST_ICON_LABEL, TRUST_MAX_ITEMS, TRUST_TEXT_MAX, YEAR_TOKEN, copyrightText, isDefaultDisplay,
@@ -92,12 +94,13 @@ const iconButton = 'p-1.5 rounded-lg text-gray-500 hover:bg-gray-100 disabled:op
  * تفاصيل العرض: what a book card, a book's page and the website's footer show. Every element has a switch for the website
  * and one for the app; the footer is the website's only (the app has none). Nothing reaches customers until it is saved.
  */
-export default function DisplayDetails() {
+export default function DisplayDetails({ onRestored }: { onRestored: () => void }) {
   const { data, isLoading, isError, error } = useDisplaySettingsAdmin();
   const save = useSaveDisplaySettings();
 
   const [draft, setDraft] = useState<DisplaySettings>(DEFAULT_DISPLAY);
   const [ready, setReady] = useState(false);
+  const [baseRevision, setBaseRevision] = useState<string | null>(null);
 
   const saved = data?.display;
   const problems = useMemo(() => displayProblems(draft), [draft]);
@@ -110,9 +113,10 @@ export default function DisplayDetails() {
     if (!saved) return;
     if (!ready || !dirtyNow.current) {
       setDraft(saved);
+      setBaseRevision(data?.revision ?? null);
       setReady(true);
     }
-  }, [saved, ready]);
+  }, [saved, ready, data?.revision]);
 
   useEffect(() => {
     if (!dirty) return;
@@ -189,6 +193,27 @@ export default function DisplayDetails() {
             <DisplayPreview display={draft} />
           </PreviewDock>
         <div className="grid gap-5 lg:grid-cols-2 xl:grid-cols-1 xl:col-start-1 xl:row-start-1 min-w-0" data-testid="display-page">
+          <Section title="لون الإجراء الأساسي في التطبيق" hint="للأزرار المشتركة وشريط التنقل فقط. التصميم الحالي يظل كما هو عند اختيار اللون الأصلي؛ بعض ألوان الشاشات الثابتة لا تتغير بهذا الإعداد." testId="display-app-palette">
+            {(['light', 'dark'] as const).map((mode) => (
+              <div key={mode} className="space-y-2">
+                <p className="text-xs font-bold text-gray-700">{mode === 'light' ? 'المظهر الفاتح' : 'المظهر الليلي'}</p>
+                <div role="radiogroup" aria-label={`لون التطبيق ${mode === 'light' ? 'الفاتح' : 'الليلي'}`} className="flex flex-wrap gap-2">
+                  {APP_PRIMARY_PRESETS.map((preset) => {
+                    const selected = draft.appPalette[mode] === preset;
+                    const color = preset === 'default' ? (mode === 'light' ? '#054180' : '#0B8A7B') : APP_PRIMARY_COLORS[preset];
+                    return (
+                      <button key={preset} type="button" role="radio" aria-checked={selected} onClick={() => setDraft((d) => ({ ...d, appPalette: { ...d.appPalette, [mode]: preset } }))}
+                        data-testid={`app-palette-${mode}-${preset}`}
+                        className={`inline-flex items-center gap-2 px-3 py-2 rounded border text-xs font-semibold ${selected ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-gray-200 text-gray-600'}`}>
+                        <span className="h-4 w-4 rounded-full border border-black/10" style={{ backgroundColor: color }} aria-hidden />
+                        {APP_PRIMARY_LABELS[preset]}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </Section>
           {/* ── the book card ── */}
           <Section title="بطاقة الكتاب" hint="البطاقة اللي بتظهر في القوائم والبحث وصفوف الرئيسية." testId="display-card">
             <Matrix keys={CARD_ELEMENT_KEYS} meta={CARD_ELEMENT_META} value={draft.card.show} scope="card" onChange={(key, next) => patchCard({ show: { ...draft.card.show, [key]: next } })} />
@@ -406,8 +431,8 @@ export default function DisplayDetails() {
             </button>
             <button
               type="button"
-              onClick={() => save.mutate(draft)}
-              disabled={save.isPending || columnMissing || problems.length > 0}
+              onClick={() => save.mutate({ display: draft, revision: baseRevision })}
+              disabled={save.isPending || columnMissing || !baseRevision || problems.length > 0}
               data-testid="display-save"
               className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-indigo-500 text-sm font-semibold hover:bg-indigo-400 disabled:opacity-40 disabled:hover:bg-indigo-500"
             >
@@ -417,6 +442,7 @@ export default function DisplayDetails() {
           </div>
         </div>
       )}
+      {!columnMissing && !isError && <ControlHistory scope="appearance" revision={data?.revision ?? null} onRestored={onRestored} />}
     </>
   );
 }

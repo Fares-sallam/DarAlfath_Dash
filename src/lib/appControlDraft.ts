@@ -55,6 +55,31 @@ export function raisesMinimum(saved: AppControl, draft: AppControl): { platform:
   return out;
 }
 
+/** A new hard gate, or a changed published-build claim, must remain internally consistent. */
+export function minimumReleaseProblems(saved: AppControl, draft: AppControl): string[] {
+  return ([['ios', 'iOS'], ['android', 'أندرويد']] as const).flatMap(([platform, label]) => {
+    const build = draft.update.minBuild[platform];
+    if (build === null) return [];
+    const newlyRaised = raisesMinimum(saved, draft).some((entry) => entry.platform === platform);
+    const publishedChanged = saved.update.publishedBuild[platform] !== draft.update.publishedBuild[platform];
+    const storeChanged = saved.update.storeUrl[platform] !== draft.update.storeUrl[platform];
+    if (!newlyRaised && !publishedChanged && !storeChanged) return [];
+    const published = draft.update.publishedBuild[platform];
+    if (published === null) return [`التحديث (${label}): سجّل رقم آخر بيلد منشور قبل تشغيل التحديث الإجباري.`];
+    if (build > published) return [`التحديث (${label}): الحد الإجباري ${build} أعلى من آخر بيلد منشور ${published}.`];
+    const storeUrl = draft.update.storeUrl[platform];
+    const allowedHost = platform === 'ios' ? 'apps.apple.com' : 'play.google.com';
+    if (storeUrl) {
+      try {
+        if (new URL(storeUrl).hostname !== allowedHost) return [`التحديث (${label}): رابط المتجر لازم يكون على ${allowedHost}.`];
+      } catch {
+        return [`التحديث (${label}): رابط المتجر غير صالح.`];
+      }
+    }
+    return [];
+  });
+}
+
 /** Emergency stop changes only maintenance, retaining any fields a newer app may have added. */
 export function maintenanceOff(raw: unknown): Record<string, unknown> | null {
   const maintenance = raw && typeof raw === 'object' && !Array.isArray(raw)

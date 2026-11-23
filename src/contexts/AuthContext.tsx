@@ -25,6 +25,7 @@ export interface AdminPermissions {
   can_manage_settings: boolean;
   can_manage_home_media: boolean;
   can_manage_appearance: boolean;
+  can_manage_app_control: boolean;
   can_manage_links_page: boolean;
   can_manage_catalog: boolean;
 }
@@ -43,6 +44,7 @@ const DEFAULT_PERMISSIONS: AdminPermissions = {
   can_manage_settings: false,
   can_manage_home_media: false,
   can_manage_appearance: false,
+  can_manage_app_control: false,
   can_manage_links_page: false,
   can_manage_catalog: false,
 };
@@ -109,6 +111,7 @@ async function fetchProfile(userId: string, email: string): Promise<AuthUser> {
           can_manage_settings,
           can_manage_home_media,
           can_manage_appearance,
+          can_manage_app_control,
           can_manage_links_page,
           can_manage_catalog
         `)
@@ -148,6 +151,7 @@ async function fetchProfile(userId: string, email: string): Promise<AuthUser> {
           can_manage_settings: adminSettings.can_manage_settings ?? false,
           can_manage_home_media: adminSettings.can_manage_home_media ?? false,
           can_manage_appearance: adminSettings.can_manage_appearance ?? false,
+          can_manage_app_control: adminSettings.can_manage_app_control ?? false,
           can_manage_links_page: adminSettings.can_manage_links_page ?? false,
           can_manage_catalog: adminSettings.can_manage_catalog ?? false,
         }

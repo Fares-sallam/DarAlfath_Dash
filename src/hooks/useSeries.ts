@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { useCountry } from '@/contexts/CountryContext';
 import { nextSortOrder } from '@/lib/seriesOrder';
+import { refreshCatalogDependents } from '@/lib/catalogRefresh';
 
 /* ── Upload a cover image file, return its public URL (bucket is public) ── */
 export async function uploadSeriesCover(file: File): Promise<string> {
@@ -291,6 +292,7 @@ export function useCreateSeries() {
       if (error) throw error;
     },
     onSuccess: () => {
+      refreshCatalogDependents(qc);
       qc.invalidateQueries({ queryKey: ['book-series'] });
       toast.success('تمت إضافة السلسلة بنجاح');
     },
@@ -320,6 +322,7 @@ export function useUpdateSeries() {
       if (error) throw error;
     },
     onSuccess: () => {
+      refreshCatalogDependents(qc);
       qc.invalidateQueries({ queryKey: ['book-series'] });
       toast.success('تم تحديث السلسلة');
     },
@@ -348,6 +351,7 @@ export function useReorderSeries() {
       if (failed?.error) throw failed.error;
     },
     onSuccess: () => {
+      refreshCatalogDependents(qc);
       qc.invalidateQueries({ queryKey: ['book-series'] });
       toast.success('تم تحديث ترتيب السلاسل');
     },
@@ -365,6 +369,7 @@ export function useDeleteSeries() {
       if (error) throw error;
     },
     onSuccess: () => {
+      refreshCatalogDependents(qc);
       qc.invalidateQueries({ queryKey: ['book-series'] });
       toast.success('تم حذف السلسلة');
     },
@@ -393,6 +398,7 @@ export function useAddBookToSeries() {
       if (error) throw error;
     },
     onSuccess: (_, { seriesId }) => {
+      refreshCatalogDependents(qc);
       qc.invalidateQueries({ queryKey: ['series-books', seriesId] });
       qc.invalidateQueries({ queryKey: ['available-products', seriesId] });
       qc.invalidateQueries({ queryKey: ['book-series'] });
@@ -423,6 +429,7 @@ export function useRemoveBookFromSeries() {
       if (error) throw error;
     },
     onSuccess: (_, { seriesId }) => {
+      refreshCatalogDependents(qc);
       qc.invalidateQueries({ queryKey: ['series-books', seriesId] });
       qc.invalidateQueries({ queryKey: ['available-products', seriesId] });
       qc.invalidateQueries({ queryKey: ['book-series'] });
@@ -458,6 +465,7 @@ export function useReorderSeriesBooks() {
       if (failed?.error) throw failed.error;
     },
     onSuccess: (_, { seriesId }) => {
+      refreshCatalogDependents(qc);
       qc.invalidateQueries({ queryKey: ['series-books', seriesId] });
     },
     onError: (e: Error) => toast.error(e.message),
@@ -487,6 +495,7 @@ export function useUpdateBookSortOrder() {
       if (error) throw error;
     },
     onSuccess: (_, { seriesId }) => {
+      refreshCatalogDependents(qc);
       qc.invalidateQueries({ queryKey: ['series-books', seriesId] });
     },
     onError: (e: Error) => toast.error(e.message),

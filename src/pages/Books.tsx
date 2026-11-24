@@ -62,6 +62,7 @@ import { useCategories } from '@/hooks/useSettings';
 import { useCatalogNodes } from '@/hooks/useCatalog';
 import { buildTree } from '@/lib/catalogTree';
 import { bookInNode, indexNodes, linksFromProduct } from '@/lib/bookPlacement';
+import { CHIP_STYLE, PlacementChips } from '@/components/catalog/PlacementChips';
 import { useCountry } from '@/contexts/CountryContext';
 
 interface VariantForm {
@@ -1618,12 +1619,22 @@ export default function Books() {
           )}
 
           {!isLoading && !isError && (
+            <p className="px-4 pt-3 text-[11px] text-gray-400 flex flex-wrap items-center gap-x-3 gap-y-1" data-testid="books-places-legend">
+              <span>مكان الكتاب بالترتيب:</span>
+              {(['section', 'primary', 'extra', 'series'] as const).map((k) => (
+                <span key={k} className={`px-1.5 py-0.5 rounded-md font-semibold ${CHIP_STYLE[k].box}`}>{CHIP_STYLE[k].label}</span>
+              ))}
+              <span>الأساسي هو مكان الكتاب الأصلي، والإضافي بيظهر فيه الكتاب كمان. أي نقل في «السلاسل والتصنيفات» بيظهر هنا فورًا.</span>
+            </p>
+          )}
+
+          {!isLoading && !isError && (
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
                   <tr className="table-header">
                     <th className="text-right px-4 py-3">الكتاب</th>
-                    <th className="text-right px-4 py-3">التصنيف</th>
+                    <th className="text-right px-4 py-3">المكان</th>
                     <th className="text-right px-4 py-3">النوع</th>
                     <th className="text-right px-4 py-3">النسخ</th>
                     <th className="text-right px-4 py-3">التكلفة</th>
@@ -1682,8 +1693,8 @@ export default function Books() {
                           </div>
                         </td>
 
-                        <td className="px-4 py-3 text-sm text-gray-600">
-                          {product.categories?.name ?? '—'}
+                        <td className="px-4 py-3 text-sm text-gray-600" data-testid="book-places">
+                          <PlacementChips links={linksFromProduct(product)} byId={nodeById} />
                         </td>
 
                         <td className="px-4 py-3">

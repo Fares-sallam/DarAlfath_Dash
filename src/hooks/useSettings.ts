@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
+import { refreshCatalogDependents } from '@/lib/catalogRefresh';
 import { toast } from 'sonner';
 import { useCountry } from '@/contexts/CountryContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -240,7 +241,7 @@ export function useCreateCategory() {
       const { error } = await supabase.from('categories').insert({ ...input, name: input.name.trim() });
       if (error) throw error;
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['settings-categories'] }); toast.success('تمت إضافة التصنيف'); },
+    onSuccess: () => { refreshCatalogDependents(qc); toast.success('تمت إضافة التصنيف'); },
     onError: (e: Error) => toast.error(e.message),
   });
 }
@@ -253,7 +254,7 @@ export function useUpdateCategory() {
       const { error } = await supabase.from('categories').update(cleaned).eq('id', id);
       if (error) throw error;
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['settings-categories'] }); toast.success('تم تحديث التصنيف'); },
+    onSuccess: () => { refreshCatalogDependents(qc); toast.success('تم تحديث التصنيف'); },
     onError: (e: Error) => toast.error(e.message),
   });
 }
@@ -265,7 +266,7 @@ export function useDeleteCategory() {
       const { error } = await supabase.from('categories').delete().eq('id', id);
       if (error) throw error;
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['settings-categories'] }); toast.success('تم حذف التصنيف'); },
+    onSuccess: () => { refreshCatalogDependents(qc); toast.success('تم حذف التصنيف'); },
     onError: (e: Error) => toast.error(e.message),
   });
 }

@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tansta
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import type { CatalogNode, Channel, NodeCounts, ProductLink } from '@/lib/catalogTree';
+import { refreshCatalogDependents } from '@/lib/catalogRefresh';
 
 const PAGE = 1000;
 
@@ -30,14 +31,8 @@ async function fetchAll<T>(build: (from: number, to: number) => PromiseLike<{ da
   return rows;
 }
 
-/** Everything the catalog screens show, plus the older pages that read the same data through the old tables. */
-function refresh(qc: QueryClient) {
-  const keys = new Set([
-    'catalog-nodes', 'catalog-links', 'catalog-counts', 'catalog-node-books', 'catalog-products',
-    'book-series', 'series-books', 'settings-categories', 'category-bar-rows', 'site-header-nav',
-  ]);
-  void qc.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === 'string' && keys.has(q.queryKey[0]) });
-}
+/** Everything that shows a book's places (see catalogRefresh): the catalog screens, the books list, the older pages. */
+const refresh = refreshCatalogDependents;
 
 export function useCatalogNodes() {
   return useQuery({

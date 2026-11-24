@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
+import { refreshCatalogDependents } from '@/lib/catalogRefresh';
 import { toast } from 'sonner';
 import { useCountry } from '@/contexts/CountryContext';
 import { syncProductSeries } from '@/lib/productSeriesSync';
@@ -1059,7 +1060,8 @@ export function useUpsertProduct() {
       return { id: productId };
     },
     onSuccess: (_, input) => {
-      qc.invalidateQueries({ queryKey: ['products'] });
+      // the book's category and series may have changed: the tree's screens show it too
+      refreshCatalogDependents(qc);
       qc.invalidateQueries({ queryKey: ['inventory'] });
       qc.invalidateQueries({ queryKey: ['dashboard'] });
       qc.invalidateQueries({ queryKey: ['analytics'] });
@@ -1070,7 +1072,7 @@ export function useUpsertProduct() {
       }
     },
     onError: (e: Error) => {
-      qc.invalidateQueries({ queryKey: ['products'] });
+      refreshCatalogDependents(qc);
       qc.invalidateQueries({ queryKey: ['inventory'] });
       toast.error(`${e.message} - قد تكون بعض الخطوات اتسجلت. حدّث الصفحة وراجع المنتج قبل المحاولة مرة أخرى.`);
     },
@@ -1128,7 +1130,7 @@ export function useDeleteProduct() {
       }
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['products'] });
+      refreshCatalogDependents(qc);
       qc.invalidateQueries({ queryKey: ['inventory'] });
       toast.success('تم حذف الكتاب');
     },

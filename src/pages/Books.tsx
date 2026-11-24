@@ -708,6 +708,7 @@ export default function Books() {
   const [filterType, setFilterType] = useState('الكل');
   const [filterActive, setFilterActive] = useState('الكل');
   const [filterCategory, setFilterCategory] = useState('الكل');
+  const [filterSeries, setFilterSeries] = useState('الكل');
   const [sortBy, setSortBy] = useState('created_at');
   const [showFilters, setShowFilters] = useState(false);
   const [showNames, setShowNames] = useState(false);
@@ -866,7 +867,8 @@ export default function Books() {
       const mt = bookMatchesType(p, filterType);
       const ma = bookMatchesStatus(p, filterActive);
       const mc = filterCategory === 'الكل' || p.category_id === filterCategory;
-      return ms && mt && ma && mc;
+      const msr = filterSeries === 'الكل' || (p.product_series ?? []).some((s) => s.series_id === filterSeries);
+      return ms && mt && ma && mc && msr;
     })
     .sort((a, b) => {
       if (sortBy === 'base_price') return b.base_price - a.base_price;
@@ -1402,12 +1404,14 @@ export default function Books() {
     filterType !== 'الكل' ||
     filterActive !== 'الكل' ||
     filterCategory !== 'الكل' ||
+    filterSeries !== 'الكل' ||
     search;
   const booksFiltersLabel = [
     search && `بحث: ${search}`,
     filterType !== 'الكل' && `النوع: ${typeFilterLabel(filterType)}`,
     filterActive !== 'الكل' && `الحالة: ${filterActive}`,
     filterCategory !== 'الكل' && `التصنيف: ${categories.find((c) => c.id === filterCategory)?.name ?? ''}`,
+    filterSeries !== 'الكل' && `السلسلة: ${allSeries.find((s) => s.id === filterSeries)?.name ?? ''}`,
   ].filter(Boolean).join(' · ');
 
   const resetFilters = () => {
@@ -1415,6 +1419,7 @@ export default function Books() {
     setFilterType('الكل');
     setFilterActive('الكل');
     setFilterCategory('الكل');
+    setFilterSeries('الكل');
   };
 
   return (
@@ -1528,7 +1533,7 @@ export default function Books() {
           </div>
 
           {showFilters && (
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mt-4 pt-4 border-t border-gray-100">
+            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-3 mt-4 pt-4 border-t border-gray-100">
               <select value={filterType} onChange={(e) => setFilterType(e.target.value)} className="input-field">
                 <option>الكل</option>
                 <option>ورقي</option>
@@ -1548,6 +1553,13 @@ export default function Books() {
                 <option value="الكل">كل التصنيفات</option>
                 {categories.map((c) => (
                   <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+
+              <select value={filterSeries} onChange={(e) => setFilterSeries(e.target.value)} className="input-field" aria-label="السلسلة" data-testid="filter-series">
+                <option value="الكل">كل السلاسل</option>
+                {allSeries.map((s) => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
                 ))}
               </select>
 
@@ -1915,7 +1927,9 @@ export default function Books() {
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-1.5">التصنيف</label>
+                      <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                        التصنيف الأساسي <span className="text-xs font-normal text-emerald-700">(واحد بس، هو مكان الكتاب الأصلي)</span>
+                      </label>
                       <select
                         value={form.category_id}
                         onChange={(e) => setForm((f) => ({ ...f, category_id: e.target.value }))}
@@ -1976,7 +1990,7 @@ export default function Books() {
 
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                      تصنيفات إضافية <span className="text-xs font-normal text-gray-400">(اختياري — بالإضافة للتصنيف الأساسي فوق)</span>
+                      تصنيفات إضافية <span className="text-xs font-normal text-gray-400">(اختياري، كذا واحد. الكتاب بيظهر فيها كمان لكنها مش مكانه الأصلي، والتصنيف الأساسي مش بيظهر هنا)</span>
                     </label>
                     <div className="flex flex-wrap gap-2">
                       {categories

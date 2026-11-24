@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ChevronDown, ChevronLeft, Eye, EyeOff, FolderTree, Layers, Library, Loader2, Pencil, Plus, Search, Tag } from 'lucide-react';
 import { useCatalogCounts, useCatalogNodes, useReorderNodes, useUpdateNode } from '@/hooks/useCatalog';
 import {
-  NODE_TYPE_LABELS, STATUS_LABELS, buildTree, childrenOf, descendantIds, nodeFlags, nodeStatus,
+  NODE_TYPE_LABELS, STATUS_LABELS, buildTree, childrenOf, descendantIds, formatBookCount, nodeFlags, nodeStatus,
   type CatalogNode, type Channel, type NodeType,
 } from '@/lib/catalogTree';
 import NodeEditor, { type EditorTarget } from './NodeEditor';
@@ -13,6 +13,15 @@ const CHANNELS: { key: Channel; label: string }[] = [
   { key: 'web', label: 'الموقع' },
   { key: 'app', label: 'التطبيق' },
   { key: 'both', label: 'الاتنين' },
+];
+
+/** The tree's «النوع» filter: one kind of node at a time (with the nodes above it, so it is clear where it sits). */
+type TypeFilter = 'all' | 'section' | 'series' | 'category';
+const TYPE_FILTERS: { key: TypeFilter; label: string; types: NodeType[] }[] = [
+  { key: 'all', label: 'الكل', types: [] },
+  { key: 'section', label: 'الأقسام', types: ['section'] },
+  { key: 'series', label: 'السلاسل', types: ['series'] },
+  { key: 'category', label: 'التصنيفات والمجموعات', types: ['category', 'collection'] },
 ];
 
 const TYPE_STYLE: Record<NodeType, { icon: typeof Tag; chip: string }> = {
@@ -38,6 +47,7 @@ export default function TreeTab({ openNodeId, onOpened }: { openNodeId?: string 
 
   const [channel, setChannel] = useState<Channel>('both');
   const [query, setQuery] = useState('');
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const [editor, setEditor] = useState<EditorTarget | null>(null);
 
@@ -49,7 +59,9 @@ export default function TreeTab({ openNodeId, onOpened }: { openNodeId?: string 
     onOpened?.();
   }, [openNodeId, nodes, onOpened]);
 
-  const rows = useMemo(() => buildTree(nodes, channel, expanded, query), [nodes, channel, expanded, query]);
+  const typeSet = useMemo(() => new Set(TYPE_FILTERS.find((t) => t.key === typeFilter)?.types ?? []), [typeFilter]);
+  const filtering = !!query.trim() || typeFilter !== 'all';
+  const rows = useMemo(() => buildTree(nodes, channel, expanded, query, typeSet), [nodes, channel, expanded, query, typeSet]);
 
   const toggle = (id: string) =>
     setExpanded((current) => {
@@ -131,6 +143,20 @@ export default function TreeTab({ openNodeId, onOpened }: { openNodeId?: string 
             </button>
           ))}
         </div>
+        <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1 flex-wrap" role="group" aria-label="النوع" data-testid="type-filters">
+          {TYPE_FILTERS.map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              onClick={() => setTypeFilter(t.key)}
+              aria-pressed={typeFilter === t.key}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold ${typeFilter === t.key ? 'bg-white shadow text-blue-700' : 'text-gray-500'}`}
+              data-testid={`type-${t.key}`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
         <div className="flex items-center gap-2 text-xs">
           <button type="button" onClick={expandAll} className="text-blue-600 hover:underline">فتح الكل</button>
           <span className="text-gray-300">|</span>
@@ -146,7 +172,7 @@ export default function TreeTab({ openNodeId, onOpened }: { openNodeId?: string 
         {isLoading && <div className="flex items-center justify-center gap-2 py-12 text-gray-400"><Loader2 size={18} className="animate-spin" /> جارٍ التحميل...</div>}
         {isError && <p className="text-center text-red-500 py-10 text-sm">تعذّر تحميل الشجرة.</p>}
         {!isLoading && !isError && rows.length === 0 && (
-          <p className="text-center text-gray-400 py-12 text-sm">{query ? 'مفيش نتايج للبحث.' : 'مفيش عناصر لسه. اضغط «إضافة عنصر».'}</p>
+          <p className="text-center text-gray-400 py-12 text-sm">{filtering ? 'مفيش نتايج للبحث.' : 'مفيش عناصر لسه. اضغط «إضافة عنصر».'}</p>
         )}
         {rows.map(({ node, depth, hasChildren }) => {
           const style = TYPE_STYLE[node.type];
@@ -154,7 +180,7 @@ export default function TreeTab({ openNodeId, onOpened }: { openNodeId?: string 
           const status = nodeStatus(node);
           const flags = nodeFlags(node);
           const count = counts?.get(node.id);
-          const open = !!query || expanded.has(node.id);
+          const open = filtering || expanded.has(node.id);
           return (
             <div
               key={node.id}
@@ -182,8 +208,12 @@ export default function TreeTab({ openNodeId, onOpened }: { openNodeId?: string 
               <div className="hidden md:flex items-center gap-1.5 flex-wrap justify-end">
                 {flags.map((f) => <span key={f} className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-700">{f}</span>)}
                 {status !== 'visible' && <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${STATUS_STYLE[status]}`}>{STATUS_LABELS[status]}</span>}
-                <span className="text-xs text-gray-500 tabular-nums min-w-[64px] text-center" title="كتب العنصر نفسه / مع اللي تحته" data-testid="row-count">
-                  {count ? (count.total === count.direct ? `${count.total} كتاب` : `${count.direct} / ${count.total} كتاب`) : '—'}
+                <span
+                  className="text-xs text-gray-500 tabular-nums min-w-[96px] text-center"
+                  title={count ? `مربوط بالعنصر نفسه: ${count.direct} كتاب. الإجمالي مع اللي تحته: ${count.total} كتاب.` : undefined}
+                  data-testid="row-count"
+                >
+                  {formatBookCount(count)}
                 </span>
                 <span className="text-[11px] text-gray-400 tabular-nums" title="الترتيب (الموقع / التطبيق)">{node.sort_web}/{node.sort_app}</span>
               </div>

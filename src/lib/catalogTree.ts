@@ -179,14 +179,25 @@ export function allowedParents(nodes: readonly CatalogNode[], id: string | null)
   return nodes.filter((n) => !blocked.has(n.id));
 }
 
-/** The tree as visible rows. With a query: matches and their parents, all open. */
+/** «N كتاب» when the node's own books are all there is; otherwise says which part is its own («0 مباشرة») and which sits under it. */
+export function formatBookCount(count: NodeCounts | undefined): string {
+  if (!count) return '—';
+  if (count.total === count.direct) return `${count.total} كتاب`;
+  if (count.direct === 0) return `${count.total} كتاب داخل عناصره`;
+  return `${count.total} كتاب (${count.direct} مباشرة)`;
+}
+
+/** The tree as visible rows. With a query or a type filter: matches and their parents, all open. */
 export function buildTree(
   nodes: readonly CatalogNode[],
   channel: Channel,
   expanded: ReadonlySet<string>,
   query = '',
+  types?: ReadonlySet<NodeType>,
 ): TreeRow[] {
   const q = query.trim().toLowerCase();
+  const typed = !!types && types.size > 0;
+  const filtering = !!q || typed;
   const byParent = new Map<string | null, CatalogNode[]>();
   const known = new Set(nodes.map((n) => n.id));
   for (const n of nodes) {
@@ -199,11 +210,12 @@ export function buildTree(
   for (const list of byParent.values()) list.sort(compareNodes(channel));
 
   const matches = new Set<string>();
-  if (q) {
+  if (filtering) {
     const byId = new Map(nodes.map((n) => [n.id, n]));
     for (const n of nodes) {
       const text = `${n.name_ar} ${n.name_en ?? ''} ${n.slug}`.toLowerCase();
-      if (!text.includes(q)) continue;
+      if (q && !text.includes(q)) continue;
+      if (typed && !types!.has(n.type)) continue;
       let cursor: CatalogNode | undefined = n;
       const guard = new Set<string>();
       while (cursor && !guard.has(cursor.id)) {
@@ -217,10 +229,10 @@ export function buildTree(
   const rows: TreeRow[] = [];
   const walk = (parent: string | null, depth: number, path: string[]) => {
     for (const node of byParent.get(parent) ?? []) {
-      if (q && !matches.has(node.id)) continue;
-      const kids = (byParent.get(node.id) ?? []).filter((k) => !q || matches.has(k.id));
+      if (filtering && !matches.has(node.id)) continue;
+      const kids = (byParent.get(node.id) ?? []).filter((k) => !filtering || matches.has(k.id));
       rows.push({ node, depth, hasChildren: kids.length > 0, path });
-      if (kids.length > 0 && (q || expanded.has(node.id))) walk(node.id, depth + 1, [...path, node.name_ar]);
+      if (kids.length > 0 && (filtering || expanded.has(node.id))) walk(node.id, depth + 1, [...path, node.name_ar]);
     }
   };
   walk(null, 0, []);

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  allowedParents, ancestorsOf, buildTree, childrenOf, descendantIds, healthIssues, homeShelfIssue, homeShelfNodes, moveWithinSiblings,
+  allowedParents, ancestorsOf, buildTree, childrenOf, descendantIds, formatBookCount, healthIssues, homeShelfIssue, homeShelfNodes, moveWithinSiblings,
   nextSortFor, nodeFlags, nodeStatus, slugify, type CatalogNode, type NodeCounts, type ProductLink,
 } from './catalogTree';
 
@@ -102,6 +102,38 @@ describe('buildTree', () => {
   it('keeps the path of names', () => {
     const rows = buildTree(tree, 'web', new Set(), 'c3');
     expect(rows.find((r) => r.node.id === 'c3')!.path).toEqual(['s1', 'c1']);
+  });
+});
+
+describe('type filter and counts', () => {
+  const nodes: CatalogNode[] = [
+    node('sec', { type: 'section' }),
+    node('ser', { type: 'series', parent_id: 'sec' }),
+    node('cat', { parent_id: 'ser' }),
+    node('col', { type: 'collection', sort_web: 1 }),
+    node('lonely', { type: 'series', sort_web: 2 }),
+  ];
+  const ids = (rows: ReturnType<typeof buildTree>) => rows.map((r) => r.node.id);
+
+  it('shows only the chosen kind, with the nodes above it so the place is clear', () => {
+    expect(ids(buildTree(nodes, 'web', new Set(), '', new Set(['series'])))).toEqual(['sec', 'ser', 'lonely']);
+    expect(ids(buildTree(nodes, 'web', new Set(), '', new Set(['section'])))).toEqual(['sec']);
+    expect(ids(buildTree(nodes, 'web', new Set(), '', new Set(['category', 'collection'])))).toEqual(['sec', 'ser', 'cat', 'col']);
+  });
+  it('opens everything under a filter, and no filter keeps the folded tree', () => {
+    expect(ids(buildTree(nodes, 'web', new Set(), '', new Set()))).toEqual(['sec', 'col', 'lonely']);
+    expect(ids(buildTree(nodes, 'web', new Set(), '', undefined))).toEqual(['sec', 'col', 'lonely']);
+  });
+  it('a query and a kind work together', () => {
+    expect(ids(buildTree(nodes, 'web', new Set(), 'lonely', new Set(['series'])))).toEqual(['lonely']);
+    expect(ids(buildTree(nodes, 'web', new Set(), 'lonely', new Set(['section'])))).toEqual([]);
+  });
+  it('says what is the node\'s own and what sits under it, never a bare zero', () => {
+    expect(formatBookCount(undefined)).toBe('—');
+    expect(formatBookCount({ direct: 3, total: 3 })).toBe('3 كتاب');
+    expect(formatBookCount({ direct: 0, total: 62 })).toBe('62 كتاب داخل عناصره');
+    expect(formatBookCount({ direct: 1, total: 2 })).toBe('2 كتاب (1 مباشرة)');
+    expect(formatBookCount({ direct: 0, total: 0 })).toBe('0 كتاب');
   });
 });
 

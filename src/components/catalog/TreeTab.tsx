@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ChevronDown, ChevronLeft, Eye, EyeOff, FolderTree, Layers, Library, Loader2, Pencil, Plus, Search, Tag } from 'lucide-react';
+import { ChevronDown, ChevronLeft, Eye, EyeOff, FolderTree, GitMerge, Layers, Library, Loader2, Pencil, Plus, Search, Tag } from 'lucide-react';
 import { useCatalogCounts, useCatalogNodes, useReorderNodes, useUpdateNode } from '@/hooks/useCatalog';
 import { useMenuItems } from '@/hooks/useMenuItems';
 import { headerStatuses, headerStatusHint, headerStatusLabel, type HeaderStatus } from '@/lib/headerPlacement';
@@ -9,6 +9,7 @@ import {
   NODE_TYPE_LABELS, STATUS_LABELS, buildTree, childrenOf, descendantIds, formatBookCount, nodeFlags, nodeStatus,
   type CatalogNode, type Channel, type NodeType,
 } from '@/lib/catalogTree';
+import MergeDialog from './MergeDialog';
 import NodeEditor, { type EditorTarget } from './NodeEditor';
 import { Grip, gripButtonClass, useDragRows } from './useDragRows';
 import { stepInList, type DropZone } from '@/lib/dragSort';
@@ -63,6 +64,7 @@ export default function TreeTab({ openNodeId, onOpened }: { openNodeId?: string 
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const [editor, setEditor] = useState<EditorTarget | null>(null);
+  const [merging, setMerging] = useState<CatalogNode | null>(null);
 
   // a link from another tab («افتح العنصر») opens that node's editor once
   useEffect(() => {
@@ -267,12 +269,14 @@ export default function TreeTab({ openNodeId, onOpened }: { openNodeId?: string 
                 </button>
                 <button type="button" onClick={() => setEditor({ node: null, createType: defaultChildType(node), createParentId: node.id })} title="إضافة عنصر تحته" aria-label={`إضافة تحت ${node.name_ar}`} className="p-1.5 rounded-lg hover:bg-emerald-100 text-emerald-600"><Plus size={14} /></button>
                 <button type="button" onClick={() => setEditor({ node })} title="تعديل" aria-label={`تعديل ${node.name_ar}`} className="p-1.5 rounded-lg hover:bg-blue-100 text-blue-600" data-testid="edit-node"><Pencil size={14} /></button>
+                <button type="button" onClick={() => setMerging(node)} title="دمج مع عنصر تاني" aria-label={`دمج ${node.name_ar}`} className="p-1.5 rounded-lg hover:bg-violet-100 text-violet-600" data-testid="merge-node"><GitMerge size={14} /></button>
               </div>
             </div>
           );
         })}
       </div>
 
+      {merging && <MergeDialog key={merging.id} item={merging} nodes={nodes} onClose={() => setMerging(null)} />}
       {editor && <NodeEditor key={editor.node?.id ?? `new-${editor.createParentId ?? 'root'}`} target={editor} nodes={nodes} onClose={() => setEditor(null)} />}
     </div>
   );

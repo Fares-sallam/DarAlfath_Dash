@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tansta
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import type { CatalogNode, Channel, NodeCounts, ProductLink } from '@/lib/catalogTree';
+import { mergeSummary, type MergeResult } from '@/lib/catalogMerge';
 import { refreshCatalogDependents } from '@/lib/catalogRefresh';
 
 const PAGE = 1000;
@@ -16,6 +17,9 @@ export function friendlyCatalogError(message: string): string {
   if (m.includes('categories_name_key') || (m.includes('duplicate key') && m.includes('name'))) return 'الاسم ده مستخدم قبل كده في تصنيف تاني.';
   if (m.includes('slug')) return 'الرابط المختصر (slug) ده مستخدم قبل كده. غيّره.';
   if (m.includes('row-level security') || m.includes('permission denied')) return 'مفيش عندك صلاحية على «السلاسل والتصنيفات».';
+  if (m.includes('can only merge items of the same kind')) return 'الدمج بين عنصرين من نفس النوع بس (تصنيف مع تصنيف، سلسلة مع سلسلة، قسم مع قسم).';
+  if (m.includes('cannot merge into an item inside itself')) return 'مينفعش تدمج عنصر في واحد جواه.';
+  if (m.includes('merge needs two different items')) return 'اختار عنصرين مختلفين.';
   if (m.includes('violates foreign key')) return 'العنصر ده مربوط ببيانات تانية ومينفعش يتحذف.';
   return message;
 }
@@ -223,6 +227,25 @@ export function useAssignProduct() {
     onSuccess: () => {
       refresh(qc);
       toast.success('تم حفظ تنظيم الكتاب');
+    },
+    onError: (e: Error) => toast.error(friendlyCatalogError(e.message)),
+  });
+}
+
+/** Merges one item into another in a single step: its books, what is under it and the links to it all move to the other one. */
+export function useMergeNodes() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ sourceId, targetId, newName }: { sourceId: string; targetId: string; newName?: string }): Promise<MergeResult> => {
+      const { data, error } = await supabase.rpc('catalog_merge_nodes', { p_source: sourceId, p_target: targetId, p_new_name: newName ?? null });
+      if (error) throw new Error(error.message);
+      return data as MergeResult;
+    },
+    onSuccess: (result) => {
+      refreshCatalogDependents(qc);
+      // the header's links, the home shelves and the cards of «أقسام المتجر» may have been pointed at the other item
+      void qc.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === 'string' && ['menu-items', 'store-departments', 'home-layout', 'home-layout-rows', 'home-blocks'].includes(q.queryKey[0]) });
+      toast.success(mergeSummary(result));
     },
     onError: (e: Error) => toast.error(friendlyCatalogError(e.message)),
   });

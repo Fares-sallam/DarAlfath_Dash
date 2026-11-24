@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { CatalogNode, ProductLink } from './catalogTree';
-import { bookInNode, bookPlacement, indexNodes } from './bookPlacement';
+import { bookInNode, bookPlacement, indexNodes, linksFromProduct } from './bookPlacement';
 
 function node(id: string, over: Partial<CatalogNode> = {}): CatalogNode {
   return {
@@ -67,5 +67,23 @@ describe('bookInNode', () => {
     expect(bookInNode(mine, byId, 'sec2')).toBe(false);
     expect(bookInNode(mine, byId, 'cat-free')).toBe(false);
     expect(bookInNode([], byId, 'sec')).toBe(false);
+  });
+});
+
+describe('linksFromProduct', () => {
+  it('turns the products query fields into links: primary first, then extras, then series, no repeats', () => {
+    const links = linksFromProduct({
+      id: 'p', category_id: 'cat-in', product_categories: [{ category_id: 'cat-free' }, { category_id: 'cat-in' }], product_series: [{ series_id: 'ser-free' }],
+    });
+    expect(links.map((l) => [l.node_id, l.is_primary])).toEqual([['cat-in', true], ['cat-free', false], ['ser-free', false]]);
+  });
+  it('copes with missing fields', () => {
+    expect(linksFromProduct({ id: 'p' })).toEqual([]);
+    expect(linksFromProduct({ id: 'p', category_id: null, product_categories: null, product_series: null })).toEqual([]);
+  });
+  it('is what the books page filters on: a section holds the books of what is inside it', () => {
+    const links = linksFromProduct({ id: 'p', category_id: 'cat-in' });
+    expect(bookInNode(links, byId, 'sec')).toBe(true);
+    expect(bookInNode(links, byId, 'sec2')).toBe(false);
   });
 });

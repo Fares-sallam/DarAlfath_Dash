@@ -41,6 +41,8 @@ export default function Catalog() {
   );
   const clearNode = useCallback(() => clearParam('node'), [clearParam]);
   const clearProduct = useCallback(() => clearParam('product'), [clearParam]);
+  const addNode = params.get('add');
+  const clearAdd = useCallback(() => clearParam('add'), [clearParam]);
 
   return (
     <Layout>
@@ -83,7 +85,7 @@ export default function Catalog() {
         <div role="tabpanel" aria-label={active.label}>
           {active.key === 'tree' && <TreeTab openNodeId={openNode} onOpened={clearNode} />}
           {active.key === 'books' && <BooksTab openProductId={openProduct} onOpened={clearProduct} />}
-          {active.key === 'map' && <DisplayMapTab />}
+          {active.key === 'map' && <DisplayMapTab addNodeId={addNode} onAddHandled={clearAdd} />}
           {active.key === 'menus' && <CategoryBarSection />}
           {active.key === 'home' && (
             <div className="space-y-6">

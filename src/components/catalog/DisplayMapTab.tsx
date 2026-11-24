@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ChevronDown, EyeOff, Layers, Loader2, Pencil, Pin, Plus, Smartphone, Trash2, Ungroup, X } from 'lucide-react';
 import { Switch } from '@/components/ads/CategoryBarSection';
@@ -36,7 +36,7 @@ interface Selection {
 }
 
 /** The whole display, top to bottom: the top menu (sections inside sections), the category bar, the home page's shelves. */
-export default function DisplayMapTab() {
+export default function DisplayMapTab({ addNodeId, onAddHandled }: { addNodeId?: string | null; onAddHandled?: () => void } = {}) {
   const { data: items = [], isLoading } = useMenuItems();
   const { data: nodes = [] } = useCatalogNodes();
   const { data: layout = [] } = useHomeLayout();
@@ -54,6 +54,13 @@ export default function DisplayMapTab() {
   const [dialog, setDialog] = useState<MenuDialogTarget | null>(null);
   const [selection, setSelection] = useState<Selection | null>(null);
   const [groupName, setGroupName] = useState<string | null>(null);
+
+  // a link from the tree («إضافة للهيدر») opens the add dialog with that node already chosen; nothing is saved until the owner saves
+  useEffect(() => {
+    if (!addNodeId || isLoading || nodes.length === 0) return;
+    if (nodes.some((n) => n.id === addNodeId)) setDialog({ item: null, parentId: null, nodeId: addNodeId });
+    onAddHandled?.();
+  }, [addNodeId, isLoading, nodes, onAddHandled]);
 
   const menu = useMemo(() => resolveMenu(items, nodes, 'web'), [items, nodes]);
   const flat = useMemo(() => flattenMenu(menu), [menu]);
@@ -363,7 +370,7 @@ export default function DisplayMapTab() {
         </ol>
       </section>
 
-      {dialog && <MenuItemDialog key={dialog.item?.id ?? `new-${dialog.parentId ?? 'main'}`} target={dialog} items={items} menu={menu} nodes={nodes} onClose={() => setDialog(null)} />}
+      {dialog && <MenuItemDialog key={dialog.item?.id ?? `new-${dialog.parentId ?? 'main'}-${dialog.nodeId ?? ''}`} target={dialog} items={items} menu={menu} nodes={nodes} onClose={() => setDialog(null)} />}
     </div>
   );
 }

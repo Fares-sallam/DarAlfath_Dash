@@ -14,6 +14,8 @@ export interface MenuDialogTarget {
   item: MenuItem | null;
   /** when creating: the main item it goes inside (null = a main item) */
   parentId?: string | null;
+  /** when creating from the tree: the catalog node to point at (the dialog opens on «من السلاسل والتصنيفات» with it chosen) */
+  nodeId?: string;
 }
 
 const KINDS: MenuKind[] = ['node', 'group', 'link', 'home', 'books', 'contact'];
@@ -26,7 +28,7 @@ export default function MenuItemDialog({ target, items, menu, nodes, onClose }: 
   const move = useMoveMenuItem();
 
   const [kind, setKind] = useState<MenuKind>(existing?.kind ?? 'node');
-  const [nodeId, setNodeId] = useState(existing?.node_id ?? '');
+  const [nodeId, setNodeId] = useState(existing?.node_id ?? target.nodeId ?? '');
   const [labelAr, setLabelAr] = useState(existing?.label_ar ?? '');
   const [labelEn, setLabelEn] = useState(existing?.label_en ?? '');
   const [url, setUrl] = useState(existing?.url ?? '');

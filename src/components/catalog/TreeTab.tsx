@@ -1,6 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { ChevronDown, ChevronLeft, Eye, EyeOff, FolderTree, Layers, Library, Loader2, Pencil, Plus, Search, Tag } from 'lucide-react';
 import { useCatalogCounts, useCatalogNodes, useReorderNodes, useUpdateNode } from '@/hooks/useCatalog';
+import { useMenuItems } from '@/hooks/useMenuItems';
+import { headerStatuses, headerStatusHint, headerStatusLabel, headerView, type HeaderStatus } from '@/lib/headerPlacement';
+import { resolveMenu } from '@/lib/menuMap';
+import HeaderPreview, { type HeaderFocus } from './HeaderPreview';
 import {
   NODE_TYPE_LABELS, STATUS_LABELS, buildTree, childrenOf, descendantIds, formatBookCount, nodeFlags, nodeStatus,
   type CatalogNode, type Channel, type NodeType,
@@ -31,6 +36,14 @@ const TYPE_STYLE: Record<NodeType, { icon: typeof Tag; chip: string }> = {
   collection: { icon: FolderTree, chip: 'bg-amber-100 text-amber-700' },
 };
 
+const HEADER_BADGE_STYLE: Record<HeaderStatus['state'], string> = {
+  in: 'bg-green-100 text-green-700',
+  'row-hidden': 'bg-amber-100 text-amber-700',
+  'node-hidden': 'bg-gray-200 text-gray-600',
+  empty: 'bg-amber-100 text-amber-700',
+  none: 'bg-gray-100 text-gray-500 border border-dashed border-gray-300',
+};
+
 const STATUS_STYLE = { visible: 'bg-green-100 text-green-700', hidden: 'bg-gray-200 text-gray-600', scheduled: 'bg-sky-100 text-sky-700', expired: 'bg-red-100 text-red-600' };
 
 function defaultChildType(parent: CatalogNode | null): NodeType {
@@ -42,6 +55,7 @@ function defaultChildType(parent: CatalogNode | null): NodeType {
 export default function TreeTab({ openNodeId, onOpened }: { openNodeId?: string | null; onOpened?: () => void }) {
   const { data: nodes = [], isLoading, isError } = useCatalogNodes();
   const { data: counts } = useCatalogCounts();
+  const { data: menuItems } = useMenuItems();
   const reorder = useReorderNodes();
   const update = useUpdateNode();
 
@@ -50,6 +64,7 @@ export default function TreeTab({ openNodeId, onOpened }: { openNodeId?: string 
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const [editor, setEditor] = useState<EditorTarget | null>(null);
+  const [focusId, setFocusId] = useState<string | null>(null);
 
   // a link from another tab («افتح العنصر») opens that node's editor once
   useEffect(() => {
@@ -58,6 +73,16 @@ export default function TreeTab({ openNodeId, onOpened }: { openNodeId?: string 
     if (target) setEditor({ node: target });
     onOpened?.();
   }, [openNodeId, nodes, onOpened]);
+
+  // the website's top menu as it is now, and where each node stands in it (nothing is drawn until the menu rows have loaded)
+  const menu = useMemo(() => (menuItems ? resolveMenu(menuItems, nodes, 'web') : null), [menuItems, nodes]);
+  const header = useMemo(() => (menu ? headerView(menu, nodes, counts) : []), [menu, nodes, counts]);
+  const statuses = useMemo(() => (menu ? headerStatuses(menu, nodes, counts) : null), [menu, nodes, counts]);
+  const focus: HeaderFocus | null = useMemo(() => {
+    const node = focusId ? nodes.find((n) => n.id === focusId) : undefined;
+    const status = node ? statuses?.get(node.id) : undefined;
+    return node && status ? { nodeId: node.id, name: node.name_ar, status } : null;
+  }, [focusId, nodes, statuses]);
 
   const typeSet = useMemo(() => new Set(TYPE_FILTERS.find((t) => t.key === typeFilter)?.types ?? []), [typeFilter]);
   const filtering = !!query.trim() || typeFilter !== 'all';
@@ -168,6 +193,8 @@ export default function TreeTab({ openNodeId, onOpened }: { openNodeId?: string 
         {channel === 'both' ? ' (الترتيب المعروض هو ترتيب الموقع)' : ''}
       </p>
 
+      {statuses && <HeaderPreview entries={header} focus={focus} />}
+
       <div className="bg-white rounded-2xl shadow-sm divide-y divide-gray-50" data-testid="catalog-tree">
         {isLoading && <div className="flex items-center justify-center gap-2 py-12 text-gray-400"><Loader2 size={18} className="animate-spin" /> جارٍ التحميل...</div>}
         {isError && <p className="text-center text-red-500 py-10 text-sm">تعذّر تحميل الشجرة.</p>}
@@ -181,6 +208,7 @@ export default function TreeTab({ openNodeId, onOpened }: { openNodeId?: string 
           const flags = nodeFlags(node);
           const count = counts?.get(node.id);
           const open = filtering || expanded.has(node.id);
+          const inHeader = statuses?.get(node.id);
           return (
             <div
               key={node.id}
@@ -189,6 +217,10 @@ export default function TreeTab({ openNodeId, onOpened }: { openNodeId?: string 
               data-testid="tree-row"
               data-node-id={node.id}
               data-depth={depth}
+              onMouseEnter={() => setFocusId(node.id)}
+              onMouseLeave={() => setFocusId((current) => (current === node.id ? null : current))}
+              onFocusCapture={() => setFocusId(node.id)}
+              onBlurCapture={() => setFocusId((current) => (current === node.id ? null : current))}
               {...dnd.rowProps(node.id)}
             >
               <button type="button" className={gripButtonClass} data-testid="drag-handle" {...dnd.handleProps(node.id, node.name_ar, (dir) => step(node, dir))}><Grip /></button>
@@ -203,6 +235,24 @@ export default function TreeTab({ openNodeId, onOpened }: { openNodeId?: string 
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-bold text-gray-800 truncate">{node.name_ar}</p>
                 {node.name_en && <p className="text-[11px] text-gray-400 truncate" dir="ltr">{node.name_en}</p>}
+                {inHeader && (
+                  <div className="flex items-center gap-1.5 mt-1">
+                    <span
+                      className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md truncate max-w-[260px] ${HEADER_BADGE_STYLE[inHeader.state]}`}
+                      title={headerStatusHint(inHeader)}
+                      data-testid="header-badge"
+                      data-state={inHeader.state}
+                    >
+                      {headerStatusLabel(inHeader)}
+                    </span>
+                    {inHeader.state === 'none' && (
+                      <Link to={`/catalog?tab=map&add=${node.id}`} className="text-[10px] font-bold text-blue-600 hover:underline" data-testid="header-add">إضافة للهيدر</Link>
+                    )}
+                    {(inHeader.state === 'row-hidden' || inHeader.state === 'empty') && (
+                      <Link to="/catalog?tab=map" className="text-[10px] font-bold text-blue-600 hover:underline" data-testid="header-open-map">افتح «خريطة العرض»</Link>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="hidden md:flex items-center gap-1.5 flex-wrap justify-end">

@@ -77,3 +77,29 @@ export function bookInNode(links: readonly ProductLink[], byId: ReadonlyMap<stri
   }
   return false;
 }
+
+/** The fields of a product that say where it is filed (the books list reads them from the products query). */
+export interface ProductPlaceFields {
+  id: string;
+  category_id?: string | null;
+  product_categories?: { category_id: string }[] | null;
+  product_series?: { series_id: string }[] | null;
+}
+
+/**
+ * A product's places as catalog links, for the pages that load books through the products query. The old tables share their ids
+ * with the tree's nodes (a category's id is its node's id, a series' too), so these ids can be looked up in the tree directly.
+ */
+export function linksFromProduct(product: ProductPlaceFields): ProductLink[] {
+  const links: ProductLink[] = [];
+  const seen = new Set<string>();
+  const add = (node_id: string | null | undefined, is_primary: boolean) => {
+    if (!node_id || seen.has(node_id)) return;
+    seen.add(node_id);
+    links.push({ product_id: product.id, node_id, is_primary, sort_order: 0 });
+  };
+  add(product.category_id, true);
+  for (const c of product.product_categories ?? []) add(c.category_id, false);
+  for (const s of product.product_series ?? []) add(s.series_id, false);
+  return links;
+}

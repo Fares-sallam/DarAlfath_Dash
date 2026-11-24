@@ -59,6 +59,9 @@ import {
 // Shared with Settings' "تصنيفات الكتب" tab — one query key so creating/
 // editing/deleting a category there is reflected here without a reload.
 import { useCategories } from '@/hooks/useSettings';
+import { useCatalogNodes } from '@/hooks/useCatalog';
+import { buildTree } from '@/lib/catalogTree';
+import { bookInNode, indexNodes, linksFromProduct } from '@/lib/bookPlacement';
 import { useCountry } from '@/contexts/CountryContext';
 
 interface VariantForm {
@@ -659,6 +662,13 @@ export default function Books() {
   const { data: products = [], isLoading, isError } = useProducts();
   const { data: categories = [] } = useCategories();
   const { data: allSeries = [] } = useBookSeries();
+  // sections live only in the catalog tree: a book is in a section through the series or category it is filed under
+  const { data: catalogNodes = [] } = useCatalogNodes();
+  const nodeById = useMemo(() => indexNodes(catalogNodes), [catalogNodes]);
+  const sections = useMemo(
+    () => buildTree(catalogNodes, 'web', new Set(catalogNodes.map((n) => n.id))).filter((r) => r.node.type === 'section').map((r) => r.node),
+    [catalogNodes],
+  );
 
   const upsertMutation = useUpsertProduct();
   const deleteMutation = useDeleteProduct();
@@ -709,6 +719,7 @@ export default function Books() {
   const [filterActive, setFilterActive] = useState('الكل');
   const [filterCategory, setFilterCategory] = useState('الكل');
   const [filterSeries, setFilterSeries] = useState('الكل');
+  const [filterSection, setFilterSection] = useState('الكل');
   const [sortBy, setSortBy] = useState('created_at');
   const [showFilters, setShowFilters] = useState(false);
   const [showNames, setShowNames] = useState(false);
@@ -866,9 +877,12 @@ export default function Books() {
         (p.isbn ?? '').includes(s);
       const mt = bookMatchesType(p, filterType);
       const ma = bookMatchesStatus(p, filterActive);
-      const mc = filterCategory === 'الكل' || p.category_id === filterCategory;
-      const msr = filterSeries === 'الكل' || (p.product_series ?? []).some((s) => s.series_id === filterSeries);
-      return ms && mt && ma && mc && msr;
+      // the same rule as «السلاسل والتصنيفات ← الكتب»: the book's own places count, and everything inside a section / series / category
+      const places = filterCategory === 'الكل' && filterSeries === 'الكل' && filterSection === 'الكل' ? [] : linksFromProduct(p);
+      const mc = filterCategory === 'الكل' || bookInNode(places, nodeById, filterCategory);
+      const msr = filterSeries === 'الكل' || bookInNode(places, nodeById, filterSeries);
+      const msec = filterSection === 'الكل' || bookInNode(places, nodeById, filterSection);
+      return ms && mt && ma && mc && msr && msec;
     })
     .sort((a, b) => {
       if (sortBy === 'base_price') return b.base_price - a.base_price;
@@ -1405,12 +1419,14 @@ export default function Books() {
     filterActive !== 'الكل' ||
     filterCategory !== 'الكل' ||
     filterSeries !== 'الكل' ||
+    filterSection !== 'الكل' ||
     search;
   const booksFiltersLabel = [
     search && `بحث: ${search}`,
     filterType !== 'الكل' && `النوع: ${typeFilterLabel(filterType)}`,
     filterActive !== 'الكل' && `الحالة: ${filterActive}`,
     filterCategory !== 'الكل' && `التصنيف: ${categories.find((c) => c.id === filterCategory)?.name ?? ''}`,
+    filterSection !== 'الكل' && `القسم: ${sections.find((s) => s.id === filterSection)?.name_ar ?? ''}`,
     filterSeries !== 'الكل' && `السلسلة: ${allSeries.find((s) => s.id === filterSeries)?.name ?? ''}`,
   ].filter(Boolean).join(' · ');
 
@@ -1420,6 +1436,7 @@ export default function Books() {
     setFilterActive('الكل');
     setFilterCategory('الكل');
     setFilterSeries('الكل');
+    setFilterSection('الكل');
   };
 
   return (
@@ -1533,7 +1550,7 @@ export default function Books() {
           </div>
 
           {showFilters && (
-            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-3 mt-4 pt-4 border-t border-gray-100">
+            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-3 mt-4 pt-4 border-t border-gray-100">
               <select value={filterType} onChange={(e) => setFilterType(e.target.value)} className="input-field">
                 <option>الكل</option>
                 <option>ورقي</option>
@@ -1549,7 +1566,14 @@ export default function Books() {
                 <option>مخفي</option>
               </select>
 
-              <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)} className="input-field">
+              <select value={filterSection} onChange={(e) => setFilterSection(e.target.value)} className="input-field" aria-label="القسم" data-testid="filter-section">
+                <option value="الكل">كل الأقسام</option>
+                {sections.map((s) => (
+                  <option key={s.id} value={s.id}>{s.name_ar}</option>
+                ))}
+              </select>
+
+              <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)} className="input-field" aria-label="التصنيف" data-testid="filter-category">
                 <option value="الكل">كل التصنيفات</option>
                 {categories.map((c) => (
                   <option key={c.id} value={c.id}>{c.name}</option>

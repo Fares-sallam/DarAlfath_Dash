@@ -8,25 +8,59 @@ export interface DepartmentsDraft {
   images: Record<string, string | null>;
 }
 
-export type DepartmentIssue = 'missing' | 'inactive' | 'hidden-web' | 'out-of-dates' | 'empty' | null;
+export type DepartmentIssue = 'missing' | 'inactive' | 'hidden-web' | 'hidden-app' | 'out-of-dates' | 'empty' | null;
+export type DepartmentChannel = 'web' | 'app';
 
-/** Why a chosen card is not drawn on the website right now (null = it is). */
-export function departmentIssue(node: CatalogNode | undefined, count: Pick<NodeCounts, 'total'> | undefined, now: Date = new Date()): DepartmentIssue {
+/**
+ * Why a chosen card is not drawn on one channel right now (null = it is). The website hides an empty node only when the node
+ * is set to; the app always leaves out a card that has no book it shows.
+ */
+export function departmentIssue(
+  node: CatalogNode | undefined,
+  count: Pick<NodeCounts, 'total'> | undefined,
+  channel: DepartmentChannel = 'web',
+  now: Date = new Date(),
+): DepartmentIssue {
   if (!node) return 'missing';
   if (!node.is_active) return 'inactive';
-  if (!node.show_web) return 'hidden-web';
+  if (channel === 'web' ? !node.show_web : !node.show_app) return channel === 'web' ? 'hidden-web' : 'hidden-app';
   if (nodeStatus(node, now) !== 'visible') return 'out-of-dates';
-  if (node.hide_when_empty && count && count.total === 0) return 'empty';
+  if (count && count.total === 0 && (channel === 'app' || node.hide_when_empty)) return 'empty';
   return null;
 }
 
 export const DEPARTMENT_ISSUE_LABEL: Record<Exclude<DepartmentIssue, null>, string> = {
   missing: 'العنصر اتحذف',
-  inactive: 'مقفول (مش ظاهر في الموقع)',
+  inactive: 'مقفول',
   'hidden-web': 'مخفي عن الموقع',
+  'hidden-app': 'مخفي عن التطبيق',
   'out-of-dates': 'خارج مواعيد ظهوره',
   empty: 'فاضي ومتظبط يختفي لما يفضى',
 };
+
+export interface DepartmentIssueChip {
+  key: string;
+  label: string;
+  /** the tooltip: where the card is not drawn */
+  title: string;
+}
+
+/**
+ * The warnings to show on a chosen card: one chip when the same thing keeps it off both the website and the app, otherwise one
+ * per channel that has a problem, each saying which channel it is. Nothing when it is drawn on both.
+ */
+export function departmentIssueChips(node: CatalogNode | undefined, count: Pick<NodeCounts, 'total'> | undefined, now: Date = new Date()): DepartmentIssueChip[] {
+  const web = departmentIssue(node, count, 'web', now);
+  const app = departmentIssue(node, count, 'app', now);
+  if (web && web === app) return [{ key: 'both', label: DEPARTMENT_ISSUE_LABEL[web], title: 'الكارت ده مش بيظهر في الموقع ولا في التطبيق دلوقتي' }];
+  const chips: DepartmentIssueChip[] = [];
+  // «مخفي عن الموقع/التطبيق» already names its channel; every other reason is prefixed so it is clear where it applies
+  const text = (issue: Exclude<DepartmentIssue, null>, channelName: string) =>
+    issue === 'hidden-web' || issue === 'hidden-app' ? DEPARTMENT_ISSUE_LABEL[issue] : `${channelName}: ${DEPARTMENT_ISSUE_LABEL[issue]}`;
+  if (web) chips.push({ key: 'web', label: text(web, 'الموقع'), title: 'الكارت ده مش بيظهر في الموقع دلوقتي' });
+  if (app) chips.push({ key: 'app', label: text(app, 'التطبيق'), title: 'الكارت ده مش بيظهر في التطبيق دلوقتي (في النسخة الجاية منه)' });
+  return chips;
+}
 
 /** Has anything been changed: the list or its order, or a picture. */
 export function departmentsChanged(saved: readonly string[], nodes: readonly CatalogNode[], draft: DepartmentsDraft | null): boolean {

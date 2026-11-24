@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { CatalogNode } from './catalogTree';
-import { addableNodes, changedImages, departmentIssue, departmentsChanged } from './storeDepartments';
+import { addableNodes, changedImages, departmentIssue, departmentIssueChips, departmentsChanged } from './storeDepartments';
 
 function node(id: string, over: Partial<CatalogNode> = {}): CatalogNode {
   return {
@@ -27,6 +27,30 @@ describe('departmentIssue', () => {
   });
   it('an empty node that is not set to hide when empty is drawn', () => {
     expect(departmentIssue(node('a', { hide_when_empty: false }), { total: 0 })).toBeNull();
+  });
+  it('the app has its own switch, and always leaves out an empty card', () => {
+    expect(departmentIssue(node('a', { show_app: false }), { total: 3 }, 'app')).toBe('hidden-app');
+    expect(departmentIssue(node('a', { show_app: false }), { total: 3 }, 'web')).toBeNull();
+    expect(departmentIssue(node('a', { show_web: false }), { total: 3 }, 'app')).toBeNull();
+    expect(departmentIssue(node('a', { hide_when_empty: false }), { total: 0 }, 'app')).toBe('empty');
+    expect(departmentIssue(node('a', { is_active: false }), { total: 3 }, 'app')).toBe('inactive');
+  });
+});
+
+describe('departmentIssueChips', () => {
+  it('no chip when the card is drawn on both', () => {
+    expect(departmentIssueChips(node('a'), { total: 3 })).toEqual([]);
+  });
+  it('one chip when the same thing keeps it off both channels', () => {
+    const chips = departmentIssueChips(node('a', { is_active: false }), { total: 3 });
+    expect(chips.map((c) => c.key)).toEqual(['both']);
+    expect(departmentIssueChips(undefined, undefined).map((c) => c.key)).toEqual(['both']);
+  });
+  it('a chip per channel that has a problem, saying which', () => {
+    expect(departmentIssueChips(node('a', { show_app: false }), { total: 3 }).map((c) => [c.key, c.label])).toEqual([['app', 'مخفي عن التطبيق']]);
+    expect(departmentIssueChips(node('a', { show_web: false, show_app: false }), { total: 3 }).map((c) => c.key)).toEqual(['web', 'app']);
+    // an empty node not set to hide: the website draws it, the app does not
+    expect(departmentIssueChips(node('a', { hide_when_empty: false }), { total: 0 }).map((c) => [c.key, c.label])).toEqual([['app', 'التطبيق: فاضي ومتظبط يختفي لما يفضى']]);
   });
 });
 

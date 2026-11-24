@@ -10,7 +10,7 @@ import { NODE_TYPE_LABELS, buildTree, type CatalogNode, type NodeType } from '@/
 import { reorderRelative, stepInList } from '@/lib/dragSort';
 import { SITE_PREVIEW_READY, buildDepartmentsMessage, siteOrigin, sitePreviewUrl } from '@/lib/livePreview';
 import {
-  DEPARTMENT_ISSUE_LABEL, addableNodes, changedImages, departmentIssue, departmentsChanged, type DepartmentsDraft,
+  addableNodes, changedImages, departmentIssueChips, departmentsChanged, type DepartmentsDraft,
 } from '@/lib/storeDepartments';
 import PicturePicker from './PicturePicker';
 import { Grip, gripButtonClass, useDragRows } from './useDragRows';
@@ -116,7 +116,7 @@ export default function DepartmentsTab() {
         {!loading && ids.length === 0 && <p className="text-center text-gray-400 py-10 text-sm">مفيش كروت. الشريط مش هيظهر في الرئيسية لحد ما تضيف. اضغط «إضافة».</p>}
         {!loading && ids.map((id, index) => {
           const node = byId.get(id);
-          const issue = departmentIssue(node, counts?.get(id));
+          const chips = departmentIssueChips(node, counts?.get(id));
           return (
             <div key={id} className={`flex items-center gap-3 px-3 py-2.5 ${dnd.rowClass(id)}`} data-testid="dept-row" data-node-id={id} {...dnd.rowProps(id)}>
               <button type="button" className={gripButtonClass} data-testid="drag-handle" {...dnd.handleProps(id, node?.name_ar ?? 'كارت', (dir) => step(id, dir))}><Grip /></button>
@@ -125,11 +125,11 @@ export default function DepartmentsTab() {
                 <div className="flex items-center gap-2 flex-wrap">
                   <p className="text-sm font-bold text-gray-800 truncate">{node?.name_ar ?? 'عنصر محذوف'}</p>
                   {node && <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${TYPE_CHIP[node.type]}`}>{NODE_TYPE_LABELS[node.type]}</span>}
-                  {issue && (
-                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-700 flex items-center gap-1" data-testid="dept-issue" title="الكارت ده مش بيظهر في الموقع دلوقتي">
-                      <AlertTriangle size={11} /> {DEPARTMENT_ISSUE_LABEL[issue]}
+                  {chips.map((chip) => (
+                    <span key={chip.key} className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-700 flex items-center gap-1" data-testid="dept-issue" data-channel={chip.key} title={chip.title}>
+                      <AlertTriangle size={11} /> {chip.label}
                     </span>
-                  )}
+                  ))}
                 </div>
                 {node && <PicturePicker value={imageOf(node)} onChange={(url) => edit({ images: { ...images, [node.id]: url } })} testId="dept-picture" />}
               </div>

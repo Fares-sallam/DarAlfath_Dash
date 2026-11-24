@@ -2,6 +2,9 @@ import { supabase } from '@/lib/supabase';
 import { makeSection, type ReportDocument, type Tone } from '../types';
 import { fetchAllPages } from '../download';
 import { scopeMeta, filterMeta, type ReportScope } from './common';
+import {
+  ACTIVITY_REPORT_TITLE, ACTIVITY_VIEW, ACTIVITY_VIEW_COLUMNS, withActorProfile, type ActivityKind, type ActivityViewRow,
+} from '@/lib/activityKind';
 
 export interface ActivityLogRow {
   id: string;
@@ -21,29 +24,16 @@ type UserAgg = { name: string; email: string; counts: Record<string, number>; to
 type TableAgg = { name: string; counts: Record<string, number>; total: number };
 
 const ACTION_TONE: Record<string, Tone> = { INSERT: 'good', UPDATE: 'warn', DELETE: 'bad', LOGIN: 'info', LOGOUT: 'muted' };
-const COLUMNS = 'id, user_id, user_email, action, table_name, record_id, old_data, new_data, ip_address, created_at';
 
-async function fetchLogs(scope: ReportScope): Promise<ActivityLogRow[]> {
-  const page = (select: string) => (from: number, to: number) => {
-    let q = supabase.from('audit_logs').select(select);
+async function fetchLogs(scope: ReportScope, kind: ActivityKind): Promise<ActivityLogRow[]> {
+  const page = (from: number, to: number) => {
+    let q = supabase.from(ACTIVITY_VIEW).select(ACTIVITY_VIEW_COLUMNS).eq('actor_kind', kind);
     if (scope.period.from) q = q.gte('created_at', scope.period.from.toISOString());
     if (scope.period.to) q = q.lte('created_at', scope.period.to.toISOString());
-    return q.order('created_at', { ascending: false }).order('id').range(from, to) as unknown as PromiseLike<{ data: ActivityLogRow[] | null; error: { message: string } | null }>;
+    return q.order('created_at', { ascending: false }).order('id').range(from, to) as unknown as PromiseLike<{ data: (ActivityLogRow & ActivityViewRow)[] | null; error: { message: string } | null }>;
   };
-
-  try {
-    return await fetchAllPages(page(`${COLUMNS}, profiles!fk_audit_logs_profiles(full_name)`));
-  } catch {
-    // Same fallback as the page: without the profiles join, then names separately.
-    const logs = await fetchAllPages(page(COLUMNS));
-    const ids = [...new Set(logs.map((l) => l.user_id).filter((x): x is string => !!x))];
-    const names = new Map<string, string | null>();
-    for (let i = 0; i < ids.length; i += 200) {
-      const { data } = await supabase.from('profiles').select('id, full_name').in('id', ids.slice(i, i + 200));
-      for (const p of (data ?? []) as { id: string; full_name: string | null }[]) names.set(p.id, p.full_name);
-    }
-    return logs.map((l) => ({ ...l, profiles: l.user_id ? { full_name: names.get(l.user_id) ?? null } : null }));
-  }
+  const rows = await fetchAllPages(page);
+  return rows.map((row) => withActorProfile(row) as ActivityLogRow);
 }
 
 function changedFields(log: ActivityLogRow): string {
@@ -59,6 +49,8 @@ function changedFields(log: ActivityLogRow): string {
 export async function buildActivityReport(
   scope: ReportScope,
   opts: {
+    /** whose log this is: the staff's (with the system) or the customers' */
+    kind: ActivityKind;
     actionLabel: (action: string) => string;
     tableLabel: (table?: string | null) => string;
     /** Country scoping and (when requested) the page's own filters. */
@@ -67,7 +59,7 @@ export async function buildActivityReport(
     filtersLabel?: string;
   }
 ): Promise<ReportDocument> {
-  const logs = (await fetchLogs(scope)).filter(opts.predicate);
+  const logs = (await fetchLogs(scope, opts.kind)).filter(opts.predicate);
   const who = (l: ActivityLogRow) => l.profiles?.full_name || l.user_email || 'النظام';
 
   const byUser = new Map<string, UserAgg>();
@@ -97,8 +89,8 @@ export async function buildActivityReport(
     }));
 
   return {
-    title: 'تقرير سجل النشاط',
-    fileBase: 'تقرير-سجل-النشاط',
+    title: ACTIVITY_REPORT_TITLE[opts.kind].title,
+    fileBase: ACTIVITY_REPORT_TITLE[opts.kind].fileBase,
     period: scope.period,
     generatedAt: scope.generatedAt,
     currencySymbol: scope.currencySymbol,

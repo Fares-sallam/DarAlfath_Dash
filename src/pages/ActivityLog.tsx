@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import Layout from '@/components/layout/Layout';
 import ReportDownloadButton from '@/components/reports/ReportDownloadButton';
 import { ACTIVITY_REPORT_GROUPS } from '@/lib/reports/reportColumns';
@@ -8,13 +9,17 @@ import {
   Plus, Edit, Trash2, LogIn, LogOut, Filter,
   Search, Calendar, RefreshCw, Loader2, AlertCircle,
   ChevronDown, ChevronRight, Database, X, FileText,
-  ArrowUpRight, ArrowDownRight, Globe2
+  ArrowUpRight, ArrowDownRight, Globe2, ShieldCheck, Users
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCountry } from '@/contexts/CountryContext';
+import {
+  ACTIVITY_KINDS, ACTIVITY_KIND_HINT, ACTIVITY_KIND_LABEL, ACTIVITY_REPORT_TITLE, ACTIVITY_VIEW, ACTIVITY_VIEW_COLUMNS,
+  parseActivityKind, withActorProfile, type ActivityKind, type ActivityViewRow,
+} from '@/lib/activityKind';
 
 interface AuditLog {
   id: string;
@@ -70,27 +75,15 @@ interface LogFilters {
   dateTo?: string;
 }
 
-function useAuditLogs(filters: LogFilters) {
+function useAuditLogs(kind: ActivityKind, filters: LogFilters) {
   return useQuery({
-    queryKey: ['audit-logs', filters],
+    queryKey: ['audit-logs', kind, filters],
     queryFn: async (): Promise<AuditLog[]> => {
-
-      // ── جلب السجلات ────────────────────────────────────────────
+      // The view says whose activity each row is (staff or customer) and carries the actor's name, picture and role.
       let query = supabase
-        .from('audit_logs')
-        .select(`
-          id,
-          user_id,
-          user_email,
-          action,
-          table_name,
-          record_id,
-          old_data,
-          new_data,
-          ip_address,
-          created_at,
-          profiles!fk_audit_logs_profiles(full_name, avatar_url, role)
-        `)
+        .from(ACTIVITY_VIEW)
+        .select(ACTIVITY_VIEW_COLUMNS)
+        .eq('actor_kind', kind)
         .order('created_at', { ascending: false })
         .limit(500);
 
@@ -105,54 +98,11 @@ function useAuditLogs(filters: LogFilters) {
       }
 
       const { data, error } = await query;
-
-      // ── نجح الـ JOIN — أعد البيانات مباشرة ─────────────────────
-      if (!error) return (data ?? []) as AuditLog[];
-
-      // ── فشل الـ JOIN — نجلب السجلات بدونه ثم نجلب profiles منفصلاً
-      console.warn('[ActivityLog] join failed, fetching separately:', error.message);
-
-      let fallback = supabase
-        .from('audit_logs')
-        .select('id, user_id, user_email, action, table_name, record_id, old_data, new_data, ip_address, created_at')
-        .order('created_at', { ascending: false })
-        .limit(500);
-
-      if (filters.action    && filters.action    !== 'الكل') fallback = fallback.eq('action',     filters.action);
-      if (filters.tableName && filters.tableName !== 'الكل') fallback = fallback.eq('table_name', filters.tableName);
-      if (filters.dateFrom) fallback = fallback.gte('created_at', new Date(filters.dateFrom).toISOString());
-      if (filters.dateTo) {
-        const to = new Date(filters.dateTo);
-        to.setHours(23, 59, 59, 999);
-        fallback = fallback.lte('created_at', to.toISOString());
+      if (error) {
+        console.error('[ActivityLog] load failed:', error.message, error.code);
+        throw new Error(`${error.message} (${error.code ?? 'unknown'})`);
       }
-
-      const { data: fbData, error: fbError } = await fallback;
-      if (fbError) {
-        console.error('[ActivityLog] fallback failed:', fbError.message, fbError.code);
-        throw new Error(`${fbError.message} (${fbError.code ?? 'unknown'})`);
-      }
-
-      const logs = (fbData ?? []) as AuditLog[];
-
-      // ── جلب بيانات profiles للـ user_ids الفريدة ────────────────
-      const userIds = [...new Set(logs.map((l) => l.user_id).filter(Boolean))] as string[];
-
-      if (userIds.length === 0) return logs;
-
-      const { data: profilesData } = await supabase
-        .from('profiles')
-        .select('id, full_name, avatar_url, role')
-        .in('id', userIds);
-
-      const profilesMap = new Map(
-        (profilesData ?? []).map((p) => [p.id, { full_name: p.full_name, avatar_url: p.avatar_url, role: p.role }])
-      );
-
-      return logs.map((log) => ({
-        ...log,
-        profiles: log.user_id ? (profilesMap.get(log.user_id) ?? null) : null,
-      }));
+      return ((data ?? []) as unknown as (AuditLog & ActivityViewRow)[]).map((row) => withActorProfile(row) as AuditLog);
     },
   });
 }
@@ -375,6 +325,9 @@ export default function ActivityLog() {
   const qc = useQueryClient();
   const { selectedCountry } = useCountry();
 
+  const [params, setParams] = useSearchParams();
+  const kind = parseActivityKind(params.get('kind'));
+
   const [search, setSearch] = useState('');
   const [filterAction, setFilterAction] = useState('الكل');
   const [filterTable, setFilterTable] = useState('الكل');
@@ -389,7 +342,16 @@ export default function ActivityLog() {
     dateTo: dateTo || undefined,
   };
 
-  const { data: logs = [], isLoading, isError, error: queryError, refetch } = useAuditLogs(filters);
+  const { data: logs = [], isLoading, isError, error: queryError, refetch } = useAuditLogs(kind, filters);
+
+  // Each log has its own tables and kinds of action, so what was picked in one does not carry over to the other.
+  const switchKind = (next: ActivityKind) => {
+    if (next === kind) return;
+    setParams(next === 'staff' ? {} : { kind: next }, { replace: true });
+    setSearch('');
+    setFilterAction('الكل');
+    setFilterTable('الكل');
+  };
 
   const filtered = logs.filter((l) => {
     const matchCountry = logMatchesSelectedCountry(l, selectedCountry?.id);
@@ -486,7 +448,7 @@ export default function ActivityLog() {
             </button>
 
             <ReportDownloadButton
-              title="تقرير سجل النشاط"
+              title={ACTIVITY_REPORT_TITLE[kind].title}
               columnGroups={ACTIVITY_REPORT_GROUPS}
               columnsKey="activity"
               periodHint="كل العمليات المسجلة خلال الفترة، مع ملخص نشاط كل مستخدم وكل قسم."
@@ -500,6 +462,7 @@ export default function ActivityLog() {
                 buildActivityReport(
                   { period, generatedAt, country: selectedCountry, currencySymbol: '' },
                   {
+                    kind,
                     actionLabel: (a) => actionConfig[a]?.label ?? a,
                     tableLabel: (t) => tableLabels[t ?? ''] ?? t ?? '—',
                     predicate: (l) => logMatchesSelectedCountry(l, selectedCountry?.id) && (!applyFilters || matchesActivityFilters(l)),
@@ -510,6 +473,31 @@ export default function ActivityLog() {
               }
             />
           </div>
+        </div>
+
+        <div className="mb-5">
+          <div role="tablist" aria-label="نوع سجل النشاط" className="inline-flex gap-1 p-1 bg-gray-100 rounded-2xl">
+            {ACTIVITY_KINDS.map((k) => {
+              const active = k === kind;
+              return (
+                <button
+                  key={k}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  data-testid={`activity-tab-${k}`}
+                  onClick={() => switchKind(k)}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-colors ${
+                    active ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  {k === 'staff' ? <ShieldCheck size={15} /> : <Users size={15} />}
+                  {ACTIVITY_KIND_LABEL[k]}
+                </button>
+              );
+            })}
+          </div>
+          <p className="text-xs text-gray-500 mt-2 max-w-2xl leading-relaxed" data-testid="activity-kind-hint">{ACTIVITY_KIND_HINT[kind]}</p>
         </div>
 
         <div className="grid grid-cols-3 md:grid-cols-5 gap-3 mb-6">

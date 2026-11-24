@@ -46,9 +46,12 @@ describe('the buttons of every report match its columns', () => {
   it('inventory', async () => expectCatalogMatches(await buildInventoryReport(scope(), { rows: [], keepOrder: true }), INVENTORY_REPORT_GROUPS));
   it('coupons', async () => expectCatalogMatches(await buildCouponsReport(scope(), { coupons: [], keepOrder: true }), COUPONS_REPORT_GROUPS));
   it('analytics', async () => expectCatalogMatches(await buildAnalyticsReport(scope()), ANALYTICS_REPORT_GROUPS));
-  it('activity log (the action columns are named by the page)', async () => {
-    const doc = await buildActivityReport(scope(), { actionLabel: (a) => ACTION[a] ?? a, tableLabel: (t) => t ?? '—', predicate: () => true, applyFilters: false });
-    expectCatalogMatches(doc, ACTIVITY_REPORT_GROUPS);
+  it('activity log (the action columns are named by the page), for the staff\'s log and for the customers\'', async () => {
+    for (const kind of ['staff', 'customer'] as const) {
+      const doc = await buildActivityReport(scope(), { kind, actionLabel: (a) => ACTION[a] ?? a, tableLabel: (t) => t ?? '—', predicate: () => true, applyFilters: false });
+      expectCatalogMatches(doc, ACTIVITY_REPORT_GROUPS);
+      expect(doc.title).toBe(kind === 'staff' ? 'تقرير سجل نشاط المشرفين' : 'تقرير سجل نشاط العملاء');
+    }
   });
   it('customers (the period columns only exist for a period)', async () => {
     const period = ['طلبات الفترة', 'إنفاق الفترة', 'عميل جديد'];

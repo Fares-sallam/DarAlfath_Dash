@@ -43,6 +43,35 @@ export function buildSiteMessage(display: DisplaySettings, screen: SiteScreen, b
   return { type: SITE_PREVIEW_MESSAGE, display, navigate: siteRouteFor(screen, bookId), scroll: screen === 'footer' ? 'footer' : 'top' };
 }
 
+export interface DepartmentsPreviewMessage {
+  type: typeof SITE_PREVIEW_MESSAGE;
+  departments: { ids: string[]; images: Record<string, string | null> };
+  navigate: '/';
+  scroll: 'departments';
+}
+
+/** The «أقسام المتجر» cards being edited, on the home page scrolled to them. */
+export function buildDepartmentsMessage(draft: { ids: string[]; images: Record<string, string | null> }): DepartmentsPreviewMessage {
+  return { type: SITE_PREVIEW_MESSAGE, departments: draft, navigate: '/', scroll: 'departments' };
+}
+
+export interface NodePagePreviewMessage {
+  type: typeof SITE_PREVIEW_MESSAGE;
+  nodePage: { id: string; fields: Record<string, unknown> };
+  navigate: string;
+  scroll: 'top';
+}
+
+/** A node's own page (a series' or a section's) with the picture / video, text and look being edited. */
+export function buildNodePageMessage(nodeId: string, nodeType: string, fields: Record<string, unknown>): NodePagePreviewMessage {
+  return {
+    type: SITE_PREVIEW_MESSAGE,
+    nodePage: { id: nodeId, fields },
+    navigate: nodeType === 'series' ? `/books?series=${nodeId}` : `/books?node=${nodeId}`,
+    scroll: 'top',
+  };
+}
+
 export interface LookPreviewMessage {
   type: typeof SITE_PREVIEW_MESSAGE;
   appearance: StorefrontAppearance;

@@ -5,6 +5,9 @@ export type NodeType = 'section' | 'series' | 'category' | 'collection';
 export type Channel = 'web' | 'app' | 'both';
 export type BooksSort = 'manual' | 'newest' | 'title' | 'sales';
 export type PageLayout = 'auto' | 'strips' | 'grid';
+export type IntroMedia = 'auto' | 'video' | 'image' | 'none';
+export type IntroAlign = 'right' | 'center' | 'left';
+export type IntroTextPos = 'side' | 'above' | 'below';
 
 export const NODE_TYPES: NodeType[] = ['section', 'series', 'category', 'collection'];
 
@@ -67,6 +70,15 @@ export interface CatalogNode {
   intro_ar: string | null;
   intro_en: string | null;
   video_url: string | null;
+  /** 'auto' = a video when there is one; or say it: 'video' / 'image' / 'none' */
+  intro_media: IntroMedia;
+  intro_image_url: string | null;
+  /** how the welcome text is set: alignment, size in px, side spacing in px, and where it sits next to the picture or video */
+  intro_align: IntroAlign;
+  intro_font_px: number;
+  intro_pad_right: number;
+  intro_pad_left: number;
+  intro_text_pos: IntroTextPos;
   page_layout: PageLayout;
   strips_limit: number;
   /** shown as a strip on its parent's page */

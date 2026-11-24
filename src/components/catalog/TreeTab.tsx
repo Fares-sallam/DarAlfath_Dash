@@ -3,9 +3,8 @@ import { Link } from 'react-router-dom';
 import { ChevronDown, ChevronLeft, Eye, EyeOff, FolderTree, Layers, Library, Loader2, Pencil, Plus, Search, Tag } from 'lucide-react';
 import { useCatalogCounts, useCatalogNodes, useReorderNodes, useUpdateNode } from '@/hooks/useCatalog';
 import { useMenuItems } from '@/hooks/useMenuItems';
-import { headerStatuses, headerStatusHint, headerStatusLabel, headerView, type HeaderStatus } from '@/lib/headerPlacement';
+import { headerStatuses, headerStatusHint, headerStatusLabel, type HeaderStatus } from '@/lib/headerPlacement';
 import { resolveMenu } from '@/lib/menuMap';
-import HeaderPreview, { type HeaderFocus } from './HeaderPreview';
 import {
   NODE_TYPE_LABELS, STATUS_LABELS, buildTree, childrenOf, descendantIds, formatBookCount, nodeFlags, nodeStatus,
   type CatalogNode, type Channel, type NodeType,
@@ -64,7 +63,6 @@ export default function TreeTab({ openNodeId, onOpened }: { openNodeId?: string 
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const [editor, setEditor] = useState<EditorTarget | null>(null);
-  const [focusId, setFocusId] = useState<string | null>(null);
 
   // a link from another tab («افتح العنصر») opens that node's editor once
   useEffect(() => {
@@ -74,15 +72,9 @@ export default function TreeTab({ openNodeId, onOpened }: { openNodeId?: string 
     onOpened?.();
   }, [openNodeId, nodes, onOpened]);
 
-  // the website's top menu as it is now, and where each node stands in it (nothing is drawn until the menu rows have loaded)
+  // where each node stands in the website's top menu (nothing is drawn until the menu rows have loaded)
   const menu = useMemo(() => (menuItems ? resolveMenu(menuItems, nodes, 'web') : null), [menuItems, nodes]);
-  const header = useMemo(() => (menu ? headerView(menu, nodes, counts) : []), [menu, nodes, counts]);
   const statuses = useMemo(() => (menu ? headerStatuses(menu, nodes, counts) : null), [menu, nodes, counts]);
-  const focus: HeaderFocus | null = useMemo(() => {
-    const node = focusId ? nodes.find((n) => n.id === focusId) : undefined;
-    const status = node ? statuses?.get(node.id) : undefined;
-    return node && status ? { nodeId: node.id, name: node.name_ar, status } : null;
-  }, [focusId, nodes, statuses]);
 
   const typeSet = useMemo(() => new Set(TYPE_FILTERS.find((t) => t.key === typeFilter)?.types ?? []), [typeFilter]);
   const filtering = !!query.trim() || typeFilter !== 'all';
@@ -193,8 +185,6 @@ export default function TreeTab({ openNodeId, onOpened }: { openNodeId?: string 
         {channel === 'both' ? ' (الترتيب المعروض هو ترتيب الموقع)' : ''}
       </p>
 
-      {statuses && <HeaderPreview entries={header} focus={focus} />}
-
       <div className="bg-white rounded-2xl shadow-sm divide-y divide-gray-50" data-testid="catalog-tree">
         {isLoading && <div className="flex items-center justify-center gap-2 py-12 text-gray-400"><Loader2 size={18} className="animate-spin" /> جارٍ التحميل...</div>}
         {isError && <p className="text-center text-red-500 py-10 text-sm">تعذّر تحميل الشجرة.</p>}
@@ -217,10 +207,6 @@ export default function TreeTab({ openNodeId, onOpened }: { openNodeId?: string 
               data-testid="tree-row"
               data-node-id={node.id}
               data-depth={depth}
-              onMouseEnter={() => setFocusId(node.id)}
-              onMouseLeave={() => setFocusId((current) => (current === node.id ? null : current))}
-              onFocusCapture={() => setFocusId(node.id)}
-              onBlurCapture={() => setFocusId((current) => (current === node.id ? null : current))}
               {...dnd.rowProps(node.id)}
             >
               <button type="button" className={gripButtonClass} data-testid="drag-handle" {...dnd.handleProps(node.id, node.name_ar, (dir) => step(node, dir))}><Grip /></button>

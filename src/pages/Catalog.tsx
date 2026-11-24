@@ -1,11 +1,13 @@
 import { useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { BookOpen, FolderTree, HeartPulse, Home, Map as MapIcon, Rows3 } from 'lucide-react';
+import { BookOpen, FileText, FolderTree, HeartPulse, Home, LayoutGrid, Map as MapIcon, Rows3 } from 'lucide-react';
 import Layout from '@/components/layout/Layout';
 import TreeTab from '@/components/catalog/TreeTab';
 import BooksTab from '@/components/catalog/BooksTab';
 import HealthTab from '@/components/catalog/HealthTab';
 import DisplayMapTab from '@/components/catalog/DisplayMapTab';
+import DepartmentsTab from '@/components/catalog/DepartmentsTab';
+import NodePagesTab from '@/components/catalog/NodePagesTab';
 import HomeBlocksEditor from '@/components/catalog/HomeBlocksEditor';
 import CategoryBarSection from '@/components/ads/CategoryBarSection';
 import AppStripsSection from '@/components/ads/AppStripsSection';
@@ -15,6 +17,8 @@ const TABS = [
   { key: 'books', label: 'الكتب', hint: 'كل كتاب بسلاسله وتصنيفاته. عدّل التنظيم أو دوّر على الكتب اللي مش تابعة لأي حاجة.', icon: BookOpen },
   { key: 'map', label: 'خريطة العرض', hint: 'الشكل الكامل من فوق لتحت: القايمة العلوية (رئيسي وفرعي ومجموعات)، شريط التصنيفات، ورفوف الصفحة الرئيسية.', icon: MapIcon },
   { key: 'menus', label: 'شريط التصنيفات', hint: 'التصنيفات اللي بتظهر في الشريط تحت الهيدر، وترتيبها.', icon: Rows3 },
+  { key: 'departments', label: 'أقسام المتجر', hint: 'الكروت اللي بتظهر في الرئيسية تحت البانر: اختار من الموجود، رتّب، وحط صورة لكل كارت، مع معاينة.', icon: LayoutGrid },
+  { key: 'pages', label: 'صفحات الأقسام', hint: 'أعلى صفحة أي قسم أو سلسلة أو تصنيف: فيديو أو صورة وكلام تعريفي بتنسيقه، وبعدهم الكتب، مع معاينة.', icon: FileText },
   { key: 'home', label: 'الصفحة الرئيسية', hint: 'رفوف الصفحة الرئيسية في الموقع والتطبيق.', icon: Home },
   { key: 'health', label: 'فحص وتنظيف', hint: 'ملاحظات على التنظيم: عناصر فاضية، أسماء مكررة، كتب بلا تصنيف.', icon: HeartPulse },
 ] as const;
@@ -87,6 +91,8 @@ export default function Catalog() {
           {active.key === 'books' && <BooksTab openProductId={openProduct} onOpened={clearProduct} />}
           {active.key === 'map' && <DisplayMapTab addNodeId={addNode} onAddHandled={clearAdd} />}
           {active.key === 'menus' && <CategoryBarSection />}
+          {active.key === 'departments' && <DepartmentsTab />}
+          {active.key === 'pages' && <NodePagesTab openNodeId={openNode} onOpened={clearNode} />}
           {active.key === 'home' && (
             <div className="space-y-6">
               <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1 w-fit" role="group" aria-label="القناة" data-testid="home-channel">

@@ -11,7 +11,7 @@ function node(id: string, over: Partial<CatalogNode> = {}): CatalogNode {
     image_url: null, icon: null, color: null, is_active: true, featured: false, show_web: true, show_app: true,
     sort_web: 0, sort_app: 0, show_in_menu_web: false, show_in_bar_web: true, show_in_bar_app: true, hide_when_empty: true,
     books_sort_web: 'manual', books_sort_app: 'manual', starts_at: null, ends_at: null, seo_title: null, seo_description: null,
-    intro_ar: null, intro_en: null, video_url: null, page_layout: 'auto', strips_limit: 12, show_as_strip: true,
+    intro_ar: null, intro_en: null, video_url: null, intro_media: 'auto', intro_image_url: null, intro_align: 'right', intro_font_px: 16, intro_pad_right: 0, intro_pad_left: 0, intro_text_pos: 'side', page_layout: 'auto', strips_limit: 12, show_as_strip: true,
     legacy_table: null, legacy_id: null, created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z', ...over,
   };
 }

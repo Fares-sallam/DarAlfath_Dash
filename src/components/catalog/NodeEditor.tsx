@@ -1,16 +1,16 @@
 import { useMemo, useRef, useState } from 'react';
 import { ImagePlus, Loader2, Save, Trash2, X } from 'lucide-react';
 import { toast } from 'sonner';
+import { Link } from 'react-router-dom';
 import { Switch } from '@/components/ads/CategoryBarSection';
 import { useCatalogCounts, useCreateNode, useDeleteNode, useUpdateNode, type NodeInput } from '@/hooks/useCatalog';
 import { uploadSeriesCover } from '@/hooks/useSeries';
 import { compressImage } from '@/lib/imageCompression';
 import {
-  BOOKS_SORT_LABELS, PAGE_LAYOUT_LABELS, NODE_TYPES, NODE_TYPE_HINTS, NODE_TYPE_LABELS, allowedParents, buildTree, nextSortFor, slugify,
-  type BooksSort, type CatalogNode, type NodeType, type PageLayout,
+  BOOKS_SORT_LABELS, NODE_TYPES, NODE_TYPE_HINTS, NODE_TYPE_LABELS, allowedParents, buildTree, nextSortFor, slugify,
+  type BooksSort, type CatalogNode, type NodeType,
 } from '@/lib/catalogTree';
 import NodeBooksPanel from './NodeBooksPanel';
-import NodePagePanel from './NodePagePanel';
 
 type TabKey = 'basic' | 'visibility' | 'page' | 'books' | 'seo';
 
@@ -62,11 +62,6 @@ export default function NodeEditor({ target, nodes, onClose }: Props) {
   const [sortApp, setSortApp] = useState(String(existing?.sort_app ?? nextSortFor(nodes, type, 'app')));
   const [booksSortWeb, setBooksSortWeb] = useState<BooksSort>(existing?.books_sort_web ?? 'manual');
   const [booksSortApp, setBooksSortApp] = useState<BooksSort>(existing?.books_sort_app ?? 'manual');
-  const [introAr, setIntroAr] = useState(existing?.intro_ar ?? '');
-  const [introEn, setIntroEn] = useState(existing?.intro_en ?? '');
-  const [videoUrl, setVideoUrl] = useState(existing?.video_url ?? '');
-  const [pageLayout, setPageLayout] = useState<PageLayout>(existing?.page_layout ?? 'auto');
-  const [stripsLimit, setStripsLimit] = useState(String(existing?.strips_limit ?? 12));
   const [showAsStrip, setShowAsStrip] = useState(existing?.show_as_strip ?? true);
   const [seoTitle, setSeoTitle] = useState(existing?.seo_title ?? '');
   const [seoDescription, setSeoDescription] = useState(existing?.seo_description ?? '');
@@ -110,10 +105,6 @@ export default function NodeEditor({ target, nodes, onClose }: Props) {
     if (!name) { toast.error('اكتب الاسم بالعربي'); setTab('basic'); return; }
     if (!finalSlug) { toast.error('الرابط المختصر (slug) مطلوب'); setTab('basic'); return; }
 
-    const limit = Number.parseInt(stripsLimit, 10);
-    if (!Number.isFinite(limit) || limit < 1 || limit > 60) { toast.error('عدد الكتب في الشريط من 1 لـ 60'); setTab('page'); return; }
-    if (videoUrl.trim() && !/^https:\/\/\S+$/i.test(videoUrl.trim())) { toast.error('رابط الفيديو لازم يبدأ بـ https://'); setTab('page'); return; }
-
     const values = {
       type,
       name_ar: name,
@@ -136,11 +127,6 @@ export default function NodeEditor({ target, nodes, onClose }: Props) {
       sort_app: Number.parseInt(sortApp, 10) || 0,
       books_sort_web: booksSortWeb,
       books_sort_app: booksSortApp,
-      intro_ar: introAr.trim() || null,
-      intro_en: introEn.trim() || null,
-      video_url: videoUrl.trim() || null,
-      page_layout: pageLayout,
-      strips_limit: limit,
       show_as_strip: showAsStrip,
       seo_title: seoTitle.trim() || null,
       seo_description: seoDescription.trim() || null,
@@ -181,7 +167,7 @@ export default function NodeEditor({ target, nodes, onClose }: Props) {
   const tabs: { key: TabKey; label: string; hidden?: boolean }[] = [
     { key: 'basic', label: 'الأساسيات' },
     { key: 'visibility', label: 'الظهور والترتيب' },
-    { key: 'page', label: 'صفحة العرض' },
+    { key: 'page', label: 'صفحة العرض ←' },
     { key: 'books', label: 'الكتب', hidden: !existing },
     { key: 'seo', label: 'البحث (SEO)' },
   ];
@@ -272,6 +258,7 @@ export default function NodeEditor({ target, nodes, onClose }: Props) {
                   </button>
                   {imageUrl && <button type="button" onClick={() => setImageUrl('')} className="text-sm text-red-500 hover:underline">إزالة</button>}
                 </div>
+                <p className="text-[11px] text-gray-400 mt-1.5">هي نفس صورة كارت «أقسام المتجر» في الرئيسية وفي التطبيق. تقدر تغيّرها كمان من تاب «أقسام المتجر» وانت شايف المعاينة.</p>
               </div>
             </>
           )}
@@ -297,7 +284,7 @@ export default function NodeEditor({ target, nodes, onClose }: Props) {
                   </div>
                 ))}
               </div>
-              {type === 'series' && <p className="text-xs text-gray-500">ظهور السلسلة في قايمة الموقع العلوية وترتيبها فيها من تاب «خريطة العرض».</p>}
+              {type === 'series' && <p className="text-xs text-gray-500">ظهور السلسلة في قايمة الموقع العلوية وترتيبها فيها من تاب «خريطة العرض». وككارت في الرئيسية (اختيارها وترتيبها وصورتها) من تاب «أقسام المتجر».</p>}
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <label className="block">
@@ -334,36 +321,18 @@ export default function NodeEditor({ target, nodes, onClose }: Props) {
           )}
 
           {tab === 'page' && (
-            <>
-              <p className="text-xs text-gray-500 bg-gray-50 rounded-xl px-3 py-2">
-                صفحة «{nameAr || 'العنصر'}» نفسها: اسمه فوق، وتحته كلمة تعريفية وفيديو (اختياريين)، وبعدهم أشرطة كتب. بتظهر على الموقع دلوقتي (التطبيق في نسخته الجاية).
+            <div className="space-y-3" data-testid="page-moved">
+              <p className="text-sm text-gray-700 bg-blue-50 rounded-xl px-4 py-3 leading-relaxed">
+                صفحة «{nameAr || 'العنصر'}» نفسها (الفيديو أو الصورة، والكلام التعريفي وتنسيقه، وأشرطة الكتب) اتجمعت كلها في مكان واحد، مع معاينة: تاب <b>«صفحات الأقسام»</b>.
               </p>
-              <label className="block">
-                <span className="block text-sm font-semibold text-gray-700 mb-1.5">كلمة تعريفية (بالعربي)</span>
-                <textarea value={introAr} onChange={(e) => setIntroAr(e.target.value)} rows={5} className="input-field" placeholder="مثال: سلسلة الفتح الرباني، منهج متكامل لتعليم…" data-testid="field-intro-ar" />
-              </label>
-              <label className="block">
-                <span className="block text-sm font-semibold text-gray-700 mb-1.5">كلمة تعريفية (بالإنجليزي)</span>
-                <textarea value={introEn} onChange={(e) => setIntroEn(e.target.value)} rows={3} className="input-field" dir="ltr" />
-              </label>
-              <label className="block">
-                <span className="block text-sm font-semibold text-gray-700 mb-1.5">فيديو للعرض (رابط https)</span>
-                <input value={videoUrl} onChange={(e) => setVideoUrl(e.target.value)} className="input-field" dir="ltr" placeholder="https://www.youtube.com/watch?v=..." data-testid="field-video" />
-              </label>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <label className="block">
-                  <span className="block text-sm font-semibold text-gray-700 mb-1.5">شكل الصفحة</span>
-                  <select value={pageLayout} onChange={(e) => setPageLayout(e.target.value as PageLayout)} className="input-field" data-testid="field-layout">
-                    {(Object.keys(PAGE_LAYOUT_LABELS) as PageLayout[]).map((k) => <option key={k} value={k}>{PAGE_LAYOUT_LABELS[k]}</option>)}
-                  </select>
-                </label>
-                <label className="block">
-                  <span className="block text-sm font-semibold text-gray-700 mb-1.5">عدد الكتب في كل شريط</span>
-                  <input type="number" min={1} max={60} value={stripsLimit} onChange={(e) => setStripsLimit(e.target.value)} className="input-field" data-testid="field-strips-limit" />
-                </label>
-              </div>
-              {existing && <NodePagePanel node={existing} nodes={nodes} />}
-            </>
+              {existing ? (
+                <Link to={`/catalog?tab=pages&node=${existing.id}`} onClick={onClose} className="inline-flex items-center gap-2 btn-primary" data-testid="open-page-editor">
+                  افتح صفحة «{existing.name_ar}»
+                </Link>
+              ) : (
+                <p className="text-xs text-gray-500">بعد ما تضيف العنصر هتلاقيه هناك.</p>
+              )}
+            </div>
           )}
 
           {tab === 'books' && existing && <NodeBooksPanel node={existing} />}

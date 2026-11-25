@@ -33,6 +33,10 @@ describe('withActorProfile', () => {
   it('a row with no actor has no profile (shown as «النظام»)', () => {
     expect(withActorProfile({ id: 'a', user_id: null, actor_name: null, actor_avatar: null, actor_role: null }).profiles).toBeNull();
   });
+  it('a guest has a name but no account: still an actor, not «النظام»', () => {
+    expect(withActorProfile({ id: 'a', user_id: null, actor_name: 'ضيف تجريبي (ضيف)', actor_avatar: null, actor_role: null }).profiles)
+      .toEqual({ full_name: 'ضيف تجريبي (ضيف)', avatar_url: null });
+  });
   it('an actor with no profile row has none either, and no role is left out', () => {
     expect(withActorProfile({ id: 'a', user_id: 'u1' }).profiles).toBeNull();
     expect(withActorProfile({ id: 'a', user_id: 'u1', actor_name: 'x' }).profiles).toEqual({ full_name: 'x', avatar_url: null });

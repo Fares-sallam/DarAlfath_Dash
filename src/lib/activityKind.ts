@@ -40,13 +40,13 @@ export interface ActivityViewRow {
 
 /**
  * A view row as the page's row shape: the actor's name, picture and role move under `profiles` (null when the row has no actor,
- * the same as the old embedded join gave).
+ * the same as the old embedded join gave). A name with no account behind it (a guest order: «اسم العميل (ضيف)») is an actor too.
  */
 export function withActorProfile<T extends ActivityViewRow>(
   row: T,
 ): Omit<T, 'actor_name' | 'actor_avatar' | 'actor_role'> & { profiles: { full_name: string | null; avatar_url: string | null; role?: string } | null } {
   const { actor_name, actor_avatar, actor_role, ...rest } = row;
-  const hasActor = !!row.user_id && (actor_name != null || actor_avatar != null || actor_role != null);
+  const hasActor = actor_name != null || (!!row.user_id && (actor_avatar != null || actor_role != null));
   return {
     ...rest,
     profiles: hasActor ? { full_name: actor_name ?? null, avatar_url: actor_avatar ?? null, ...(actor_role ? { role: actor_role } : {}) } : null,

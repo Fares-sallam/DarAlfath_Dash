@@ -64,6 +64,8 @@ export interface Order {
   payment_status: string;
   shipping_company_id?: string | null;
   tracking_number?: string | null;
+  /** Typed by an admin; empty = the invoice uses the order number. */
+  invoice_number?: string | null;
   shipping_address?: ShippingAddress | null;
   notes?: string | null;
   created_at: string;
@@ -212,6 +214,7 @@ export const ORDER_DETAIL_SELECT = `
           payment_status,
           shipping_company_id,
           tracking_number,
+          invoice_number,
           shipping_address,
           notes,
           created_at,
@@ -294,12 +297,21 @@ export function useOrderDetail(orderId: string | null) {
   });
 }
 
+/** A readable message for a failed order update: the invoice number is unique, so a repeat gets its own words. */
+export function updateOrderErrorMessage(e: { message?: string; code?: string }): string {
+  if (e.code === '23505' || /orders_invoice_number_uniq/.test(e.message ?? '')) return 'رقم الفاتورة ده مستخدم في فاتورة تانية، اكتب رقم مختلف';
+  if (/orders_invoice_number_len/.test(e.message ?? '')) return 'رقم الفاتورة لازم يكون من 1 إلى 40 حرف';
+  return e.message ?? 'تعذّر تحديث الطلب';
+}
+
 /* ── Update order status ── */
 export interface UpdateOrderInput {
   id: string;
   status?: string;
   payment_status?: string;
   tracking_number?: string;
+  /** null clears it (the invoice then shows the order number). */
+  invoice_number?: string | null;
   shipping_company_id?: string | null;
   notes?: string;
 }
@@ -334,7 +346,7 @@ export function useUpdateOrder() {
       qc.invalidateQueries({ queryKey: ['analytics'] });
       toast.success('تم تحديث الطلب بنجاح');
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => toast.error(updateOrderErrorMessage(e)),
   });
 }
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Order } from '@/hooks/useOrders';
-import { addressLine, buildInvoiceHtml, invoiceFigures } from './invoice';
+import { addressLine, buildInvoiceHtml, invoiceFigures, invoiceNumberOf } from './invoice';
 
 const order = (over: Partial<Order> = {}): Order => ({
   id: 'ORD-20260101-test01',
@@ -79,5 +79,36 @@ describe('buildInvoiceHtml', () => {
     expect(paid).toContain('35 ج.م');
     expect(paid).toContain('خصم الكوبون (WELCOME)');
     expect(paid).not.toContain('>مجاني<');
+  });
+});
+
+describe('invoice number (separate from the order number)', () => {
+  const fieldOf = (html: string, testId: string) => new RegExp(`data-testid="${testId}">([^<]*)<`).exec(html)?.[1];
+
+  it('with no number typed, the invoice number is the order number', () => {
+    expect(invoiceNumberOf({ id: 'ORD-1' })).toBe('ORD-1');
+    expect(invoiceNumberOf({ id: 'ORD-1', invoice_number: null })).toBe('ORD-1');
+    expect(invoiceNumberOf({ id: 'ORD-1', invoice_number: '   ' })).toBe('ORD-1');
+  });
+  it('a typed number wins, trimmed', () => {
+    expect(invoiceNumberOf({ id: 'ORD-1', invoice_number: '  INV-2026-014 ' })).toBe('INV-2026-014');
+  });
+  it('the page prints both: the invoice number and, in its own field, the order number', () => {
+    const html = buildInvoiceHtml(order({ invoice_number: 'INV-2026-014' }));
+    expect(fieldOf(html, 'invoice-number')).toBe('INV-2026-014');
+    expect(fieldOf(html, 'invoice-order-number')).toBe('ORD-20260101-test01');
+    expect(html).toContain('رقم الفاتورة');
+    expect(html).toContain('رقم الطلب');
+    expect(html).toContain('<title>فاتورة INV-2026-014</title>');
+  });
+  it('with none typed both fields show the order number', () => {
+    const html = buildInvoiceHtml(order());
+    expect(fieldOf(html, 'invoice-number')).toBe('ORD-20260101-test01');
+    expect(fieldOf(html, 'invoice-order-number')).toBe('ORD-20260101-test01');
+  });
+  it('a typed number can never become markup', () => {
+    const html = buildInvoiceHtml(order({ invoice_number: '<img src=x onerror=1>' }));
+    expect(html).not.toContain('<img src=x');
+    expect(fieldOf(html, 'invoice-number')).toContain('&lt;img');
   });
 });

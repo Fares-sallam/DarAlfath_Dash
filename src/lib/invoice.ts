@@ -96,6 +96,15 @@ export interface InvoiceOptions {
   logoUrl?: string;
 }
 
+/**
+ * The invoice's own number: the one typed in the order window, or the order number when none was typed (blank counts as none).
+ * The order number is always printed too, in its own field, so the two can never be mixed up.
+ */
+export function invoiceNumberOf(order: { id: string; invoice_number?: string | null }): string {
+  const typed = (order.invoice_number ?? '').trim();
+  return typed || order.id;
+}
+
 export function buildInvoiceHtml(order: Order, options: InvoiceOptions = {}): string {
   const f = invoiceFigures(order);
   const currency = order.countries?.currency_symbol ?? 'ج.م';
@@ -129,7 +138,8 @@ export function buildInvoiceHtml(order: Order, options: InvoiceOptions = {}): st
     trow('grand', 'الإجمالي بالشحن', esc(money(f.totalWithShipping, currency))),
   ].join('');
 
-  const title = `فاتورة ${order.id}`;
+  const invoiceNo = invoiceNumberOf(order);
+  const title = `فاتورة ${invoiceNo}`;
   return `<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
@@ -151,6 +161,8 @@ export function buildInvoiceHtml(order: Order, options: InvoiceOptions = {}): st
   h1 { font-size: 24px; font-weight: 800; line-height: 1.2; letter-spacing: .5px; }
   .stamp { text-align: left; font-size: 10px; color: #CBD5E1; }
   .stamp b { display: block; color: var(--gold); font-size: 12px; font-weight: 800; direction: ltr; unicode-bidi: plaintext; }
+  .stamp b.order-no { color: #fff; font-size: 11px; font-weight: 700; }
+  .stamp span + b + span { margin-top: 3px; display: block; }
   .goldbar { height: 4px; background: var(--gold); border-radius: 0 0 4px 4px; margin-bottom: 14px; }
   .cards { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
   .card { border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; break-inside: avoid; }
@@ -191,7 +203,7 @@ export function buildInvoiceHtml(order: Order, options: InvoiceOptions = {}): st
 <body>
   <header class="head">
     <div class="brand"><img src="${esc(logo)}" alt="" /><div><div class="org">دار الفتح للنشر والتوزيع</div><h1>فاتورة</h1></div></div>
-    <div class="stamp"><span>رقم الفاتورة</span><b>${esc(order.id)}</b><span>${esc(date)}</span></div>
+    <div class="stamp"><span>رقم الفاتورة</span><b data-testid="invoice-number">${esc(invoiceNo)}</b><span>رقم الطلب</span><b class="order-no" data-testid="invoice-order-number">${esc(order.id)}</b><span>${esc(date)}</span></div>
   </header>
   <div class="goldbar"></div>
 
@@ -231,5 +243,5 @@ export function buildInvoiceHtml(order: Order, options: InvoiceOptions = {}): st
 
 /** Opens the print window with the invoice (choose «Save as PDF» there for the file). */
 export async function printInvoice(order: Order, options: InvoiceOptions = {}): Promise<void> {
-  await printHtml(buildInvoiceHtml(order, options), `فاتورة-${order.id}`);
+  await printHtml(buildInvoiceHtml(order, options), `فاتورة-${invoiceNumberOf(order)}`);
 }

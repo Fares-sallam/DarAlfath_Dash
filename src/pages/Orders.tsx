@@ -74,6 +74,7 @@ function OrderDetailModal({ orderId, onClose }: DetailModalProps) {
   const [trackingNum, setTrackingNum] = useState('');
   const [shippingCoId, setShippingCoId] = useState('');
   const [notes, setNotes] = useState('');
+  const [invoiceNo, setInvoiceNo] = useState('');
   const [initialized, setInitialized] = useState(false);
 
   if (order && !initialized) {
@@ -82,10 +83,12 @@ function OrderDetailModal({ orderId, onClose }: DetailModalProps) {
     setTrackingNum(order.tracking_number ?? '');
     setShippingCoId(order.shipping_company_id ?? '');
     setNotes(order.notes ?? '');
+    setInvoiceNo(order.invoice_number ?? '');
     setInitialized(true);
   }
 
   const currency = order?.countries?.currency_symbol ?? selectedCurrencySymbol ?? 'ج.م';
+  const invoiceChanged = !!order && invoiceNo.trim() !== (order.invoice_number ?? '').trim();
 
   const handleSave = async () => {
     if (!order) return;
@@ -96,8 +99,25 @@ function OrderDetailModal({ orderId, onClose }: DetailModalProps) {
       tracking_number: trackingNum || undefined,
       shipping_company_id: shippingCoId || null,
       notes: notes || undefined,
+      // only when it was changed: empty clears it (the invoice then shows the order number)
+      ...(invoiceChanged ? { invoice_number: invoiceNo.trim() || null } : {}),
     });
     onClose();
+  };
+
+  // Printing from this window prints what is typed: a changed invoice number is saved first (so the same number comes out on every
+  // later print, from here or from the lists), and nothing prints if it cannot be saved (a number already used on another invoice).
+  const handlePrint = async () => {
+    if (!order) return;
+    const typed = invoiceNo.trim();
+    if (invoiceChanged) {
+      try {
+        await updateMutation.mutateAsync({ id: order.id, invoice_number: typed || null });
+      } catch {
+        return;
+      }
+    }
+    await printInvoice({ ...order, invoice_number: typed || null });
   };
 
   const addr = order?.shipping_address;
@@ -417,6 +437,26 @@ function OrderDetailModal({ orderId, onClose }: DetailModalProps) {
               </div>
             </div>
 
+            <div className="bg-amber-50/60 rounded-2xl p-4">
+              <label htmlFor="order-invoice-number" className="text-sm font-bold text-amber-900 mb-1.5 flex items-center gap-2">
+                <FileText size={14} />
+                رقم الفاتورة (اختياري)
+              </label>
+              <input
+                id="order-invoice-number"
+                value={invoiceNo}
+                onChange={(e) => setInvoiceNo(e.target.value)}
+                className="input-field text-sm py-2 h-auto"
+                placeholder={order.id}
+                dir="ltr"
+                maxLength={40}
+                data-testid="order-invoice-number"
+              />
+              <p className="text-xs text-gray-500 mt-1.5">
+                لو سبته فاضي، الفاتورة بتطلع برقم الطلب ({order.id}). رقم الطلب بيظهر في الفاتورة دايمًا في خانة لوحده.
+              </p>
+            </div>
+
             <div>
               <label className="block text-sm font-bold text-gray-700 mb-1.5">ملاحظات</label>
               <textarea
@@ -433,8 +473,8 @@ function OrderDetailModal({ orderId, onClose }: DetailModalProps) {
         <div className="flex flex-wrap gap-2 px-6 py-4 border-t border-gray-100 bg-gray-50/50 rounded-b-3xl">
           {/* the footer is drawn while the order is still loading: nothing here may read `order` until it is there */}
           <button
-            onClick={() => order && void printInvoice(order)}
-            disabled={!order}
+            onClick={() => void handlePrint()}
+            disabled={!order || updateMutation.isPending}
             className="btn-secondary flex items-center gap-1.5 text-sm disabled:opacity-50"
             data-testid="order-print"
           >

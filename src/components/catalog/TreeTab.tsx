@@ -9,7 +9,7 @@ import {
   NODE_TYPE_LABELS, STATUS_LABELS, buildTree, childrenOf, descendantIds, formatBookCount, nodeFlags, nodeStatus,
   type CatalogNode, type Channel, type NodeType,
 } from '@/lib/catalogTree';
-import MergeDialog from './MergeDialog';
+import MergeDialog, { MergePickDialog } from './MergeDialog';
 import MergeHistory from './MergeHistory';
 import NodeEditor, { type EditorTarget } from './NodeEditor';
 import { Grip, gripButtonClass, useDragRows } from './useDragRows';
@@ -66,6 +66,7 @@ export default function TreeTab({ openNodeId, onOpened }: { openNodeId?: string 
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const [editor, setEditor] = useState<EditorTarget | null>(null);
   const [merging, setMerging] = useState<CatalogNode | null>(null);
+  const [pickingMerge, setPickingMerge] = useState(false);
 
   // a link from another tab («افتح العنصر») opens that node's editor once
   useEffect(() => {
@@ -188,7 +189,7 @@ export default function TreeTab({ openNodeId, onOpened }: { openNodeId?: string 
         {channel === 'both' ? ' (الترتيب المعروض هو ترتيب الموقع)' : ''}
       </p>
 
-      <MergeHistory />
+      <MergeHistory onPick={() => setPickingMerge(true)} />
 
       <div className="bg-white rounded-2xl shadow-sm divide-y divide-gray-50" data-testid="catalog-tree">
         {isLoading && <div className="flex items-center justify-center gap-2 py-12 text-gray-400"><Loader2 size={18} className="animate-spin" /> جارٍ التحميل...</div>}
@@ -279,6 +280,7 @@ export default function TreeTab({ openNodeId, onOpened }: { openNodeId?: string 
         })}
       </div>
 
+      {pickingMerge && <MergePickDialog nodes={nodes} onPick={(node) => { setPickingMerge(false); setMerging(node); }} onClose={() => setPickingMerge(false)} />}
       {merging && <MergeDialog key={merging.id} item={merging} nodes={nodes} onClose={() => setMerging(null)} />}
       {editor && <NodeEditor key={editor.node?.id ?? `new-${editor.createParentId ?? 'root'}`} target={editor} nodes={nodes} onClose={() => setEditor(null)} />}
     </div>

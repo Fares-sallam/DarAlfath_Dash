@@ -6,18 +6,35 @@ import { historyDetail } from '@/lib/catalogMerge';
 const when = (iso: string) =>
   new Date(iso).toLocaleString('ar-EG', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 
-/** The latest merges, each with a «تراجع» that puts the item back as it was. Nothing is drawn when nothing was merged. */
-export default function MergeHistory() {
+/**
+ * The merge section above the tree: the button that starts a merge (so nobody has to hunt for the small icon on a row), and the
+ * latest merges, each with a «تراجع» that puts the item back as it was. Always there, even before the first merge.
+ */
+export default function MergeHistory({ onPick }: { onPick: () => void }) {
   const { data: rows = [] } = useMergeHistory();
   const undo = useUnmergeNode();
   const [asking, setAsking] = useState<string | null>(null);
-
-  if (rows.length === 0) return null;
+  const [open, setOpen] = useState(true);
 
   return (
-    <details className="bg-white rounded-2xl shadow-sm" data-testid="merge-history">
-      <summary className="cursor-pointer select-none px-4 py-3 text-sm font-bold text-gray-700 flex items-center gap-2">
-        <GitMerge size={15} className="text-violet-600" /> عمليات الدمج الأخيرة <span className="text-xs font-semibold text-gray-400">({rows.length})</span>
+    <div className="bg-white rounded-2xl shadow-sm" data-testid="merge-history">
+      <div className="flex items-center gap-3 px-4 py-3 flex-wrap">
+        <GitMerge size={18} className="text-violet-600 flex-shrink-0" />
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-bold text-gray-700">دمج عنصرين في واحد</p>
+          <p className="text-[11px] text-gray-400 leading-relaxed">كتب العنصرين وكل اللي تحتهم بيتجمعوا في عنصر واحد، وتقدر تتراجع بعدها. تقدر كمان تضغط أيقونة الدمج البنفسجية على أي صف.</p>
+        </div>
+        <button type="button" onClick={onPick} className="btn-primary flex items-center gap-2" data-testid="merge-pick">
+          <GitMerge size={15} /> دمج عنصرين
+        </button>
+      </div>
+
+      {rows.length === 0 ? (
+        <p className="px-4 pb-3 -mt-1 text-xs text-gray-400" data-testid="merge-history-empty">مفيش عمليات دمج لسه. بعد أول دمج هتظهر هنا، ومعاها زر «تراجع».</p>
+      ) : (
+      <details open={open} onToggle={(e) => setOpen(e.currentTarget.open)} className="border-t border-gray-100">
+      <summary className="cursor-pointer select-none px-4 py-2.5 text-sm font-bold text-gray-700 flex items-center gap-2">
+        عمليات الدمج الأخيرة <span className="text-xs font-semibold text-gray-400">({rows.length})</span>
       </summary>
       <div className="divide-y divide-gray-50 border-t border-gray-100">
         {rows.map((row) => (
@@ -57,6 +74,8 @@ export default function MergeHistory() {
           </div>
         ))}
       </div>
-    </details>
+      </details>
+      )}
+    </div>
   );
 }

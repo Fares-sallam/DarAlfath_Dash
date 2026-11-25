@@ -157,3 +157,45 @@ export default function MergeDialog({ item, nodes, onClose }: { item: CatalogNod
     </div>
   );
 }
+
+/** The first step when a merge is started from the button above the tree: which item is going to be merged. */
+export function MergePickDialog({ nodes, onPick, onClose }: { nodes: CatalogNode[]; onPick: (node: CatalogNode) => void; onClose: () => void }) {
+  const { data: counts } = useCatalogCounts();
+  const [query, setQuery] = useState('');
+  const list = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return nodes
+      .filter((n) => !q || `${n.name_ar} ${n.name_en ?? ''}`.toLowerCase().includes(q))
+      .sort((a, b) => a.type.localeCompare(b.type) || a.name_ar.localeCompare(b.name_ar, 'ar'));
+  }, [nodes, query]);
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 overflow-y-auto" dir="rtl" data-testid="merge-pick-dialog">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg my-8">
+        <div className="flex items-start justify-between gap-3 p-5 border-b border-gray-100">
+          <div>
+            <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2"><GitMerge size={18} className="text-blue-600" /> أنهي عنصر عايز تدمجه؟</h2>
+            <p className="text-xs text-gray-500 mt-1">اختار أي تصنيف أو سلسلة أو قسم، وفي الخطوة الجاية تختار هتدمجه مع مين.</p>
+          </div>
+          <button type="button" onClick={onClose} className="p-2 rounded-lg hover:bg-gray-100 text-gray-500" aria-label="إغلاق"><X size={16} /></button>
+        </div>
+        <div className="p-5 space-y-2">
+          <div className="relative">
+            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="ابحث بالاسم..." className="input-field pr-9 text-sm py-2 h-auto" data-testid="merge-pick-search" autoFocus />
+            <Search size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          </div>
+          <div className="max-h-72 overflow-y-auto rounded-xl border border-gray-100 divide-y divide-gray-50">
+            {list.length === 0 && <p className="text-sm text-gray-400 text-center py-6">مفيش نتايج.</p>}
+            {list.map((n) => (
+              <button key={n.id} type="button" onClick={() => onPick(n)} className="w-full flex items-center gap-2 px-3 py-2 text-right hover:bg-blue-50/60" data-testid="merge-pick-item" data-node-id={n.id}>
+                <span className="text-sm font-semibold text-gray-800 flex-1 truncate">{n.name_ar}</span>
+                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${TYPE_CHIP[n.type]}`}>{NODE_TYPE_LABELS[n.type]}</span>
+                <span className="text-[11px] text-gray-400 tabular-nums">{counts?.get(n.id)?.total ?? 0} كتاب</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

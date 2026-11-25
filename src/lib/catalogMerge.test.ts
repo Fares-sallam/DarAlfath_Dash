@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { CatalogNode, ProductLink } from './catalogTree';
 import type { MenuItem } from './menuMap';
-import { historyDetail, mergeGroup, mergePreview, mergeSummary, mergeTargets, undoSummary } from './catalogMerge';
+import { canUnion, historyDetail, mergeGroup, mergePreview, mergeSummary, mergeTargets, removeUnionSummary, undoSummary, unionName, unionPreview, unionSummary } from './catalogMerge';
 
 function node(id: string, type: CatalogNode['type'], over: Partial<CatalogNode> = {}): CatalogNode {
   return {
@@ -79,5 +79,28 @@ describe('undoSummary and historyDetail', () => {
   it('sums up one past merge', () => {
     expect(historyDetail({ summary: { books_moved: 3, books_already_in_target: 1, children_moved: 2, menu_items: 1 } })).toBe('4 كتاب، 2 عنصر تحته، 1 رابط هيدر');
     expect(historyDetail({ summary: null })).toBe('من غير كتب');
+  });
+});
+
+describe('combining without deleting', () => {
+  const links = [link('p1', 'a', true), link('p2', 'a'), link('p2', 'b', true), link('p3', 'b')];
+  it('suggests «A وB»', () => {
+    expect(unionName(node('x', 'category', { name_ar: 'التربوي' }), node('y', 'category', { name_ar: ' الحساب ' }))).toBe('التربوي والحساب');
+  });
+  it('counts every book of the two once', () => {
+    expect(unionPreview(NODES[2], NODES[3], links)).toEqual({ books: 3, shared: 1 });
+    expect(unionPreview(NODES[2], NODES[3], [])).toEqual({ books: 0, shared: 0 });
+  });
+  it('sections cannot be combined, everything else can', () => {
+    expect(canUnion(node('s', 'section'))).toBe(false);
+    expect(canUnion(node('s', 'series'))).toBe(true);
+    expect(canUnion(node('s', 'category'))).toBe(true);
+    expect(canUnion(node('s', 'collection'))).toBe(true);
+  });
+  it('says what was made and what was taken back', () => {
+    expect(unionSummary({ id: 'n', name: 'التربوي والحساب', slug: 's', type: 'category', books: 7, source_a_name: 'التربوي', source_b_name: 'الحساب' }))
+      .toBe('تم عمل «التربوي والحساب» من «التربوي» و«الحساب» (7 كتاب)، والأصليين زي ما هم');
+    expect(removeUnionSummary({ name: 'التربوي والحساب', books_removed: 7 })).toBe('تم التراجع: «التربوي والحساب» اتشال، والأصليين وكتبهم زي ما هم');
+    expect(historyDetail({ summary: { books: 7 } })).toBe('7 كتاب');
   });
 });

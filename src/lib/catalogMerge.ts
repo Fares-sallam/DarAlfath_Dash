@@ -92,22 +92,77 @@ export function undoSummary(r: UndoResult): string {
 
 /** One merge in the list of merges that can be undone. */
 export interface MergeHistoryRow {
+  /** a merge that deleted one item, or an item made by combining two without deleting anything */
+  kind: 'merge' | 'union';
+  /** for a merge: the item that was merged away; for a combined item: the new item itself (what the undo takes) */
   old_id: string;
   source_name: string;
   target_id: string;
   target_name: string;
   merged_at: string;
-  summary: Partial<MergeResult> | null;
+  summary: (Partial<MergeResult> & { books?: number }) | null;
   can_undo: boolean;
 }
 
 /** What one past merge moved, in a few words, for the history list. */
 export function historyDetail(row: Pick<MergeHistoryRow, 'summary'>): string {
   const r = row.summary ?? {};
+  if (typeof r.books === 'number') return r.books > 0 ? `${r.books} كتاب` : 'من غير كتب';
   const books = (r.books_moved ?? 0) + (r.books_already_in_target ?? 0);
   const parts: string[] = [];
   if (books > 0) parts.push(`${books} كتاب`);
   if ((r.children_moved ?? 0) > 0) parts.push(`${r.children_moved} عنصر تحته`);
   if ((r.menu_items ?? 0) > 0) parts.push(`${r.menu_items} رابط هيدر`);
   return parts.length ? parts.join('، ') : 'من غير كتب';
+}
+
+// ── combining without deleting («دمج بدون حذف») ──
+
+export type MergeMode = 'merge' | 'union';
+
+/** The suggested name of an item made from two: «التربوي» + «الحساب» → «التربوي والحساب». */
+export function unionName(a: Pick<CatalogNode, 'name_ar'>, b: Pick<CatalogNode, 'name_ar'>): string {
+  return `${a.name_ar.trim()} و${b.name_ar.trim()}`;
+}
+
+/** Sections hold other items, not books, so two of them cannot be combined into a new one; everything else can. */
+export function canUnion(item: Pick<CatalogNode, 'type'>): boolean {
+  return item.type !== 'section';
+}
+
+export interface UnionPreview {
+  /** books the new item will hold: every book of the two, each once */
+  books: number;
+  /** books in both (counted once) */
+  shared: number;
+}
+
+export function unionPreview(a: CatalogNode, b: CatalogNode, links: readonly ProductLink[]): UnionPreview {
+  const inA = new Set(links.filter((l) => l.node_id === a.id).map((l) => l.product_id));
+  const inB = new Set(links.filter((l) => l.node_id === b.id).map((l) => l.product_id));
+  const all = new Set([...inA, ...inB]);
+  return { books: all.size, shared: inA.size + inB.size - all.size };
+}
+
+export interface UnionResult {
+  id: string;
+  name: string;
+  slug: string;
+  type: NodeType;
+  books: number;
+  source_a_name: string;
+  source_b_name: string;
+}
+
+export function unionSummary(r: UnionResult): string {
+  return `تم عمل «${r.name}» من «${r.source_a_name}» و«${r.source_b_name}» (${r.books} كتاب)، والأصليين زي ما هم`;
+}
+
+export interface RemoveUnionResult {
+  name: string;
+  books_removed: number;
+}
+
+export function removeUnionSummary(r: RemoveUnionResult): string {
+  return `تم التراجع: «${r.name}» اتشال، والأصليين وكتبهم زي ما هم`;
 }

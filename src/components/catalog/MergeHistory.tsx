@@ -40,17 +40,28 @@ export default function MergeHistory({ onPick }: { onPick: () => void }) {
         {rows.map((row) => (
           <div key={row.old_id} className="flex items-center gap-3 px-4 py-2.5 flex-wrap" data-testid="merge-history-row" data-old-id={row.old_id}>
             <div className="flex-1 min-w-0">
-              <p className="text-sm text-gray-800">
-                <span className="font-bold">«{row.source_name}»</span> اندمج في <span className="font-bold">«{row.target_name}»</span>
-              </p>
+              {row.kind === 'union' ? (
+                <p className="text-sm text-gray-800" data-testid="history-union">
+                  <span className="font-bold">«{row.target_name}»</span> اتعمل من {row.source_name.replace(' + ', ' و ')}
+                  <span className="mr-2 text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-emerald-100 text-emerald-700">بدون حذف</span>
+                </p>
+              ) : (
+                <p className="text-sm text-gray-800">
+                  <span className="font-bold">«{row.source_name}»</span> اندمج في <span className="font-bold">«{row.target_name}»</span>
+                </p>
+              )}
               <p className="text-[11px] text-gray-400">{when(row.merged_at)} · {historyDetail(row)}</p>
             </div>
             {asking === row.old_id ? (
               <div className="flex items-center gap-2" data-testid="undo-confirm-box">
-                <span className="text-xs text-red-700 font-semibold">يرجّع «{row.source_name}» وكتبه ويشيلهم من «{row.target_name}». متأكد؟</span>
+                <span className="text-xs text-red-700 font-semibold">
+                  {row.kind === 'union'
+                    ? <>يشيل «{row.target_name}» بس، والأصليين وكتبهم زي ما هم. متأكد؟</>
+                    : <>يرجّع «{row.source_name}» وكتبه ويشيلهم من «{row.target_name}». متأكد؟</>}
+                </span>
                 <button
                   type="button"
-                  onClick={() => undo.mutate(row.old_id, { onSettled: () => setAsking(null) })}
+                  onClick={() => undo.mutate({ id: row.old_id, kind: row.kind }, { onSettled: () => setAsking(null) })}
                   disabled={undo.isPending}
                   className="px-3 py-1.5 rounded-lg bg-red-600 text-white text-xs font-bold hover:bg-red-700 disabled:opacity-60 flex items-center gap-1.5"
                   data-testid="undo-confirm"
@@ -64,7 +75,9 @@ export default function MergeHistory({ onPick }: { onPick: () => void }) {
                 type="button"
                 onClick={() => setAsking(row.old_id)}
                 disabled={!row.can_undo}
-                title={row.can_undo ? 'ارجّع «' + row.source_name + '» زي ما كان' : 'العنصر اللي اندمج فيه اندمج في حاجة تانية بعد كده. اتراجع عن الدمج التاني الأول.'}
+                title={row.can_undo
+                  ? (row.kind === 'union' ? 'شيل «' + row.target_name + '» (الأصليين مش بيتأثروا)' : 'ارجّع «' + row.source_name + '» زي ما كان')
+                  : (row.kind === 'union' ? 'فيه كتب تصنيفها الأساسي العنصر ده. غيّر تصنيفها الأول.' : 'العنصر اللي اندمج فيه اندمج في حاجة تانية بعد كده. اتراجع عن الدمج التاني الأول.')}
                 className="px-3 py-1.5 rounded-lg border border-violet-200 text-violet-700 text-xs font-bold hover:bg-violet-50 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
                 data-testid="undo-merge"
               >

@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'react';
 import { ArrowLeftRight, GitMerge, Loader2, Search, X } from 'lucide-react';
-import { useCatalogCounts, useCatalogLinks, useMergeNodes } from '@/hooks/useCatalog';
+import { useCatalogCounts, useCatalogLinks, useMergeNodes, useUnionNodes } from '@/hooks/useCatalog';
 import { useMenuItems } from '@/hooks/useMenuItems';
 import { useStoreDepartments } from '@/hooks/useStoreDepartments';
 import { NODE_TYPE_LABELS, type CatalogNode } from '@/lib/catalogTree';
-import { mergePreview, mergeTargets } from '@/lib/catalogMerge';
+import { canUnion, mergePreview, mergeTargets, unionName, unionPreview, type MergeMode } from '@/lib/catalogMerge';
 
 const TYPE_CHIP: Record<CatalogNode['type'], string> = {
   section: 'bg-violet-100 text-violet-700',
@@ -23,7 +23,10 @@ export default function MergeDialog({ item, nodes, onClose }: { item: CatalogNod
   const { data: menuItems = [] } = useMenuItems();
   const { data: departmentIds = [] } = useStoreDepartments();
   const merge = useMergeNodes();
+  const union = useUnionNodes();
 
+  const [mode, setMode] = useState<MergeMode>('merge');
+  const [newName, setNewName] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [otherId, setOtherId] = useState<string | null>(null);
   // which of the two stays: the one picked (default) or the one the dialog was opened on
@@ -41,11 +44,17 @@ export default function MergeDialog({ item, nodes, onClose }: { item: CatalogNod
   const vanishing = other ? (keepOpened ? other : item) : null;
   const finalName = name ?? survivor?.name_ar ?? '';
   const preview = survivor && vanishing ? mergePreview(vanishing, survivor, nodes, links, menuItems, departmentIds) : null;
+  // without deleting: a new item made from the two (the opened one first), named «A وB» unless typed
+  const unionAllowed = canUnion(item);
+  const unionMode = mode === 'union' && unionAllowed;
+  const unionFinalName = newName ?? (other ? unionName(item, other) : '');
+  const unionInfo = other ? unionPreview(item, other, links) : null;
 
   const pick = (id: string) => {
     setOtherId(id);
     setKeepOpened(false);
     setName(null);
+    setNewName(null);
     setConfirming(false);
   };
   const swap = () => {
@@ -53,8 +62,17 @@ export default function MergeDialog({ item, nodes, onClose }: { item: CatalogNod
     setName(null);
     setConfirming(false);
   };
+  const chooseMode = (next: MergeMode) => {
+    setMode(next);
+    setConfirming(false);
+  };
 
   const submit = () => {
+    if (unionMode) {
+      if (!other || !unionFinalName.trim()) return;
+      union.mutate({ aId: item.id, bId: other.id, name: unionFinalName.trim() }, { onSuccess: onClose });
+      return;
+    }
     if (!survivor || !vanishing) return;
     merge.mutate(
       { sourceId: vanishing.id, targetId: survivor.id, newName: finalName.trim() && finalName.trim() !== survivor.name_ar ? finalName.trim() : undefined },
@@ -102,7 +120,62 @@ export default function MergeDialog({ item, nodes, onClose }: { item: CatalogNod
             </div>
           </div>
 
-          {survivor && vanishing && preview && (
+          {other && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2" role="radiogroup" aria-label="نوع الدمج" data-testid="merge-modes">
+              <button
+                type="button"
+                role="radio"
+                aria-checked={!unionMode}
+                onClick={() => chooseMode('merge')}
+                className={`text-right rounded-xl border-2 px-3 py-2 ${!unionMode ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:bg-gray-50'}`}
+                data-testid="merge-mode-merge"
+              >
+                <p className="text-sm font-bold text-gray-800">دمج وحذف</p>
+                <p className="text-[11px] text-gray-500 leading-relaxed">واحد منهم بيختفي جوه التاني، وكتبه وكل اللي تحته بيروحوا للي فضل.</p>
+              </button>
+              <button
+                type="button"
+                role="radio"
+                aria-checked={unionMode}
+                disabled={!unionAllowed}
+                onClick={() => chooseMode('union')}
+                className={`text-right rounded-xl border-2 px-3 py-2 disabled:opacity-50 disabled:cursor-not-allowed ${unionMode ? 'border-emerald-500 bg-emerald-50' : 'border-gray-200 hover:bg-gray-50'}`}
+                data-testid="merge-mode-union"
+              >
+                <p className="text-sm font-bold text-gray-800">دمج بدون حذف</p>
+                <p className="text-[11px] text-gray-500 leading-relaxed">
+                  {unionAllowed ? 'بيتعمل عنصر جديد باسم تختاره (زي «التربوي والحساب») فيه كتب الاتنين، والاتنين فاضلين زي ما هم.' : 'الأقسام ما ينفعش تتجمع من غير حذف.'}
+                </p>
+              </button>
+            </div>
+          )}
+
+          {unionMode && other && unionInfo && (
+            <div className="rounded-2xl border border-emerald-100 bg-emerald-50/40 p-4 space-y-3" data-testid="union-preview">
+              <div className="flex items-center gap-2 flex-wrap text-sm">
+                <span className="px-2.5 py-1 rounded-lg bg-emerald-100 text-emerald-800 font-bold">«{item.name_ar}» هيفضل</span>
+                <span className="text-gray-400">+</span>
+                <span className="px-2.5 py-1 rounded-lg bg-emerald-100 text-emerald-800 font-bold">«{other.name_ar}» هيفضل</span>
+                <span className="text-gray-400">←</span>
+                <span className="px-2.5 py-1 rounded-lg bg-blue-100 text-blue-800 font-bold" data-testid="union-new">{item.type === 'series' ? 'سلسلة' : item.type === 'collection' && other.type === 'collection' ? 'مجموعة' : 'تصنيف'} جديد</span>
+              </div>
+
+              <ul className="text-sm text-gray-700 space-y-1 list-disc pr-5" data-testid="union-effects">
+                <li>هيتعمل عنصر جديد باسم «{unionFinalName}» فيه {unionInfo.books} كتاب (كتب «{item.name_ar}» و«{other.name_ar}»).</li>
+                {unionInfo.shared > 0 && <li>{unionInfo.shared} كتاب موجود في الاتنين، هيظهر مرة واحدة في الجديد.</li>}
+                <li>«{item.name_ar}» و«{other.name_ar}» مش هيتحذفوا ولا يتغيروا، وكتبهم بتفضل فيهم.</li>
+                <li>تصنيف الكتب الأساسي مش هيتغير: الكتب بتظهر في العنصر الجديد كمان.</li>
+                <li>بيتحط في نفس مكان الاتنين لو هما في نفس المكان، وإلا في الأعلى. وتقدر تنقله بعدين.</li>
+              </ul>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-600 mb-1" htmlFor="union-name">اسم العنصر الجديد</label>
+                <input id="union-name" value={unionFinalName} onChange={(e) => setNewName(e.target.value)} className="input-field text-sm py-2 h-auto w-full" data-testid="union-name" />
+              </div>
+            </div>
+          )}
+
+          {!unionMode && survivor && vanishing && preview && (
             <div className="rounded-2xl border border-blue-100 bg-blue-50/40 p-4 space-y-3" data-testid="merge-preview">
               <div className="flex items-center gap-2 flex-wrap text-sm">
                 <span className="px-2.5 py-1 rounded-lg bg-red-100 text-red-700 font-bold" data-testid="merge-vanishing">«{vanishing.name_ar}» هيتحذف</span>
@@ -134,9 +207,14 @@ export default function MergeDialog({ item, nodes, onClose }: { item: CatalogNod
             </div>
           )}
 
-          {confirming && survivor && vanishing && (
+          {confirming && unionMode && other && (
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800" data-testid="union-confirm-box">
+              هيتعمل «{unionFinalName.trim()}» ومفيش حاجة هتتحذف. تقدر تتراجع بعدها بزر «تراجع».
+            </div>
+          )}
+          {confirming && !unionMode && survivor && vanishing && (
             <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800" data-testid="merge-confirm-box">
-              متأكد؟ «{vanishing.name_ar}» هيتحذف، والدمج مش بيترجّع بزر. لو غلطت بتنقل الكتب تاني بإيدك.
+              متأكد؟ «{vanishing.name_ar}» هيتحذف. تقدر تتراجع بعدها بزر «تراجع» (من الرسالة أو من «عمليات الدمج الأخيرة»).
             </div>
           )}
         </div>
@@ -144,12 +222,24 @@ export default function MergeDialog({ item, nodes, onClose }: { item: CatalogNod
         <div className="flex items-center gap-2 justify-end p-5 border-t border-gray-100">
           <button type="button" onClick={onClose} className="px-4 py-2 rounded-xl border border-gray-200 text-sm font-semibold hover:bg-gray-50" data-testid="merge-cancel">إلغاء</button>
           {!confirming ? (
-            <button type="button" onClick={() => setConfirming(true)} disabled={!survivor || !finalName.trim()} className="btn-primary flex items-center gap-2 disabled:opacity-50" data-testid="merge-go">
-              <GitMerge size={15} /> ادمج
+            <button
+              type="button"
+              onClick={() => setConfirming(true)}
+              disabled={unionMode ? !unionFinalName.trim() : !survivor || !finalName.trim()}
+              className="btn-primary flex items-center gap-2 disabled:opacity-50"
+              data-testid="merge-go"
+            >
+              <GitMerge size={15} /> {unionMode ? 'اعمل العنصر الجديد' : 'ادمج'}
             </button>
           ) : (
-            <button type="button" onClick={submit} disabled={merge.isPending} className="px-4 py-2 rounded-xl bg-red-600 text-white text-sm font-bold hover:bg-red-700 disabled:opacity-60 flex items-center gap-2" data-testid="merge-confirm">
-              {merge.isPending ? <Loader2 size={15} className="animate-spin" /> : <GitMerge size={15} />} أيوه، ادمج
+            <button
+              type="button"
+              onClick={submit}
+              disabled={merge.isPending || union.isPending}
+              className={`px-4 py-2 rounded-xl text-white text-sm font-bold disabled:opacity-60 flex items-center gap-2 ${unionMode ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-red-600 hover:bg-red-700'}`}
+              data-testid="merge-confirm"
+            >
+              {merge.isPending || union.isPending ? <Loader2 size={15} className="animate-spin" /> : <GitMerge size={15} />} {unionMode ? 'أيوه، اعمله' : 'أيوه، ادمج'}
             </button>
           )}
         </div>

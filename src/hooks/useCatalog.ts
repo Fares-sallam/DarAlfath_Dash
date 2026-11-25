@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tansta
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import type { CatalogNode, Channel, NodeCounts, ProductLink } from '@/lib/catalogTree';
-import { mergeSummary, undoSummary, type MergeHistoryRow, type MergeResult, type UndoResult } from '@/lib/catalogMerge';
+import { mergeSummary, removeUnionSummary, undoSummary, unionSummary, type MergeHistoryRow, type MergeResult, type RemoveUnionResult, type UndoResult, type UnionResult } from '@/lib/catalogMerge';
 import { refreshCatalogDependents } from '@/lib/catalogRefresh';
 
 const PAGE = 1000;
@@ -20,6 +20,10 @@ export function friendlyCatalogError(message: string): string {
   if (m.includes('can only merge items of the same kind')) return 'الدمج بين عنصرين من نفس النوع بس (تصنيف مع تصنيف، سلسلة مع سلسلة، قسم مع قسم).';
   if (m.includes('cannot merge into an item inside itself')) return 'مينفعش تدمج عنصر في واحد جواه.';
   if (m.includes('merge needs two different items')) return 'اختار عنصرين مختلفين.';
+  if (m.includes('sections cannot be combined')) return 'الأقسام ما ينفعش تتجمع من غير حذف. استخدم «دمج وحذف».';
+  if (m.includes('a name is needed')) return 'اكتب اسم للعنصر الجديد.';
+  if (m.includes('was not made by combining')) return 'العنصر ده مش متعمل من دمج عنصرين.';
+  if (m.includes('use this item as their primary')) return 'فيه كتب تصنيفها الأساسي العنصر ده. غيّر تصنيفها الأساسي الأول وبعدين تراجع.';
   if (m.includes('merged again later')) return 'العنصر اللي اندمج فيه اندمج في حاجة تانية بعد كده. اتراجع عن الدمج التاني الأول.';
   if (m.includes('exists again already')) return 'العنصر ده موجود تاني بالفعل.';
   if (m.includes('no merge to undo')) return 'مفيش دمج يتراجع عنه للعنصر ده.';
@@ -290,12 +294,45 @@ export function useMergeHistory() {
   });
 }
 
-/** Puts a merged item back: the item itself, its books (primary or not, in their order) and everything that moved with it. */
+async function callRemoveUnion(qc: QueryClient, nodeId: string): Promise<RemoveUnionResult> {
+  const { data, error } = await supabase.rpc('catalog_remove_union', { p_node: nodeId });
+  if (error) throw new Error(error.message);
+  afterMergeOrUndo(qc);
+  return data as RemoveUnionResult;
+}
+
+/** Combines two items into a NEW one that holds the books of both, without deleting or changing either. */
+export function useUnionNodes() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ aId, bId, name }: { aId: string; bId: string; name: string }): Promise<UnionResult> => {
+      const { data, error } = await supabase.rpc('catalog_union_nodes', { p_a: aId, p_b: bId, p_name: name, p_slug: null });
+      if (error) throw new Error(error.message);
+      return data as UnionResult;
+    },
+    onSuccess: (result) => {
+      afterMergeOrUndo(qc);
+      toast.success(unionSummary(result), {
+        duration: 15_000,
+        action: {
+          label: 'تراجع',
+          onClick: () => {
+            callRemoveUnion(qc, result.id).then((r) => toast.success(removeUnionSummary(r))).catch((e: Error) => toast.error(friendlyCatalogError(e.message)));
+          },
+        },
+      });
+    },
+    onError: (e: Error) => toast.error(friendlyCatalogError(e.message)),
+  });
+}
+
+/** Takes one entry of the history back: a merge puts the deleted item back, a combined item is removed (the originals stay). */
 export function useUnmergeNode() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (oldId: string) => callUnmerge(qc, oldId),
-    onSuccess: (result) => toast.success(undoSummary(result)),
+    mutationFn: async ({ id, kind }: { id: string; kind: MergeHistoryRow['kind'] }) =>
+      kind === 'union' ? { kind, message: removeUnionSummary(await callRemoveUnion(qc, id)) } : { kind, message: undoSummary(await callUnmerge(qc, id)) },
+    onSuccess: ({ message }) => toast.success(message),
     onError: (e: Error) => toast.error(friendlyCatalogError(e.message)),
   });
 }

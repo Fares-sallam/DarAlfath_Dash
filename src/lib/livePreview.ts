@@ -55,6 +55,18 @@ export function buildDepartmentsMessage(draft: { ids: string[]; images: Record<s
   return { type: SITE_PREVIEW_MESSAGE, departments: draft, navigate: '/', scroll: 'departments' };
 }
 
+export interface StockPreviewMessage {
+  type: typeof SITE_PREVIEW_MESSAGE;
+  stockCount: { web: boolean; app: boolean };
+  navigate: string;
+  scroll: 'top';
+}
+
+/** A book's page with the «show the number of copies» switches being edited (its editions say «متوفر 12 نسخة» or just «متوفر»). */
+export function buildStockMessage(visibility: { web: boolean; app: boolean }, bookId: string | null): StockPreviewMessage {
+  return { type: SITE_PREVIEW_MESSAGE, stockCount: { web: visibility.web, app: visibility.app }, navigate: bookId ? `/book/${bookId}` : '/books', scroll: 'top' };
+}
+
 export interface NodePagePreviewMessage {
   type: typeof SITE_PREVIEW_MESSAGE;
   nodePage: { id: string; fields: Record<string, unknown> };

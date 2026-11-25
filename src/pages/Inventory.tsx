@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import Layout from '@/components/layout/Layout';
+import StockCountSwitches from '@/components/inventory/StockCountSwitches';
 import ReportDownloadButton from '@/components/reports/ReportDownloadButton';
 import { INVENTORY_REPORT_GROUPS } from '@/lib/reports/reportColumns';
 import { buildInventoryReport } from '@/lib/reports/builders/inventory';
@@ -301,6 +302,8 @@ export default function Inventory() {
             </button>
           </div>
         </div>
+
+        <StockCountSwitches />
 
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
           {[

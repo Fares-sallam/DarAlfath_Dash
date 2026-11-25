@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tansta
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import type { CatalogNode, Channel, NodeCounts, ProductLink } from '@/lib/catalogTree';
-import { mergeSummary, type MergeResult } from '@/lib/catalogMerge';
+import { mergeSummary, undoSummary, type MergeHistoryRow, type MergeResult, type UndoResult } from '@/lib/catalogMerge';
 import { refreshCatalogDependents } from '@/lib/catalogRefresh';
 
 const PAGE = 1000;
@@ -20,6 +20,11 @@ export function friendlyCatalogError(message: string): string {
   if (m.includes('can only merge items of the same kind')) return 'الدمج بين عنصرين من نفس النوع بس (تصنيف مع تصنيف، سلسلة مع سلسلة، قسم مع قسم).';
   if (m.includes('cannot merge into an item inside itself')) return 'مينفعش تدمج عنصر في واحد جواه.';
   if (m.includes('merge needs two different items')) return 'اختار عنصرين مختلفين.';
+  if (m.includes('merged again later')) return 'العنصر اللي اندمج فيه اندمج في حاجة تانية بعد كده. اتراجع عن الدمج التاني الأول.';
+  if (m.includes('exists again already')) return 'العنصر ده موجود تاني بالفعل.';
+  if (m.includes('no merge to undo')) return 'مفيش دمج يتراجع عنه للعنصر ده.';
+  if (m.includes('before undo existed')) return 'الدمج ده اتعمل قبل ما التراجع يتوفر.';
+  if (m.includes('does not exist any more')) return 'العنصر اللي اندمج فيه اتحذف، فمينفعش التراجع.';
   if (m.includes('violates foreign key')) return 'العنصر ده مربوط ببيانات تانية ومينفعش يتحذف.';
   return message;
 }
@@ -232,6 +237,21 @@ export function useAssignProduct() {
   });
 }
 
+/** The page's own list of everything that depends on a merge: the header's links, home shelves, the cards of «أقسام المتجر». */
+const MERGE_DEPENDENT_KEYS = ['menu-items', 'store-departments', 'home-layout', 'home-layout-rows', 'home-blocks', 'catalog-merge-history'];
+
+function afterMergeOrUndo(qc: QueryClient) {
+  refreshCatalogDependents(qc);
+  void qc.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === 'string' && MERGE_DEPENDENT_KEYS.includes(q.queryKey[0]) });
+}
+
+async function callUnmerge(qc: QueryClient, oldId: string): Promise<UndoResult> {
+  const { data, error } = await supabase.rpc('catalog_unmerge_node', { p_old_id: oldId });
+  if (error) throw new Error(error.message);
+  afterMergeOrUndo(qc);
+  return data as UndoResult;
+}
+
 /** Merges one item into another in a single step: its books, what is under it and the links to it all move to the other one. */
 export function useMergeNodes() {
   const qc = useQueryClient();
@@ -241,12 +261,41 @@ export function useMergeNodes() {
       if (error) throw new Error(error.message);
       return data as MergeResult;
     },
-    onSuccess: (result) => {
-      refreshCatalogDependents(qc);
-      // the header's links, the home shelves and the cards of «أقسام المتجر» may have been pointed at the other item
-      void qc.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === 'string' && ['menu-items', 'store-departments', 'home-layout', 'home-layout-rows', 'home-blocks'].includes(q.queryKey[0]) });
-      toast.success(mergeSummary(result));
+    onSuccess: (result, { sourceId }) => {
+      afterMergeOrUndo(qc);
+      // a few seconds to take it back right from the message
+      toast.success(mergeSummary(result), {
+        duration: 15_000,
+        action: {
+          label: 'تراجع',
+          onClick: () => {
+            callUnmerge(qc, sourceId).then((r) => toast.success(undoSummary(r))).catch((e: Error) => toast.error(friendlyCatalogError(e.message)));
+          },
+        },
+      });
     },
+    onError: (e: Error) => toast.error(friendlyCatalogError(e.message)),
+  });
+}
+
+/** The merges that can still be undone, newest first. */
+export function useMergeHistory() {
+  return useQuery({
+    queryKey: ['catalog-merge-history'],
+    queryFn: async (): Promise<MergeHistoryRow[]> => {
+      const { data, error } = await supabase.rpc('catalog_merge_history', { p_limit: 20 });
+      if (error) throw new Error(error.message);
+      return (data ?? []) as MergeHistoryRow[];
+    },
+  });
+}
+
+/** Puts a merged item back: the item itself, its books (primary or not, in their order) and everything that moved with it. */
+export function useUnmergeNode() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (oldId: string) => callUnmerge(qc, oldId),
+    onSuccess: (result) => toast.success(undoSummary(result)),
     onError: (e: Error) => toast.error(friendlyCatalogError(e.message)),
   });
 }

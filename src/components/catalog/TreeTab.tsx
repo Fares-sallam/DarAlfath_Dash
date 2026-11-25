@@ -10,6 +10,7 @@ import {
   type CatalogNode, type Channel, type NodeType,
 } from '@/lib/catalogTree';
 import MergeDialog from './MergeDialog';
+import MergeHistory from './MergeHistory';
 import NodeEditor, { type EditorTarget } from './NodeEditor';
 import { Grip, gripButtonClass, useDragRows } from './useDragRows';
 import { stepInList, type DropZone } from '@/lib/dragSort';
@@ -186,6 +187,8 @@ export default function TreeTab({ openNodeId, onOpened }: { openNodeId?: string 
         اسحب أي صف من المقبض: فوق أو تحت صف تاني عشان ترتّبه، أو في نص الصف عشان تحطه <b>جواه</b>. الترتيب بيتغيّر لـ{channel === 'both' ? 'الموقع والتطبيق معًا' : channel === 'web' ? 'الموقع' : 'التطبيق'}.
         {channel === 'both' ? ' (الترتيب المعروض هو ترتيب الموقع)' : ''}
       </p>
+
+      <MergeHistory />
 
       <div className="bg-white rounded-2xl shadow-sm divide-y divide-gray-50" data-testid="catalog-tree">
         {isLoading && <div className="flex items-center justify-center gap-2 py-12 text-gray-400"><Loader2 size={18} className="animate-spin" /> جارٍ التحميل...</div>}

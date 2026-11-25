@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { CatalogNode, ProductLink } from './catalogTree';
 import type { MenuItem } from './menuMap';
-import { mergeGroup, mergePreview, mergeSummary, mergeTargets } from './catalogMerge';
+import { historyDetail, mergeGroup, mergePreview, mergeSummary, mergeTargets, undoSummary } from './catalogMerge';
 
 function node(id: string, type: CatalogNode['type'], over: Partial<CatalogNode> = {}): CatalogNode {
   return {
@@ -66,5 +66,18 @@ describe('mergeSummary', () => {
       .toBe('تم دمج «الإملاء» في «النحو»: 4 كتاب في «النحو»');
     expect(mergeSummary({ source_name: 'أ', target_name: 'ب', books_moved: 0, books_already_in_target: 0, children_moved: 2, menu_items: 0, home_blocks: 0, departments: 0 }))
       .toBe('تم دمج «أ» في «ب»: 2 عنصر تحته اتنقل');
+  });
+});
+
+describe('undoSummary and historyDetail', () => {
+  it('says what came back', () => {
+    expect(undoSummary({ restored_name: 'الإملاء', target_name: 'النحو', books_restored: 3, children_restored: 1, menu_items: 0 }))
+      .toBe('تم التراجع: «الإملاء» رجع لوحده بعد ما كان اندمج في «النحو»: 3 كتاب رجع، 1 عنصر تحته رجع');
+    expect(undoSummary({ restored_name: 'أ', target_name: 'ب', books_restored: 0, children_restored: 0, menu_items: 0 }))
+      .toBe('تم التراجع: «أ» رجع لوحده بعد ما كان اندمج في «ب»');
+  });
+  it('sums up one past merge', () => {
+    expect(historyDetail({ summary: { books_moved: 3, books_already_in_target: 1, children_moved: 2, menu_items: 1 } })).toBe('4 كتاب، 2 عنصر تحته، 1 رابط هيدر');
+    expect(historyDetail({ summary: null })).toBe('من غير كتب');
   });
 });

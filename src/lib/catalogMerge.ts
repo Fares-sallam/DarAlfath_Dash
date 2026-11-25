@@ -73,3 +73,41 @@ export function mergeSummary(r: MergeResult): string {
   if (r.children_moved > 0) parts.push(`${r.children_moved} عنصر تحته اتنقل`);
   return `تم دمج «${r.source_name}» في «${r.target_name}»${parts.length ? ': ' + parts.join('، ') : ''}`;
 }
+
+export interface UndoResult {
+  restored_name: string;
+  target_name: string;
+  books_restored: number;
+  children_restored: number;
+  menu_items: number;
+}
+
+/** The sentence shown after an undo. */
+export function undoSummary(r: UndoResult): string {
+  const parts: string[] = [];
+  if (r.books_restored > 0) parts.push(`${r.books_restored} كتاب رجع`);
+  if (r.children_restored > 0) parts.push(`${r.children_restored} عنصر تحته رجع`);
+  return `تم التراجع: «${r.restored_name}» رجع لوحده بعد ما كان اندمج في «${r.target_name}»${parts.length ? ': ' + parts.join('، ') : ''}`;
+}
+
+/** One merge in the list of merges that can be undone. */
+export interface MergeHistoryRow {
+  old_id: string;
+  source_name: string;
+  target_id: string;
+  target_name: string;
+  merged_at: string;
+  summary: Partial<MergeResult> | null;
+  can_undo: boolean;
+}
+
+/** What one past merge moved, in a few words, for the history list. */
+export function historyDetail(row: Pick<MergeHistoryRow, 'summary'>): string {
+  const r = row.summary ?? {};
+  const books = (r.books_moved ?? 0) + (r.books_already_in_target ?? 0);
+  const parts: string[] = [];
+  if (books > 0) parts.push(`${books} كتاب`);
+  if ((r.children_moved ?? 0) > 0) parts.push(`${r.children_moved} عنصر تحته`);
+  if ((r.menu_items ?? 0) > 0) parts.push(`${r.menu_items} رابط هيدر`);
+  return parts.length ? parts.join('، ') : 'من غير كتب';
+}

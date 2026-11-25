@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Layout from '@/components/layout/Layout';
 import ChartsSection from '@/components/features/ChartsSection';
@@ -20,6 +21,7 @@ import {
   ArrowLeft,
   RefreshCw,
   Globe2,
+  ShieldCheck,
 } from 'lucide-react';
 import {
   useBookStats,
@@ -32,6 +34,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { useCountry } from '@/contexts/CountryContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { ACTIVITY_KINDS, ACTIVITY_KIND_LABEL, type ActivityKind } from '@/lib/activityKind';
 
 /* ── Status config ── */
 const statusConfig: Record<string, { label: string; cls: string }> = {
@@ -394,8 +397,11 @@ function BooksPanel() {
 /* ════════════════════════════════════════════════ */
 /* ── Activity Log Panel ── */
 function ActivityPanel() {
-  const { data: logs = [], isLoading, isError, refetch } = useRecentAuditLogs(12);
+  // Two logs, like «سجل النشاط»: what the staff and the system did, and what customers did. Each tab shows only its own.
+  const [kind, setKind] = useState<ActivityKind>('staff');
+  const { data: logs = [], isLoading, isError, refetch } = useRecentAuditLogs(12, kind);
   const navigate = useNavigate();
+  const openLog = () => navigate(kind === 'staff' ? '/activity' : `/activity?kind=${kind}`);
 
   return (
     <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
@@ -405,7 +411,9 @@ function ActivityPanel() {
             <Clock size={16} className="text-indigo-600" />
             سجل التعديلات
           </h3>
-          <p className="text-xs text-gray-400 mt-0.5">آخر العمليات المسجّلة في النظام</p>
+          <p className="text-xs text-gray-400 mt-0.5" data-testid="home-activity-hint">
+            {kind === 'staff' ? 'آخر ما عمله المشرفين والنظام' : 'آخر ما عمله العملاء: تسجيل وطلبات وتعديل بيانات'}
+          </p>
         </div>
 
         <div className="flex items-center gap-2">
@@ -416,9 +424,33 @@ function ActivityPanel() {
           >
             <RefreshCw size={14} />
           </button>
-          <button onClick={() => navigate('/activity')} className="btn-primary text-xs flex items-center gap-1.5">
+          <button onClick={openLog} className="btn-primary text-xs flex items-center gap-1.5" data-testid="home-activity-all">
             عرض الكل <ArrowLeft size={12} />
           </button>
+        </div>
+      </div>
+
+      <div className="px-6 pt-3">
+        <div role="tablist" aria-label="نوع سجل النشاط" className="inline-flex gap-1 p-1 bg-gray-100 rounded-xl">
+          {ACTIVITY_KINDS.map((k) => {
+            const active = k === kind;
+            return (
+              <button
+                key={k}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                data-testid={`home-activity-tab-${k}`}
+                onClick={() => setKind(k)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                  active ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                {k === 'staff' ? <ShieldCheck size={13} /> : <Users size={13} />}
+                {ACTIVITY_KIND_LABEL[k]}
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -439,8 +471,8 @@ function ActivityPanel() {
       {!isLoading && !isError && logs.length === 0 && (
         <div className="text-center py-12 text-gray-400">
           <FileText size={32} className="text-gray-200 mx-auto mb-2" />
-          <p className="text-sm">لا توجد سجلات تعديلات بعد</p>
-          <p className="text-xs mt-1">ستظهر العمليات هنا عند تنفيذ أي تعديل</p>
+          <p className="text-sm">{kind === 'staff' ? 'لا توجد سجلات تعديلات بعد' : 'لا توجد عمليات للعملاء بعد'}</p>
+          <p className="text-xs mt-1">{kind === 'staff' ? 'ستظهر العمليات هنا عند تنفيذ أي تعديل' : 'ستظهر هنا لما العملاء يسجّلوا أو يطلبوا'}</p>
         </div>
       )}
 
@@ -460,8 +492,9 @@ function ActivityPanel() {
               <div
                 key={log.id}
                 className="flex items-start gap-3 px-5 py-3.5 hover:bg-gray-50/60 transition-colors cursor-pointer"
-                onClick={() => navigate('/activity')}
+                onClick={openLog}
                 title="عرض سجل النشاط الكامل"
+                data-testid="home-activity-row"
               >
                 <div className="flex-shrink-0 mt-0.5">
                   {log.profiles?.avatar_url ? (

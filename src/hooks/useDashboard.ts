@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useCountry } from '@/contexts/CountryContext';
+import { ACTIVITY_VIEW, ACTIVITY_VIEW_COLUMNS, withActorProfile, type ActivityKind, type ActivityViewRow } from '@/lib/activityKind';
 
 /* ────────────────────────────────────────────── */
 /* Shared helpers */
@@ -276,60 +277,23 @@ export interface AuditEntry {
   profiles?: { full_name?: string; avatar_url?: string } | null;
 }
 
-export function useRecentAuditLogs(limit = 10) {
+/**
+ * The latest rows of one of the two logs («المشرفين والنظام» or «العملاء»), read from the same view the activity page uses, so the home
+ * panel and the page always agree on whose activity a row is and on the actor's name (a guest's name included).
+ */
+export function useRecentAuditLogs(limit = 10, kind: ActivityKind = 'staff') {
   return useQuery({
-    queryKey: ['dashboard', 'audit-logs', limit],
+    queryKey: ['dashboard', 'audit-logs', kind, limit],
     queryFn: async (): Promise<AuditEntry[]> => {
-
-      // ── محاولة مع FK hint ────────────────────────────────────
       const { data, error } = await supabase
-        .from('audit_logs')
-        .select(`
-          id,
-          user_id,
-          user_email,
-          action,
-          table_name,
-          record_id,
-          old_data,
-          new_data,
-          created_at,
-          profiles!fk_audit_logs_profiles(full_name, avatar_url)
-        `)
+        .from(ACTIVITY_VIEW)
+        .select(ACTIVITY_VIEW_COLUMNS)
+        .eq('actor_kind', kind)
         .order('created_at', { ascending: false })
         .limit(limit);
 
-      if (!error) return (data ?? []) as AuditEntry[];
-
-      // ── الـ JOIN فشل — نجلب بدونه ثم نجلب profiles منفصلاً ──
-      console.warn('[Dashboard] audit join failed:', error.message);
-
-      const { data: raw, error: rawErr } = await supabase
-        .from('audit_logs')
-        .select('id, user_id, user_email, action, table_name, record_id, old_data, new_data, created_at')
-        .order('created_at', { ascending: false })
-        .limit(limit);
-
-      if (rawErr) throw new Error(rawErr.message);
-
-      const logs = (raw ?? []) as AuditEntry[];
-      const userIds = [...new Set(logs.map((l) => l.user_id).filter(Boolean))] as string[];
-
-      if (userIds.length === 0) return logs;
-
-      const { data: profilesData } = await supabase
-        .from('profiles')
-        .select('id, full_name, avatar_url')
-        .in('id', userIds);
-
-      const profilesMap = new Map(
-        (profilesData ?? []).map((p) => [p.id, { full_name: p.full_name, avatar_url: p.avatar_url }])
-      );
-
-      return logs.map((log) => ({
-        ...log,
-        profiles: log.user_id ? (profilesMap.get(log.user_id) ?? null) : null,
-      }));
+      if (error) throw new Error(error.message);
+      return ((data ?? []) as unknown as ActivityViewRow[]).map((row) => withActorProfile(row) as unknown as AuditEntry);
     },
   });
 }

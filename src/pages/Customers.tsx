@@ -24,6 +24,7 @@ import {
   type Customer,
 } from '@/hooks/useCustomers';
 import { useCountry } from '@/contexts/CountryContext';
+import { ROW_OPEN_CLASS, rowOpenProps } from '@/lib/rowOpen';
 
 /* ── Config ── */
 /** أدوار داخلية — تظهر في القائمة (فقد يشترون فعلاً) لكن مع وسم يميّزها. */
@@ -551,7 +552,12 @@ export default function Customers() {
                       const currency = customer.countries?.currency_symbol ?? currencySymbol ?? 'ج.م';
 
                       return (
-                        <tr key={customer.id} className="table-row">
+                        <tr
+                          key={customer.id}
+                          className={`table-row ${ROW_OPEN_CLASS}`}
+                          {...rowOpenProps(() => setSelectedCustomer(customer))}
+                          data-testid="customer-row"
+                        >
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-3">
                               {customer.avatar_url ? (

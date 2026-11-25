@@ -4,6 +4,7 @@ import ReportDownloadButton from '@/components/reports/ReportDownloadButton';
 import { WhatsAppButton } from '@/components/contact/ContactActions';
 import { printOrderInvoice } from '@/lib/invoiceActions';
 import { printInvoice } from '@/lib/invoice';
+import { ROW_OPEN_CLASS, rowOpenProps } from '@/lib/rowOpen';
 import { ORDERS_REPORT_GROUPS } from '@/lib/reports/reportColumns';
 import { buildOrdersReport } from '@/lib/reports/builders/orders';
 import { fmtDateOnlyIso } from '@/lib/reports/format';
@@ -430,9 +431,11 @@ function OrderDetailModal({ orderId, onClose }: DetailModalProps) {
         )}
 
         <div className="flex flex-wrap gap-2 px-6 py-4 border-t border-gray-100 bg-gray-50/50 rounded-b-3xl">
+          {/* the footer is drawn while the order is still loading: nothing here may read `order` until it is there */}
           <button
-            onClick={() => void printInvoice(order)}
-            className="btn-secondary flex items-center gap-1.5 text-sm"
+            onClick={() => order && void printInvoice(order)}
+            disabled={!order}
+            className="btn-secondary flex items-center gap-1.5 text-sm disabled:opacity-50"
             data-testid="order-print"
           >
             <Printer size={14} />
@@ -440,10 +443,10 @@ function OrderDetailModal({ orderId, onClose }: DetailModalProps) {
           </button>
 
           <WhatsAppButton
-            phone={order.shipping_address?.phone ?? order.profiles?.phone}
-            name={order.shipping_address?.name ?? order.profiles?.full_name}
-            countryName={order.countries?.name}
-            text={`مرحبًا، معاك دار الفتح بخصوص طلبك رقم ${order.id}.`}
+            phone={order?.shipping_address?.phone ?? order?.profiles?.phone}
+            name={order?.shipping_address?.name ?? order?.profiles?.full_name}
+            countryName={order?.countries?.name}
+            text={`مرحبًا، معاك دار الفتح بخصوص طلبك رقم ${order?.id ?? orderId}.`}
             variant="labeled"
             label="مراسلة على واتساب"
           />
@@ -487,6 +490,7 @@ export default function Orders() {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+
   const [showFilters, setShowFilters] = useState(false);
 
   /* ── Quick period helpers ── */
@@ -814,7 +818,12 @@ export default function Orders() {
                         .join(' — ');
 
                       return (
-                        <tr key={order.id} className="table-row">
+                        <tr
+                          key={order.id}
+                          className={`table-row ${ROW_OPEN_CLASS}`}
+                          {...rowOpenProps(() => setSelectedOrderId(order.id))}
+                          data-testid="order-row"
+                        >
                           <td className="px-4 py-3">
                             <span className="text-sm font-bold text-blue-700 font-mono">{order.id}</span>
                           </td>

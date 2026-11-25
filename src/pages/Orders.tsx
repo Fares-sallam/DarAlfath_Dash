@@ -1,12 +1,15 @@
 import { useState } from 'react';
 import Layout from '@/components/layout/Layout';
 import ReportDownloadButton from '@/components/reports/ReportDownloadButton';
+import { WhatsAppButton } from '@/components/contact/ContactActions';
+import { printOrderInvoice } from '@/lib/invoiceActions';
+import { printInvoice } from '@/lib/invoice';
 import { ORDERS_REPORT_GROUPS } from '@/lib/reports/reportColumns';
 import { buildOrdersReport } from '@/lib/reports/builders/orders';
 import { fmtDateOnlyIso } from '@/lib/reports/format';
 import type { ReportOrder } from '@/lib/reports/data';
 import {
-  Search, Eye, Printer, MessageCircle, Truck, X,
+  Search, Eye, Printer, Truck, X,
   Package, MapPin, CreditCard, Calendar, ChevronDown, Loader2,
   AlertCircle, RefreshCw, BookOpen, Phone, Hash, Check,
   ChevronUp, User, FileText, DollarSign, Scale
@@ -166,13 +169,13 @@ function OrderDetailModal({ orderId, onClose }: DetailModalProps) {
                 )}
               </div>
 
-              <button
-                onClick={() => toast.info(`إرسال واتساب لـ ${customerName}`)}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-green-100 text-green-700 rounded-xl text-xs font-semibold hover:bg-green-200 transition-colors flex-shrink-0"
-              >
-                <MessageCircle size={13} />
-                واتساب
-              </button>
+              <WhatsAppButton
+                phone={order.shipping_address?.phone ?? order.profiles?.phone}
+                name={customerName}
+                countryName={order.countries?.name}
+                text={`مرحبًا ${customerName}، معاك دار الفتح بخصوص طلبك رقم ${order.id}.`}
+                variant="pill"
+              />
             </div>
 
             <div>
@@ -428,12 +431,22 @@ function OrderDetailModal({ orderId, onClose }: DetailModalProps) {
 
         <div className="flex flex-wrap gap-2 px-6 py-4 border-t border-gray-100 bg-gray-50/50 rounded-b-3xl">
           <button
-            onClick={() => toast.success('تم إرسال طلب الطباعة')}
+            onClick={() => void printInvoice(order)}
             className="btn-secondary flex items-center gap-1.5 text-sm"
+            data-testid="order-print"
           >
             <Printer size={14} />
             طباعة الفاتورة
           </button>
+
+          <WhatsAppButton
+            phone={order.shipping_address?.phone ?? order.profiles?.phone}
+            name={order.shipping_address?.name ?? order.profiles?.full_name}
+            countryName={order.countries?.name}
+            text={`مرحبًا، معاك دار الفتح بخصوص طلبك رقم ${order.id}.`}
+            variant="labeled"
+            label="مراسلة على واتساب"
+          />
 
           <button
             onClick={() => toast.info('إنشاء بوليصة الشحن')}
@@ -936,18 +949,19 @@ export default function Orders() {
                                 <Eye size={14} />
                               </button>
 
-                              <button
-                                onClick={() => toast.info(`إرسال واتساب لـ ${customerName}`)}
-                                className="p-1.5 rounded-lg hover:bg-green-50 text-green-600"
-                                title="واتساب"
-                              >
-                                <MessageCircle size={14} />
-                              </button>
+                              <WhatsAppButton
+                                phone={order.shipping_address?.phone ?? order.profiles?.phone}
+                                name={customerName}
+                                countryName={order.countries?.name}
+                                text={`مرحبًا ${customerName}، معاك دار الفتح بخصوص طلبك رقم ${order.id}.`}
+                              />
 
                               <button
-                                onClick={() => toast.success('جارٍ إعداد الفاتورة...')}
+                                onClick={() => void printOrderInvoice(order.id)}
                                 className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500"
                                 title="طباعة الفاتورة"
+                                aria-label={`طباعة فاتورة الطلب ${order.id}`}
+                                data-testid="order-row-print"
                               >
                                 <Printer size={14} />
                               </button>

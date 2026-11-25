@@ -40,6 +40,7 @@ export interface OrderItem {
 export interface ShippingAddress {
   name?: string;
   phone?: string;
+  email?: string;
   governorate?: string;
   city?: string;
   country?: string;
@@ -197,6 +198,50 @@ export function useOrders(filters: OrderFilters = {}) {
   });
 }
 
+/** One order with everything an invoice or the order window shows: customer, address, payment, shipping, and each line with its book and edition. */
+export const ORDER_DETAIL_SELECT = `
+          id,
+          user_id,
+          country_id,
+          status,
+          total_price,
+          shipping_cost,
+          discount_amount,
+          coupon_id,
+          payment_method_id,
+          payment_status,
+          shipping_company_id,
+          tracking_number,
+          shipping_address,
+          notes,
+          created_at,
+          updated_at,
+          profiles(id, full_name, phone, avatar_url),
+          countries(name, currency_symbol),
+          coupons(code),
+          payment_methods(method_name, provider),
+          shipping_companies(company_name, logo_url),
+          order_items(
+            id,
+            product_id,
+            variant_id,
+            quantity,
+            price_per_item,
+            discount_per_item,
+            is_digital,
+            products(id, title, author, cover_url, type),
+            product_variants(id, variant_name, weight_kg),
+            order_item_components(quantity, title, variant_name)
+          )
+`;
+
+/** The same order, read once (not tied to the selected country): what printing an invoice needs. */
+export async function fetchOrderForInvoice(orderId: string): Promise<Order | null> {
+  const { data, error } = await supabase.from('orders').select(ORDER_DETAIL_SELECT).eq('id', orderId).maybeSingle();
+  if (error) throw error;
+  return (data ?? null) as unknown as Order | null;
+}
+
 /* ── Fetch single order with items (country-aware) ── */
 export function useOrderDetail(orderId: string | null) {
   const { selectedCountry } = useCountry();
@@ -235,41 +280,7 @@ export function useOrderDetail(orderId: string | null) {
     queryFn: async (): Promise<Order | null> => {
       let query = supabase
         .from('orders')
-        .select(`
-          id,
-          user_id,
-          country_id,
-          status,
-          total_price,
-          shipping_cost,
-          discount_amount,
-          coupon_id,
-          payment_method_id,
-          payment_status,
-          shipping_company_id,
-          tracking_number,
-          shipping_address,
-          notes,
-          created_at,
-          updated_at,
-          profiles(id, full_name, phone, avatar_url),
-          countries(name, currency_symbol),
-          coupons(code),
-          payment_methods(method_name, provider),
-          shipping_companies(company_name, logo_url),
-          order_items(
-            id,
-            product_id,
-            variant_id,
-            quantity,
-            price_per_item,
-            discount_per_item,
-            is_digital,
-            products(id, title, author, cover_url, type),
-            product_variants(id, variant_name, weight_kg),
-            order_item_components(quantity, title, variant_name)
-          )
-        `)
+        .select(ORDER_DETAIL_SELECT)
         .eq('id', orderId!);
 
       if (selectedCountry?.id) {

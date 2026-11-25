@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import Layout from '@/components/layout/Layout';
 import ReportDownloadButton from '@/components/reports/ReportDownloadButton';
+import { CustomerInvoiceButton, PhoneActions, WhatsAppButton } from '@/components/contact/ContactActions';
 import { CUSTOMERS_REPORT_GROUPS } from '@/lib/reports/reportColumns';
 import { buildCustomersReport } from '@/lib/reports/builders/customers';
 import {
@@ -11,7 +12,7 @@ import {
   type CustomerStatCard,
 } from '@/lib/listFilters';
 import {
-  Search, Ban, Eye, X, ShoppingBag, MessageCircle, Tag, Phone,
+  Search, Ban, Eye, X, ShoppingBag, Phone,
   Mail, MapPin, Calendar, DollarSign, Users, UserCheck, UserX,
   TrendingUp, Loader2, AlertCircle, RefreshCw, Edit, Check,
   BookOpen, Package, Globe2
@@ -184,9 +185,9 @@ function CustomerProfileModal({ customer, onClose }: ProfileModalProps) {
                       </span>
                     )}
                     {customer.phone && (
-                      <span className="flex items-center gap-1.5" dir="ltr">
+                      <span className="flex items-center gap-1.5">
                         <Phone size={12} className="flex-shrink-0" />
-                        {customer.phone}
+                        <PhoneActions phone={customer.phone} name={customer.full_name} countryName={customer.countries?.name} />
                       </span>
                     )}
                     {customer.countries && (
@@ -302,21 +303,16 @@ function CustomerProfileModal({ customer, onClose }: ProfileModalProps) {
             </button>
           )}
 
-          <button
-            onClick={() => toast.info(`إرسال رسالة لـ ${customer.full_name}`)}
-            className="btn-secondary flex items-center gap-1.5 text-sm"
-          >
-            <MessageCircle size={13} />
-            إرسال رسالة
-          </button>
+          <WhatsAppButton
+            phone={customer.phone}
+            name={customer.full_name}
+            countryName={customer.countries?.name}
+            text={customer.full_name ? `مرحبًا ${customer.full_name}، معاك دار الفتح للنشر والتوزيع.` : 'مرحبًا، معاك دار الفتح للنشر والتوزيع.'}
+            variant="labeled"
+            label="مراسلة على واتساب"
+          />
 
-          <button
-            onClick={() => toast.info(`كوبون خاص لـ ${customer.full_name}`)}
-            className="btn-secondary flex items-center gap-1.5 text-sm"
-          >
-            <Tag size={13} />
-            كوبون خاص
-          </button>
+          <CustomerInvoiceButton orderIds={customer.orderIds} name={customer.full_name} variant="labeled" />
 
           {!customer.isGuest && (
             <button
@@ -603,7 +599,7 @@ export default function Customers() {
                             {customer.phone ? (
                               <span className="text-sm text-gray-600 flex items-center gap-1.5">
                                 <Phone size={12} className="text-gray-400 flex-shrink-0" />
-                                <span dir="ltr">{customer.phone}</span>
+                                <PhoneActions phone={customer.phone} name={customer.full_name} countryName={customer.countries?.name} />
                               </span>
                             ) : (
                               <span className="text-sm text-gray-300">—</span>
@@ -663,21 +659,14 @@ export default function Customers() {
                                 <Eye size={14} />
                               </button>
 
-                              <button
-                                onClick={() => toast.info(`رسالة لـ ${customer.full_name}`)}
-                                className="p-1.5 rounded-lg hover:bg-green-50 text-green-600"
-                                title="رسالة"
-                              >
-                                <MessageCircle size={14} />
-                              </button>
+                              <WhatsAppButton
+                                phone={customer.phone}
+                                name={customer.full_name}
+                                countryName={customer.countries?.name}
+                                text={customer.full_name ? `مرحبًا ${customer.full_name}، معاك دار الفتح للنشر والتوزيع.` : 'مرحبًا، معاك دار الفتح للنشر والتوزيع.'}
+                              />
 
-                              <button
-                                onClick={() => toast.info(`كوبون خاص لـ ${customer.full_name}`)}
-                                className="p-1.5 rounded-lg hover:bg-purple-50 text-purple-600"
-                                title="كوبون خاص"
-                              >
-                                <Tag size={14} />
-                              </button>
+                              <CustomerInvoiceButton orderIds={customer.orderIds} name={customer.full_name} />
 
                               <button
                                 onClick={() =>
